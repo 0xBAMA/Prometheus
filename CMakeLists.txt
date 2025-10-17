@@ -18,8 +18,8 @@ add_subdirectory( third_party )
 set ( CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin" )
 set ( CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin" )
 
-# Include project.
-add_subdirectory ( Prometheus )
+# Include project
+add_subdirectory ( src )
 
 # shader compilation
 # find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)
