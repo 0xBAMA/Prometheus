@@ -64,7 +64,7 @@ private:
 	// init helpers
 	void initVulkan ();
 	void initSwapchain ();
-	void initCommands ();
+	void initCommandStructures ();
 	void initSyncStructures ();
 
 	// swapchain helpers

@@ -31,7 +31,7 @@ void PrometheusInstance::Init () {
 
 	initVulkan();
 	initSwapchain();
-	initCommands();
+	initCommandStructures();
 	initSyncStructures();
 
 	// everything went fine
@@ -235,7 +235,7 @@ void PrometheusInstance::initSwapchain () {
 	createSwapchain( windowExtent.width, windowExtent.height );
 }
 
-void PrometheusInstance::initCommands () {
+void PrometheusInstance::initCommandStructures () {
 	VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info( graphicsQueueFamilyIndex, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 	for ( int i = 0; i < FRAME_OVERLAP; i++ ) {
 		// create a command pool allocator
