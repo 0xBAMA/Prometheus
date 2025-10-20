@@ -6,6 +6,24 @@
 
 #include <vk_types.h>
 
+struct DeletionQueue {
+	std::deque< std::function< void() > > deletors;
+
+	// called when we add new Vulkan objects
+	void push_function( std::function< void() >&& function ) {
+		deletors.push_back( function );
+	}
+
+	// called during Cleanup()
+	void flush() {
+		// reverse iterate the deletion queue to execute all the functions
+		for ( auto it = deletors.rbegin(); it != deletors.rend(); it++ ) {
+			( *it )(); //call functors
+		}
+		deletors.clear();
+	}
+};
+
 struct frameData_t {
 	// frame sync primitives
 	VkSemaphore swapchainSemaphore;
@@ -15,6 +33,9 @@ struct frameData_t {
 	// command buffer + allocator
 	VkCommandPool commandPool;
 	VkCommandBuffer mainCommandBuffer;
+
+	// handling frame-local resources
+	DeletionQueue deletionQueue;
 };
 
 constexpr unsigned int FRAME_OVERLAP = 2;
@@ -51,6 +72,9 @@ public:
 	VkFormat swapchainImageFormat;
 	std::vector< VkImage > swapchainImages;
 	std::vector< VkImageView > swapchainImageViews;
+
+	// deletion queue automatically managing global resources
+	DeletionQueue mainDeletionQueue;
 
 	struct SDL_Window* window{ nullptr };
 	static PrometheusInstance& Get ();

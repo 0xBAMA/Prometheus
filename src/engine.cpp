@@ -43,8 +43,13 @@ void PrometheusInstance::Init () {
 //============================================================================================================================
 void PrometheusInstance::Draw () {
 	// wait until the gpu has finished rendering the last frame. Timeout of 1 second
-	VK_CHECK( vkWaitForFences( device, 1, &getCurrentFrame().renderFence, true, 1000000000));
-	VK_CHECK( vkResetFences( device, 1, &getCurrentFrame().renderFence));
+	VK_CHECK( vkWaitForFences( device, 1, &getCurrentFrame().renderFence, true, 1000000000 ) );
+
+	// we want to take this opportunity to now reset the deletion queue, since this fence marks the completion
+	getCurrentFrame().deletionQueue.flush(); // of all operations which could be using the data...
+
+	// and now reset that fence so we can use it again, to signal this frame's completion
+	VK_CHECK( vkResetFences( device, 1, &getCurrentFrame().renderFence ) );
 
 	//request image from the swapchain
 	uint32_t swapchainImageIndex;
@@ -164,7 +169,13 @@ void PrometheusInstance::ShutDown () {
 			vkDestroyFence( device, frameData[ i ].renderFence, nullptr );
 			vkDestroySemaphore( device, frameData[ i ].renderSemaphore, nullptr );
 			vkDestroySemaphore( device, frameData[ i ].swapchainSemaphore, nullptr );
+
+			// delete any remaining per-frame resources...
+			frameData[ i ].deletionQueue.flush();
 		}
+
+		// destroy any remaining global resources
+		mainDeletionQueue.flush();
 
 		// destroy remaining resources
 		destroySwapchain();
