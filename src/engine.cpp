@@ -251,6 +251,39 @@ void PrometheusInstance::initVulkan () {
 	device = vkbDevice.device;
 	physicalDevice = physicalDeviceSelect.physical_device;
 
+	{
+		// reporting some platform info
+		VkPhysicalDeviceProperties temp;
+		vkGetPhysicalDeviceProperties( vkbDevice.physical_device, &temp );
+
+		std::string GPUType;
+		switch ( temp.deviceType ) {
+			case VK_PHYSICAL_DEVICE_TYPE_OTHER: GPUType = "Other GPU"; break;
+			case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: GPUType = "Integrated GPU"; break;
+			case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: GPUType = "Discrete GPU"; break;
+			case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: GPUType = "Virtual GPU"; break;
+			case VK_PHYSICAL_DEVICE_TYPE_CPU: GPUType = "CPU as GPU"; break;
+			default: GPUType = "Unknown"; break;
+		}
+		fmt::print( "Running on {} ({})", temp.deviceName, GPUType );
+		fmt::print( "\n\nDevice Limits:\n" );
+		// fmt::print( "{}\n" );
+		// fmt::print( "{}\n" );
+		fmt::print( "Max Push Constant Size: {}\n", temp.limits.maxPushConstantsSize );
+		fmt::print( "Max Compute Workgroup Size: {}x {}y {}z\n", temp.limits.maxComputeWorkGroupSize[ 0 ], temp.limits.maxComputeWorkGroupSize[ 1 ], temp.limits.maxComputeWorkGroupSize[ 2 ] );
+		fmt::print( "Max Compute Workgroup Invocations (single workgroup): {}\n", temp.limits.maxComputeWorkGroupInvocations );
+		fmt::print( "Max Compute Workgroup Count: {}x {}y {}z\n", temp.limits.maxComputeWorkGroupCount[ 0 ], temp.limits.maxComputeWorkGroupCount[ 1 ], temp.limits.maxComputeWorkGroupCount[ 2 ] );
+		fmt::print( "Max Compute Shared Memory Size: {}\n\n", temp.limits.maxComputeSharedMemorySize );
+		fmt::print( "Max Storage Buffer Range: {}\n", temp.limits.maxStorageBufferRange );
+		fmt::print( "Max Framebuffer Width: {}\n", temp.limits.maxFramebufferWidth );
+		fmt::print( "Max Framebuffer Height: {}\n", temp.limits.maxFramebufferHeight );
+		fmt::print( "Max Image Dimension(1D): {}\n", temp.limits.maxImageDimension1D );
+		fmt::print( "Max Image Dimension(2D): {}\n", temp.limits.maxImageDimension2D );
+		fmt::print( "Max Image Dimension(3D): {}\n", temp.limits.maxImageDimension3D );
+		fmt::print( "\n\n" );
+	}
+
+
 	// use vkbootstrap to get a Graphics queue
 	graphicsQueue = vkbDevice.get_queue( vkb::QueueType::graphics ).value();
 	graphicsQueueFamilyIndex = vkbDevice.get_queue_index( vkb::QueueType::graphics ).value();
