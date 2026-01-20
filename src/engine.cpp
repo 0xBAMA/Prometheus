@@ -18,6 +18,7 @@
 #include "third_party/imgui/imgui.h"
 #include "third_party/imgui/imgui_impl_sdl2.h"
 #include "third_party/imgui/imgui_impl_vulkan.h"
+
 //============================================================================================================================
 //============================================================================================================================
 // Initialization
@@ -41,6 +42,7 @@ void PrometheusInstance::Init () {
 	initSyncStructures();
 	initDescriptors();
 	initPipelines();
+	initImgui();
 
 	// everything went fine
 	isInitialized = true;
@@ -97,8 +99,14 @@ void PrometheusInstance::Draw () {
 	// execute a copy from the draw image into the swapchain
 	vkutil::copy_image_to_image( cmd, drawImage.image, swapchainImages[ swapchainImageIndex ], drawExtent, swapchainExtent );
 
+	// set swapchain image layout to Attachment Optimal so we can draw it
+	vkutil::transition_image( cmd, swapchainImages[ swapchainImageIndex ], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL );
+
+	//draw imgui into the swapchain image
+	drawImgui( cmd, swapchainImageViews[ swapchainImageIndex ] );
+
 	// transition the image from layout general to ready-for-swapchain-handoff
-	vkutil::transition_image( cmd, swapchainImages[ swapchainImageIndex ], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR );
+	vkutil::transition_image( cmd, swapchainImages[ swapchainImageIndex ], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR );
 
 	// Kill recording, and put it in "executable" state
 	VK_CHECK( vkEndCommandBuffer( cmd ) );
@@ -155,6 +163,9 @@ void PrometheusInstance::MainLoop () {
 					stopRendering = false;
 				}
 			}
+
+			//send SDL event to imgui for handling
+			ImGui_ImplSDL2_ProcessEvent( &e );
 		}
 
 		// handling minimized application
@@ -162,6 +173,17 @@ void PrometheusInstance::MainLoop () {
 			// throttle the speed to avoid busy loop
 			std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
 		} else {
+			// imgui new frame
+			ImGui_ImplVulkan_NewFrame();
+			ImGui_ImplSDL2_NewFrame();
+			ImGui::NewFrame();
+
+			//some imgui UI to test
+			ImGui::ShowDemoWindow();
+
+			//make imgui calculate internal draw structures
+			ImGui::Render();
+
 			// we're ready to draw the next frame
 			Draw();
 		}
@@ -318,6 +340,15 @@ void PrometheusInstance::initCommandStructures () {
 		VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info( frameData[ i ].commandPool, 1 );
 		VK_CHECK( vkAllocateCommandBuffers( device, &cmdAllocInfo, &frameData[ i ].mainCommandBuffer ) );
 	}
+	VK_CHECK( vkCreateCommandPool( device, &commandPoolInfo, nullptr, &immediateCommandPool ) );
+
+	// allocating the command buffer for immediate submits
+	VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info( immediateCommandPool, 1 );
+	VK_CHECK( vkAllocateCommandBuffers( device, &cmdAllocInfo, &immediateCommandBuffer ) );
+
+	mainDeletionQueue.push_function( [ = ] ()  {
+		vkDestroyCommandPool( device, immediateCommandPool, nullptr );
+	});
 }
 
 void PrometheusInstance::initSyncStructures () {
@@ -330,6 +361,9 @@ void PrometheusInstance::initSyncStructures () {
 		VK_CHECK( vkCreateSemaphore( device, &semaphoreCreateInfo, nullptr, &frameData[ i ].swapchainSemaphore ) );
 		VK_CHECK( vkCreateSemaphore( device, &semaphoreCreateInfo, nullptr, &frameData[ i ].renderSemaphore ) );
 	}
+
+	VK_CHECK( vkCreateFence( device, &fenceCreateInfo, nullptr, &immediateFence ) );
+	mainDeletionQueue.push_function( [ = ] ()  { vkDestroyFence( device, immediateFence, nullptr ); });
 }
 
 void PrometheusInstance::initDescriptors  () {
@@ -410,6 +444,69 @@ void PrometheusInstance::initBackgroundPipelines () {
 		vkDestroyPipeline( device, gradientPipeline, nullptr );
 	});
 }
+
+void PrometheusInstance::initImgui () {
+	// 1: create descriptor pool for IMGUI
+	//  the size of the pool is very oversize, but it's copied from imgui demo
+	//  itself.
+	VkDescriptorPoolSize pool_sizes[] = { { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+		{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 } };
+
+	VkDescriptorPoolCreateInfo pool_info = {};
+	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+	pool_info.maxSets = 1000;
+	pool_info.poolSizeCount = ( uint32_t ) std::size(pool_sizes);
+	pool_info.pPoolSizes = pool_sizes;
+
+	VkDescriptorPool imguiPool;
+	VK_CHECK( vkCreateDescriptorPool( device, &pool_info, nullptr, &imguiPool ) );
+
+	// 2: initialize imgui library
+	// this initializes the core structures of imgui
+	ImGui::CreateContext();
+
+	// this initializes imgui for SDL
+	ImGui_ImplSDL2_InitForVulkan( window );
+
+	// this initializes imgui for Vulkan
+	ImGui_ImplVulkan_InitInfo init_info = {};
+	init_info.Instance = instance;
+	init_info.PhysicalDevice = physicalDevice;
+	init_info.Device = device;
+	init_info.Queue = graphicsQueue;
+	init_info.DescriptorPool = imguiPool;
+	init_info.MinImageCount = 3;
+	init_info.ImageCount = 3;
+	init_info.UseDynamicRendering = true;
+
+	//dynamic rendering parameters for imgui to use
+	init_info.PipelineRenderingCreateInfo = {.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+	init_info.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+	init_info.PipelineRenderingCreateInfo.pColorAttachmentFormats = &swapchainImageFormat;
+
+
+	init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+	ImGui_ImplVulkan_Init( &init_info );
+	ImGui_ImplVulkan_CreateFontsTexture();
+
+	// add the destroy the imgui created structures
+	mainDeletionQueue.push_function( [ = ] ()  {
+		ImGui_ImplVulkan_Shutdown();
+		vkDestroyDescriptorPool( device, imguiPool, nullptr );
+	});
+}
+
 //===========================================================================================================================
 // swapchain helpers
 //===========================================================================================================================
@@ -436,6 +533,8 @@ void PrometheusInstance::createSwapchain ( uint32_t w, uint32_t h ) {
 	VkExtent3D drawImageExtent = {
 		windowExtent.width,
 		windowExtent.height,
+		// 4,
+		// 4,
 		1
 	};
 
@@ -477,4 +576,33 @@ void PrometheusInstance::destroySwapchain () {
 		// we are only destroying the imageViews, the images are owned by the OS
 		vkDestroyImageView( device, swapchainImageViews[ i ], nullptr );
 	}
+}
+
+void PrometheusInstance::immediate_submit( std::function< void( VkCommandBuffer cmd ) > && function ) {
+	VK_CHECK( vkResetFences( device, 1, &immediateFence ) );
+	VK_CHECK( vkResetCommandBuffer( immediateCommandBuffer, 0 ) );
+
+	VkCommandBuffer cmd = immediateCommandBuffer;
+	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info( VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT );
+
+	VK_CHECK( vkBeginCommandBuffer( cmd, &cmdBeginInfo ) );
+	function( cmd );
+	VK_CHECK( vkEndCommandBuffer( cmd ) );
+
+	VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info( cmd );
+	VkSubmitInfo2 submit = vkinit::submit_info( &cmdinfo, nullptr, nullptr );
+
+	// submit command buffer to the queue and execute it.
+	//  _renderFence will now block until the graphic commands finish execution
+	VK_CHECK( vkQueueSubmit2( graphicsQueue, 1, &submit, immediateFence ) );
+	VK_CHECK( vkWaitForFences( device, 1, &immediateFence, true, 9999999999 ) );
+}
+
+void PrometheusInstance::drawImgui ( VkCommandBuffer cmd, VkImageView targetImageView ) {
+	VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info( targetImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL );
+	VkRenderingInfo renderInfo = vkinit::rendering_info( swapchainExtent, &colorAttachment, nullptr );
+
+	vkCmdBeginRendering( cmd, &renderInfo );
+	ImGui_ImplVulkan_RenderDrawData( ImGui::GetDrawData(), cmd );
+	vkCmdEndRendering( cmd );
 }

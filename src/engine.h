@@ -65,6 +65,11 @@ public:
 	frameData_t frameData[ FRAME_OVERLAP ];
 	frameData_t& getCurrentFrame () { return frameData[ frameNumber % FRAME_OVERLAP ]; }
 
+	VkFence immediateFence;
+	VkCommandBuffer immediateCommandBuffer;
+	VkCommandPool immediateCommandPool;
+	void immediate_submit( std::function< void( VkCommandBuffer cmd ) > && function );
+
 	DescriptorAllocator globalDescriptorAllocator;
 
 	VkDescriptorSet drawImageDescriptors;
@@ -110,6 +115,10 @@ private:
 	void initDescriptors ();
 	void initPipelines ();
 	void initBackgroundPipelines ();
+	void initImgui ();
+
+	// main loop helpers
+	void drawImgui ( VkCommandBuffer cmd, VkImageView targetImageView );
 
 	// swapchain helpers
 	void createSwapchain ( uint32_t w, uint32_t h );
