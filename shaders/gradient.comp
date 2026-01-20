@@ -6,23 +6,46 @@ layout ( local_size_x = 16, local_size_y = 16 ) in;
 //descriptor bindings for the pipeline
 layout ( rgba16f, set = 0, binding = 0 ) uniform image2D image;
 
-
+// from https://www.shadertoy.com/view/tttfRS
+vec3 barycentric ( vec3 A, vec3 B, vec3 C, vec3 P, vec3 normal ) {
+	float area = dot( cross( B - A, C - A ), normal );
+	//if( abs( area ) < 0.0001f ) return vec3( 0.0f );
+	vec3 u = A - P;
+	vec3 v = B - P;
+	vec3 w = C - P;
+	vec3 asub = vec3(
+	dot( cross( v, w ), normal ),
+	dot( cross( w, u ), normal ),
+	dot( cross( u, v ), normal ) );
+	return abs( asub ) / abs( area );
+}
+//---------------------------------------------------------
+vec3 rotate ( in vec3 v, float angle ) {
+	float c = cos( angle ), s = sin( angle );
+	return vec3( v.x * c + v.y * s, v.y * c - v.x * s, v.z );
+}
+//---------------------------------------------------------
+vec3 getColor ( float t, vec2 p, ivec2 size ) {
+	vec3 A = rotate(vec3( 0.4f * sin( t ), 0.5f, 0.0f ), t );
+	vec3 B = rotate(vec3( 0.5f, -0.2f, 0.0f ), t );
+	vec3 C = rotate(vec3( -0.5f, -0.4f, 0.0f ), t );
+	const vec3 normal = vec3( 0.0f, 0.0f, 1.0f );
+	vec3 color = barycentric( A, B, C, vec3( p, 0.0f ), normal );
+	float sum = color.x + color.y + color.z;
+	float s = 10.0f / size.y;
+	return mix ( vec3( 0.0f ), 2.0f * color.xyz, smoothstep( 1.0f + s, 1.0f - s, sum ) );
+}
+//---------------------------------------------------------
 void main () {
 	ivec2 texelCoord = ivec2( gl_GlobalInvocationID.xy );
 	ivec2 size = imageSize( image );
 
-	if ( texelCoord.x < size.x && texelCoord.y < size.y ) {
-		vec4 color = vec4( 0.0f, 0.0f, 0.0f, 1.0f );
+	vec4 colorPrev = imageLoad( image, texelCoord );
 
-		/*
-		if ( gl_LocalInvocationID.x != 0 && gl_LocalInvocationID.y != 0 ) {
-			color.x = float( texelCoord.x ) / ( size.x );
-			color.y = float( texelCoord.y ) / ( size.y );
-		}
-		*/
+	float t = colorPrev.a * 0.01f;
+	vec4 color = vec4( getColor( t, ( 2.0f * texelCoord - size.xy ) / size.xy, size ), 1.0f );
 
-		color.xyz = vec3( ( int( texelCoord.x ) ^ int( texelCoord.y ) ) / 512.0f );
-
-		imageStore( image, texelCoord, color );
-	}
+//	color += colorPrev;
+	color.a = colorPrev.a + 1;
+	imageStore( image, texelCoord, color );
 }
