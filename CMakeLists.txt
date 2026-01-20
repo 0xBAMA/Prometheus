@@ -11,9 +11,6 @@ find_package( Vulkan REQUIRED )
 # vulkan helpers
 add_subdirectory( shared )
 
-# other utilities
-add_subdirectory( third_party )
-
 # where to write the executables
 set ( CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin" )
 set ( CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin" )

@@ -15,6 +15,9 @@
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
+#include "third_party/imgui/imgui.h"
+#include "third_party/imgui/imgui_impl_sdl2.h"
+#include "third_party/imgui/imgui_impl_vulkan.h"
 //============================================================================================================================
 //============================================================================================================================
 // Initialization
