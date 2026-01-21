@@ -47,6 +47,16 @@ struct ComputePushConstants {
 	glm::vec4 data4;
 };
 
+struct ComputeEffect {
+	const char* name;
+
+	VkPipeline pipeline;
+	VkPipelineLayout layout;
+
+	ComputePushConstants data;
+};
+
+
 constexpr unsigned int FRAME_OVERLAP = 2;
 constexpr bool useValidationLayers = true;
 
@@ -57,8 +67,8 @@ public:
 	bool stopRendering { false };
 	int frameNumber { 0 };
 
-	// retained state for push constants
-	ComputePushConstants pc;
+	// also contains retained state for push constants
+	std::vector< ComputeEffect > computeEffects;
 
 	// basic Vulkan necessities, environmental handles
 	VkInstance instance;						// Vulkan library handle
@@ -84,9 +94,6 @@ public:
 
 	VkDescriptorSet drawImageDescriptors;
 	VkDescriptorSetLayout drawImageDescriptorLayout;
-
-	VkPipeline gradientPipeline;
-	VkPipelineLayout gradientPipelineLayout;
 
 	// the queue that we submit work to
 	VkQueue graphicsQueue;

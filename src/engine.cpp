@@ -83,14 +83,17 @@ void PrometheusInstance::Draw () {
 	// put the draw image in a general layout
 	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
+	// the gradient draw
+	ComputeEffect& effect = computeEffects[ 0 ];
+
 	// bind the gradient drawing compute pipeline
-	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, gradientPipeline );
+	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline );
 
 	// bind the descriptor set containing the draw image for the compute pipeline
-	vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE,  gradientPipelineLayout, 0, 1, &drawImageDescriptors, 0, nullptr );
+	vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE,  effect.layout, 0, 1, &drawImageDescriptors, 0, nullptr );
 
 	// pushing the new values of the push constants (mirrors uniform usage)
-	vkCmdPushConstants( cmd, gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( ComputePushConstants ), &pc );
+	vkCmdPushConstants( cmd, effect.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( ComputePushConstants ), &effect.data );
 
 	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
 	vkCmdDispatch( cmd, std::ceil( drawExtent.width / 16.0f ), std::ceil( drawExtent.height / 16.0f ), 1 );
@@ -427,7 +430,8 @@ void PrometheusInstance::initBackgroundPipelines () {
 	computeLayout.pPushConstantRanges = &pushConstant;
 	computeLayout.pushConstantRangeCount = 1;
 
-	VK_CHECK( vkCreatePipelineLayout( device, &computeLayout, nullptr, &gradientPipelineLayout ) );
+	ComputeEffect gradient;
+	VK_CHECK( vkCreatePipelineLayout( device, &computeLayout, nullptr, &gradient.layout ) );
 
 	VkShaderModule computeDrawShader;
 	if ( !vkutil::load_shader_module("../shaders/gradient.comp.spv", device, &computeDrawShader ) ) {
@@ -444,15 +448,28 @@ void PrometheusInstance::initBackgroundPipelines () {
 	VkComputePipelineCreateInfo computePipelineCreateInfo{};
 	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 	computePipelineCreateInfo.pNext = nullptr;
-	computePipelineCreateInfo.layout = gradientPipelineLayout;
+	computePipelineCreateInfo.layout = gradient.layout;
 	computePipelineCreateInfo.stage = stageinfo;
-	VK_CHECK( vkCreateComputePipelines( device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &gradientPipeline ) );
 
+	gradient.layout = gradient.layout;
+	gradient.name = "gradient";
+	gradient.data = {};
+
+	//default colors
+	gradient.data.data1 = glm::vec4( 1.0f, 0.0f, 0.0f, 1.0f );
+	gradient.data.data2 = glm::vec4( 0.0f, 0.0f, 1.0f, 1.0f );
+
+	// create the pipeline
+	VK_CHECK( vkCreateComputePipelines( device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &gradient.pipeline ) );
 	vkDestroyShaderModule( device, computeDrawShader, nullptr );
 
+	// add it to the list:
+	computeEffects.push_back( gradient );
+
+	// deletors for the pipeline layout + pipeline
 	mainDeletionQueue.push_function( [ & ] () {
-		vkDestroyPipelineLayout( device, gradientPipelineLayout, nullptr );
-		vkDestroyPipeline( device, gradientPipeline, nullptr );
+		vkDestroyPipelineLayout( device, gradient.layout, nullptr );
+		vkDestroyPipeline( device, gradient.pipeline, nullptr );
 	});
 }
 
