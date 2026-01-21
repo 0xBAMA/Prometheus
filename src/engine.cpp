@@ -89,6 +89,9 @@ void PrometheusInstance::Draw () {
 	// bind the descriptor set containing the draw image for the compute pipeline
 	vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE,  gradientPipelineLayout, 0, 1, &drawImageDescriptors, 0, nullptr );
 
+	// pushing the new values of the push constants (mirrors uniform usage)
+	vkCmdPushConstants( cmd, gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( ComputePushConstants ), &pc );
+
 	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
 	vkCmdDispatch( cmd, std::ceil( drawExtent.width / 16.0f ), std::ceil( drawExtent.height / 16.0f ), 1 );
 
@@ -416,6 +419,14 @@ void PrometheusInstance::initBackgroundPipelines () {
 	computeLayout.pSetLayouts = &drawImageDescriptorLayout;
 	computeLayout.setLayoutCount = 1;
 
+	VkPushConstantRange pushConstant{};
+	pushConstant.offset = 0;
+	pushConstant.size = sizeof( ComputePushConstants ) ;
+	pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+	computeLayout.pPushConstantRanges = &pushConstant;
+	computeLayout.pushConstantRangeCount = 1;
+
 	VK_CHECK( vkCreatePipelineLayout( device, &computeLayout, nullptr, &gradientPipelineLayout ) );
 
 	VkShaderModule computeDrawShader;
@@ -533,8 +544,8 @@ void PrometheusInstance::createSwapchain ( uint32_t w, uint32_t h ) {
 	VkExtent3D drawImageExtent = {
 		windowExtent.width,
 		windowExtent.height,
-		// 4,
-		// 4,
+		// 64,
+		// 64,
 		1
 	};
 

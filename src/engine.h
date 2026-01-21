@@ -40,6 +40,13 @@ struct frameData_t {
 	DeletionQueue deletionQueue;
 };
 
+struct ComputePushConstants {
+	glm::vec4 data1;
+	glm::vec4 data2;
+	glm::vec4 data3;
+	glm::vec4 data4;
+};
+
 constexpr unsigned int FRAME_OVERLAP = 2;
 constexpr bool useValidationLayers = true;
 
@@ -49,6 +56,9 @@ public:
 	bool isInitialized { false };
 	bool stopRendering { false };
 	int frameNumber { 0 };
+
+	// retained state for push constants
+	ComputePushConstants pc;
 
 	// basic Vulkan necessities, environmental handles
 	VkInstance instance;						// Vulkan library handle

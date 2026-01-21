@@ -6,6 +6,13 @@ layout ( local_size_x = 16, local_size_y = 16 ) in;
 //descriptor bindings for the pipeline
 layout ( rgba16f, set = 0, binding = 0 ) uniform image2D image;
 
+layout ( push_constant ) uniform constants {
+	vec4 data1;
+	vec4 data2;
+	vec4 data3;
+	vec4 data4;
+} PushConstants;
+
 // from https://www.shadertoy.com/view/tttfRS
 vec3 barycentric ( vec3 A, vec3 B, vec3 C, vec3 P, vec3 normal ) {
 	float area = dot( cross( B - A, C - A ), normal );
@@ -33,19 +40,15 @@ vec3 getColor ( float t, vec2 p, ivec2 size ) {
 	vec3 color = barycentric( A, B, C, vec3( p, 0.0f ), normal );
 	float sum = color.x + color.y + color.z;
 	float s = 10.0f / size.y;
-	return mix ( vec3( 0.0f ), 2.0f * color.xyz, smoothstep( 1.0f + s, 1.0f - s, sum ) );
+	return mix( mix( PushConstants.data1.xyz, PushConstants.data2.xyz,
+		vec3( float( gl_GlobalInvocationID.y ) / float( imageSize( image ).y ) ) ),
+		2.0f * color.xyz, smoothstep( 1.0f + s, 1.0f - s, sum ) );
 }
 //---------------------------------------------------------
 void main () {
 	ivec2 texelCoord = ivec2( gl_GlobalInvocationID.xy );
 	ivec2 size = imageSize( image );
 
-	vec4 colorPrev = imageLoad( image, texelCoord );
-
-	float t = colorPrev.a * 0.01f;
-	vec4 color = vec4( getColor( t, ( 2.0f * texelCoord - size.xy ) / size.xy, size ), 1.0f );
-
-//	color += colorPrev;
-	color.a = colorPrev.a + 1;
+	vec4 color = vec4( getColor( 0.0f, ( 2.0f * texelCoord - size.xy ) / size.xy, size ), 1.0f );
 	imageStore( image, texelCoord, color );
 }
