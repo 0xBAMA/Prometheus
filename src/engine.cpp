@@ -185,7 +185,13 @@ void PrometheusInstance::MainLoop () {
 			ImGui::NewFrame();
 
 			//some imgui UI to test
-			ImGui::ShowDemoWindow();
+			// ImGui::ShowDemoWindow();
+
+			if ( ImGui::Begin( "Edit" ) ) {
+				ImGui::ColorPicker3( "Color 1", ( float * ) &computeEffects[ 0 ].data.data1[ 0 ] );
+				ImGui::ColorPicker3( "Color 2", ( float * ) &computeEffects[ 0 ].data.data2[ 0 ] );
+			}
+			ImGui::End();
 
 			//make imgui calculate internal draw structures
 			ImGui::Render();
