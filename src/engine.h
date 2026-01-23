@@ -67,6 +67,10 @@ public:
 	bool stopRendering { false };
 	int frameNumber { 0 };
 
+	// for drawing a triangle
+	VkPipelineLayout trianglePipelineLayout;
+	VkPipeline trianglePipeline;
+
 	// also contains retained state for push constants
 	std::vector< ComputeEffect > computeEffects;
 
@@ -132,6 +136,7 @@ private:
 	void initDescriptors ();
 	void initPipelines ();
 	void initBackgroundPipelines ();
+	void initTrianglePipeline ();
 	void initImgui ();
 
 	// main loop helpers

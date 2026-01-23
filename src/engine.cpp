@@ -409,6 +409,7 @@ void PrometheusInstance::initDescriptors  () {
 
 void PrometheusInstance::initPipelines () {
 	initBackgroundPipelines();
+	initTrianglePipeline();
 }
 
 void PrometheusInstance::initBackgroundPipelines () {
@@ -466,6 +467,62 @@ void PrometheusInstance::initBackgroundPipelines () {
 	mainDeletionQueue.push_function( [ & ] () {
 		vkDestroyPipelineLayout( device, gradient.layout, nullptr );
 		vkDestroyPipeline( device, gradient.pipeline, nullptr );
+	});
+}
+
+void PrometheusInstance::initTrianglePipeline () {
+	VkShaderModule triangleFragShader;
+	if ( !vkutil::load_shader_module( "../shaders/colored_triangle.frag.spv", device, &triangleFragShader ) ) {
+		fmt::print( "Error when building the triangle fragment shader module" );
+	} else {
+		fmt::print( "Triangle fragment shader successfully loaded" );
+	}
+
+	VkShaderModule triangleVertexShader;
+	if ( !vkutil::load_shader_module( "../shaders/colored_triangle.vert.spv", device, &triangleVertexShader ) ) {
+		fmt::print( "Error when building the triangle vertex shader module" );
+	} else {
+		fmt::print( "Triangle vertex shader successfully loaded" );
+	}
+
+	//build the pipeline layout that controls the inputs/outputs of the shader
+	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
+	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+	VK_CHECK( vkCreatePipelineLayout( device, &pipeline_layout_info, nullptr, &trianglePipelineLayout ) );
+
+	PipelineBuilder pipelineBuilder;
+
+	//use the triangle layout we created
+	pipelineBuilder._pipelineLayout = trianglePipelineLayout;
+	//connecting the vertex and pixel shaders to the pipeline
+	pipelineBuilder.set_shaders( triangleVertexShader, triangleFragShader );
+	//it will draw triangles
+	pipelineBuilder.set_input_topology( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
+	//filled triangles
+	pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL );
+	//no backface culling
+	pipelineBuilder.set_cull_mode( VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE );
+	//no multisampling
+	pipelineBuilder.set_multisampling_none();
+	//no blending
+	pipelineBuilder.disable_blending();
+	//no depth testing
+	pipelineBuilder.disable_depthtest();
+
+	//connect the image format we will draw into, from draw image
+	pipelineBuilder.set_color_attachment_format( drawImage.imageFormat );
+	pipelineBuilder.set_depth_format( VK_FORMAT_UNDEFINED );
+
+	//finally build the pipeline
+	trianglePipeline = pipelineBuilder.build_pipeline( device );
+
+	//clean structures
+	vkDestroyShaderModule( device, triangleFragShader, nullptr );
+	vkDestroyShaderModule( device, triangleVertexShader, nullptr );
+
+	mainDeletionQueue.push_function( [ & ] ()  {
+		vkDestroyPipelineLayout( device, trianglePipelineLayout, nullptr );
+		vkDestroyPipeline( device, trianglePipeline, nullptr );
 	});
 }
 
