@@ -87,9 +87,10 @@ void PrometheusInstance::Draw () {
 
 	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL );
 
+	drawGeometry( cmd );
 
 	// transition the images for the copy
-	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
+	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
 	vkutil::transition_image( cmd, swapchainImages[ swapchainImageIndex ], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
 
 	// execute a copy from the draw image into the swapchain
@@ -542,6 +543,37 @@ void PrometheusInstance::drawBackground ( VkCommandBuffer cmd ) const {
 	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
 	vkCmdDispatch( cmd, std::ceil( drawExtent.width / 16.0f ), std::ceil( drawExtent.height / 16.0f ), 1 );
 }
+
+void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) const {
+	//begin a render pass  connected to our draw image
+	VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info( drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL );
+	VkRenderingInfo renderInfo = vkinit::rendering_info( drawExtent, &colorAttachment, nullptr );
+
+	vkCmdBeginRendering( cmd, &renderInfo);
+	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline );
+
+	//set dynamic viewport and scissor
+	VkViewport viewport = {};
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = drawExtent.width;
+	viewport.height = drawExtent.height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport( cmd, 0, 1, &viewport );
+
+	VkRect2D scissor = {};
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = drawExtent.width;
+	scissor.extent.height = drawExtent.height;
+	vkCmdSetScissor( cmd, 0, 1, &scissor );
+
+	//launch a draw command to draw 3 vertices
+	vkCmdDraw( cmd, 3, 1, 0, 0 );
+	vkCmdEndRendering( cmd );
+}
+
 void PrometheusInstance::initImgui () {
 	// 1: create descriptor pool for IMGUI
 	//  the size of the pool is very oversize, but it's copied from imgui demo

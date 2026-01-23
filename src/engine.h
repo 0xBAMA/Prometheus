@@ -141,6 +141,7 @@ private:
 
 	// main loop helpers
 	void drawImgui ( VkCommandBuffer cmd, VkImageView targetImageView );
+	void drawGeometry ( VkCommandBuffer cmd ) const;
 	void drawBackground ( VkCommandBuffer cmd ) const;
 
 	// swapchain helpers
