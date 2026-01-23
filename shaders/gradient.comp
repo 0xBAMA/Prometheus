@@ -42,7 +42,7 @@ vec3 getColor ( float t, vec2 p, ivec2 size ) {
 	float s = 10.0f / size.y;
 	return mix( mix( PushConstants.data1.xyz, PushConstants.data2.xyz,
 		vec3( float( gl_GlobalInvocationID.y ) / float( imageSize( image ).y ) ) ),
-		2.0f * color.xyz, smoothstep( 1.0f + s, 1.0f - s, sum ) );
+		2.0f * color.xyz, smoothstep( 1.0f + s, 1.0f - s, sum ) * 0.0f );
 }
 //---------------------------------------------------------
 void main () {
