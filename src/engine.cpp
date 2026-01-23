@@ -83,20 +83,10 @@ void PrometheusInstance::Draw () {
 	// put the draw image in a general layout
 	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
-	// the gradient draw
-	ComputeEffect& effect = computeEffects[ 0 ];
+	drawBackground( cmd );
 
-	// bind the gradient drawing compute pipeline
-	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline );
+	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL );
 
-	// bind the descriptor set containing the draw image for the compute pipeline
-	vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE,  effect.layout, 0, 1, &drawImageDescriptors, 0, nullptr );
-
-	// pushing the new values of the push constants (mirrors uniform usage)
-	vkCmdPushConstants( cmd, effect.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( ComputePushConstants ), &effect.data );
-
-	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
-	vkCmdDispatch( cmd, std::ceil( drawExtent.width / 16.0f ), std::ceil( drawExtent.height / 16.0f ), 1 );
 
 	// transition the images for the copy
 	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
@@ -479,6 +469,22 @@ void PrometheusInstance::initBackgroundPipelines () {
 	});
 }
 
+void PrometheusInstance::drawBackground ( VkCommandBuffer cmd ) const {
+	// the gradient draw compute effect
+	const ComputeEffect& effect = computeEffects[ 0 ];
+
+	// bind the gradient drawing compute pipeline
+	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline );
+
+	// bind the descriptor set containing the draw image for the compute pipeline
+	vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE,  effect.layout, 0, 1, &drawImageDescriptors, 0, nullptr );
+
+	// pushing the new values of the push constants (mirrors uniform usage)
+	vkCmdPushConstants( cmd, effect.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( ComputePushConstants ), &effect.data );
+
+	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+	vkCmdDispatch( cmd, std::ceil( drawExtent.width / 16.0f ), std::ceil( drawExtent.height / 16.0f ), 1 );
+}
 void PrometheusInstance::initImgui () {
 	// 1: create descriptor pool for IMGUI
 	//  the size of the pool is very oversize, but it's copied from imgui demo

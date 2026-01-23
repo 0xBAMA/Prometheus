@@ -136,6 +136,7 @@ private:
 
 	// main loop helpers
 	void drawImgui ( VkCommandBuffer cmd, VkImageView targetImageView );
+	void drawBackground ( VkCommandBuffer cmd ) const;
 
 	// swapchain helpers
 	void createSwapchain ( uint32_t w, uint32_t h );
