@@ -29,7 +29,6 @@ struct DeletionQueue {
 struct frameData_t {
 	// frame sync primitives
 	VkSemaphore swapchainSemaphore;
-	VkSemaphore renderSemaphore;
 	VkFence renderFence;
 
 	// command buffer + allocator
@@ -112,6 +111,7 @@ public:
 	VkFormat swapchainImageFormat;
 	std::vector< VkImage > swapchainImages;
 	std::vector< VkImageView > swapchainImageViews;
+	std::vector< VkSemaphore > swapchainPresentSemaphores;
 
 	// handle for the AMD Vulkan Memory Allocator
 	VmaAllocator allocator;

@@ -113,7 +113,7 @@ void PrometheusInstance::Draw () {
 	// we will signal the renderSemaphore, when rendering has finished
 	VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info( cmd );
 	VkSemaphoreSubmitInfo waitInfo = vkinit::semaphore_submit_info( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, getCurrentFrame().swapchainSemaphore );
-	VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info( VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, getCurrentFrame().renderSemaphore );
+	VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info( VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, swapchainPresentSemaphores[ swapchainImageIndex ] );
 
 	VkSubmitInfo2 submit = vkinit::submit_info( &cmdinfo, &signalInfo, &waitInfo );
 
@@ -127,7 +127,7 @@ void PrometheusInstance::Draw () {
 	presentInfo.pSwapchains = &swapchain;
 	presentInfo.swapchainCount = 1;
 	// wait on renderSemaphore, to tell when we are finished preparing the image
-	presentInfo.pWaitSemaphores = &getCurrentFrame().renderSemaphore;
+	presentInfo.pWaitSemaphores = &swapchainPresentSemaphores[ swapchainImageIndex ];
 	presentInfo.waitSemaphoreCount = 1;
 	presentInfo.pImageIndices = &swapchainImageIndex;
 	VK_CHECK( vkQueuePresentKHR( graphicsQueue, &presentInfo ) );
@@ -209,11 +209,14 @@ void PrometheusInstance::ShutDown () {
 
 			// destroy sync objects
 			vkDestroyFence( device, frameData[ i ].renderFence, nullptr );
-			vkDestroySemaphore( device, frameData[ i ].renderSemaphore, nullptr );
 			vkDestroySemaphore( device, frameData[ i ].swapchainSemaphore, nullptr );
 
 			// delete any remaining per-frame resources...
 			frameData[ i ].deletionQueue.flush();
+		}
+
+		for ( auto& s : swapchainPresentSemaphores ) {
+			vkDestroySemaphore( device, s, nullptr );
 		}
 
 		// destroy any remaining global resources
@@ -362,7 +365,11 @@ void PrometheusInstance::initSyncStructures () {
 		VK_CHECK( vkCreateFence( device, &fenceCreateInfo, nullptr, &frameData[ i ].renderFence ) );
 	// and two semaphores: swapchain image ready, and render finished
 		VK_CHECK( vkCreateSemaphore( device, &semaphoreCreateInfo, nullptr, &frameData[ i ].swapchainSemaphore ) );
-		VK_CHECK( vkCreateSemaphore( device, &semaphoreCreateInfo, nullptr, &frameData[ i ].renderSemaphore ) );
+	}
+
+	swapchainPresentSemaphores.resize( swapchainImages.size() );
+	for ( int i = 0; i < swapchainImages.size(); i++ ) {
+		VK_CHECK( vkCreateSemaphore( device, &semaphoreCreateInfo, nullptr, &swapchainPresentSemaphores[ i ] ) );
 	}
 
 	VK_CHECK( vkCreateFence( device, &fenceCreateInfo, nullptr, &immediateFence ) );
