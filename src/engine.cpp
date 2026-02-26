@@ -220,6 +220,11 @@ void PrometheusInstance::ShutDown () {
 			vkDestroySemaphore( device, s, nullptr );
 		}
 
+		for ( auto& mesh : testMeshes ) {
+			destroyBuffer( mesh->meshBuffers.indexBuffer );
+			destroyBuffer( mesh->meshBuffers.vertexBuffer );
+		}
+
 		// destroy any remaining global resources
 		mainDeletionQueue.flush();
 
@@ -771,6 +776,24 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) const {
 	vkCmdBindIndexBuffer( cmd, rectangle.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32 );
 
 	vkCmdDrawIndexed( cmd, 6, 1, 0, 0, 0 );
+
+	push_constants.vertexBuffer = testMeshes[ 2 ]->meshBuffers.vertexBufferAddress;
+
+	static float rot = 0.0f;
+	rot += 0.01f;
+	glm::mat4 view = glm::rotate( glm::translate( glm::vec3{ 0.0f,0.0f,-5.0f } ), rot, glm::vec3( 0.0f, 1.0f, 0.0f ) );
+	// camera projection
+	glm::mat4 projection = glm::perspective( glm::radians( 70.0f ), ( float ) drawExtent.width / ( float ) drawExtent.height, 10000.f, 0.1f);
+
+	// invert the Y direction on projection matrix so that we are more similar
+	// to opengl and gltf axis
+	projection[ 1 ][ 1 ] *= -1.0f;
+
+	push_constants.worldMatrix = projection * view;
+	vkCmdPushConstants( cmd, meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( GPUDrawPushConstants ), &push_constants );
+	vkCmdBindIndexBuffer( cmd, testMeshes[ 2 ]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32 );
+
+	vkCmdDrawIndexed( cmd, testMeshes[ 2 ]->surfaces[ 0 ].count, 1, testMeshes[ 2 ]->surfaces[ 0 ].startIndex, 0, 0 );
 
 	vkCmdEndRendering( cmd );
 }

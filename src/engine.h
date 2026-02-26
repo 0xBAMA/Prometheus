@@ -7,6 +7,7 @@
 #include <vk_types.h>
 #include <vk_descriptors.h>
 #include <vk_pipelines.h>
+#include <vk_loader.h>
 
 struct DeletionQueue {
 	std::deque< std::function< void() > > deletors;
@@ -76,6 +77,7 @@ public:
 	GPUMeshBuffers rectangle;
 	void initDefaultData ();
 	GPUMeshBuffers uploadMesh ( std::span<uint32_t> indices, std::span<Vertex> vertices );
+	std::vector<std::shared_ptr<MeshAsset>> testMeshes;
 
 	// for buffer setup
 	AllocatedBuffer createBuffer( size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage );
