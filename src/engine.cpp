@@ -444,7 +444,7 @@ void PrometheusInstance::initBackgroundPipelines () {
 
 	VkShaderModule computeDrawShader;
 	if ( !vkutil::load_shader_module("../shaders/gradient.comp.spv", device, &computeDrawShader ) ) {
-		fmt::print( "Error when building the compute shader \n" );
+		fmt::print( "Error when building the compute shader\n" );
 	}
 
 	VkPipelineShaderStageCreateInfo stageinfo{};
@@ -485,16 +485,16 @@ void PrometheusInstance::initBackgroundPipelines () {
 void PrometheusInstance::initTrianglePipeline () {
 	VkShaderModule triangleFragShader;
 	if ( !vkutil::load_shader_module( "../shaders/colored_triangle.frag.spv", device, &triangleFragShader ) ) {
-		fmt::print( "Error when building the triangle fragment shader module" );
+		fmt::print( "Error when building the triangle fragment shader module\n" );
 	} else {
-		fmt::print( "Triangle fragment shader successfully loaded" );
+		fmt::print( "Triangle fragment shader successfully loaded\n" );
 	}
 
 	VkShaderModule triangleVertexShader;
 	if ( !vkutil::load_shader_module( "../shaders/colored_triangle.vert.spv", device, &triangleVertexShader ) ) {
-		fmt::print( "Error when building the triangle vertex shader module" );
+		fmt::print( "Error when building the triangle vertex shader module\n" );
 	} else {
-		fmt::print( "Triangle vertex shader successfully loaded" );
+		fmt::print( "Triangle vertex shader successfully loaded\n" );
 	}
 
 	//build the pipeline layout that controls the inputs/outputs of the shader
@@ -541,16 +541,16 @@ void PrometheusInstance::initTrianglePipeline () {
 void PrometheusInstance::initMeshPipeline () {
 	VkShaderModule meshFragShader;
 	if ( !vkutil::load_shader_module( "../shaders/colored_triangle.frag.spv", device, &meshFragShader ) ) {
-		fmt::print( "Error when building the triangle fragment shader module" );
+		fmt::print( "Error when building the triangle fragment shader module\n" );
 	} else {
-		fmt::print( "Triangle fragment shader successfully loaded" );
+		fmt::print( "Triangle fragment shader successfully loaded\n" );
 	}
 
 	VkShaderModule meshVertexShader;
 	if ( !vkutil::load_shader_module( "../shaders/colored_triangle_mesh.vert.spv", device, &meshVertexShader ) ) {
-		fmt::print( "Error when building the triangle vertex shader module" );
+		fmt::print( "Error when building the triangle vertex shader module\n" );
 	} else {
-		fmt::print( "Triangle vertex shader successfully loaded" );
+		fmt::print( "Triangle vertex shader successfully loaded\n" );
 	}
 
 	//build the pipeline layout that controls the inputs/outputs of the shader
@@ -680,27 +680,30 @@ GPUMeshBuffers PrometheusInstance::uploadMesh ( std::span<uint32_t> indices, std
 
 
 void PrometheusInstance::initDefaultData() {
-	std::array<Vertex,4> rect_vertices;
 
-	rect_vertices[0].position = {0.5,-0.5, 0};
-	rect_vertices[1].position = {0.5,0.5, 0};
-	rect_vertices[2].position = {-0.5,-0.5, 0};
-	rect_vertices[3].position = {-0.5,0.5, 0};
+	testMeshes = loadGLTFMeshes( this,"..\\assets\\basicmesh.glb" ).value();
 
-	rect_vertices[0].color = {0,0, 0,1};
-	rect_vertices[1].color = { 0.5,0.5,0.5 ,1};
-	rect_vertices[2].color = { 1,0, 0,1 };
-	rect_vertices[3].color = { 0,1, 0,1 };
+	std::array<Vertex, 4> rect_vertices;
 
-	std::array<uint32_t,6> rect_indices;
+	rect_vertices[ 0 ].position = {  0.5f,-0.5f, 0.0f };
+	rect_vertices[ 1 ].position = {  0.5f, 0.5f, 0.0f };
+	rect_vertices[ 2 ].position = { -0.5f,-0.5f, 0.0f };
+	rect_vertices[ 3 ].position = { -0.5f, 0.5f, 0.0f };
 
-	rect_indices[0] = 0;
-	rect_indices[1] = 1;
-	rect_indices[2] = 2;
+	rect_vertices[ 0 ].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	rect_vertices[ 1 ].color = { 0.5f, 0.5f, 0.5f, 1.0f };
+	rect_vertices[ 2 ].color = { 1.0f, 0.0f, 0.0f, 1.0f };
+	rect_vertices[ 3 ].color = { 0.0f, 1.0f, 0.0f, 1.0f };
 
-	rect_indices[3] = 2;
-	rect_indices[4] = 1;
-	rect_indices[5] = 3;
+	std::array<uint32_t, 6> rect_indices;
+
+	rect_indices[ 0 ] = 0;
+	rect_indices[ 1 ] = 1;
+	rect_indices[ 2 ] = 2;
+
+	rect_indices[ 3 ] = 2;
+	rect_indices[ 4 ] = 1;
+	rect_indices[ 5 ] = 3;
 
 	rectangle = uploadMesh( rect_indices, rect_vertices );
 
@@ -860,34 +863,29 @@ void PrometheusInstance::createSwapchain ( uint32_t w, uint32_t h ) {
 	VkExtent3D drawImageExtent = {
 		windowExtent.width,
 		windowExtent.height,
-		// 64,
+		// 64, // custom hacked in resolution
 		// 64,
 		1
 	};
 
-	// hardcoding the draw format to 16 bit float
+	// draw image config
 	drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	drawImage.imageExtent = drawImageExtent;
-
 	VkImageUsageFlags drawImageUsages{};
 	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
 	drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
 	VkImageCreateInfo rimg_info = vkinit::image_create_info( drawImage.imageFormat, drawImageUsages, drawImageExtent );
 
 	// for the draw image, we want to allocate it from gpu local memory
 	VmaAllocationCreateInfo rimg_allocinfo = {};
 	rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags( VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
-
-	// allocate and create the image
+	// allocate and create the color image
 	vmaCreateImage( allocator, &rimg_info, &rimg_allocinfo, &drawImage.image, &drawImage.allocation, nullptr );
-
 	// build a image-view for the draw image to use for rendering
 	VkImageViewCreateInfo rview_info = vkinit::imageview_create_info( drawImage.imageFormat, drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT );
-
 	VK_CHECK( vkCreateImageView( device, &rview_info, nullptr, &drawImage.imageView ) );
 
 	// add to deletion queues
