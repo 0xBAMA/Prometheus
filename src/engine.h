@@ -95,6 +95,7 @@ public:
 
 	// an image to draw into and eventually pass to the swapchain
 	AllocatedImage drawImage;
+	AllocatedImage depthImage;
 	VkExtent2D drawExtent;
 
 	// our frameData struct, which contains command pool/buffer + sync primitive handles

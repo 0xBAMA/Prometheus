@@ -19,6 +19,8 @@
 #include "third_party/imgui/imgui_impl_sdl2.h"
 #include "third_party/imgui/imgui_impl_vulkan.h"
 
+#include <glm/gtx/transform.hpp>
+
 //============================================================================================================================
 //============================================================================================================================
 // Initialization
@@ -87,6 +89,7 @@ void PrometheusInstance::Draw () {
 	drawBackground( cmd );
 
 	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL );
+	vkutil::transition_image( cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL );
 
 	drawGeometry( cmd );
 
@@ -589,11 +592,12 @@ void PrometheusInstance::initMeshPipeline () {
 	//no blending
 	pipelineBuilder.disable_blending();
 	//no depth testing
-	pipelineBuilder.disable_depthtest();
+	// pipelineBuilder.disable_depthtest();
+	pipelineBuilder.enable_depthtest( true, VK_COMPARE_OP_GREATER_OR_EQUAL );
 
 	//connect the image format we will draw into, from draw image
 	pipelineBuilder.set_color_attachment_format( drawImage.imageFormat );
-	pipelineBuilder.set_depth_format( VK_FORMAT_UNDEFINED );
+	pipelineBuilder.set_depth_format( depthImage.imageFormat );
 
 	//finally build the pipeline
 	meshPipeline = pipelineBuilder.build_pipeline( device );
@@ -613,7 +617,6 @@ AllocatedBuffer PrometheusInstance::createBuffer( size_t allocSize, VkBufferUsag
 	VkBufferCreateInfo bufferInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
 	bufferInfo.pNext = nullptr;
 	bufferInfo.size = allocSize;
-
 	bufferInfo.usage = usage;
 
 	VmaAllocationCreateInfo vmaallocInfo = {};
@@ -717,7 +720,6 @@ void PrometheusInstance::initDefaultData() {
 		destroyBuffer( rectangle.indexBuffer );
 		destroyBuffer( rectangle.vertexBuffer );
 	});
-
 }
 
 void PrometheusInstance::drawBackground ( VkCommandBuffer cmd ) const {
@@ -740,7 +742,8 @@ void PrometheusInstance::drawBackground ( VkCommandBuffer cmd ) const {
 void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) const {
 	//begin a render pass  connected to our draw image
 	VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info( drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL );
-	VkRenderingInfo renderInfo = vkinit::rendering_info( drawExtent, &colorAttachment, nullptr );
+	VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info( depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL );
+	VkRenderingInfo renderInfo = vkinit::rendering_info( drawExtent, &colorAttachment, &depthAttachment );
 
 	vkCmdBeginRendering( cmd, &renderInfo);
 	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline );
@@ -911,10 +914,26 @@ void PrometheusInstance::createSwapchain ( uint32_t w, uint32_t h ) {
 	VkImageViewCreateInfo rview_info = vkinit::imageview_create_info( drawImage.imageFormat, drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT );
 	VK_CHECK( vkCreateImageView( device, &rview_info, nullptr, &drawImage.imageView ) );
 
+	// depth image config
+	depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
+	depthImage.imageExtent = drawImageExtent;
+	VkImageUsageFlags depthImageUsages{};
+	depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	VkImageCreateInfo dimg_info = vkinit::image_create_info( depthImage.imageFormat, depthImageUsages, drawImageExtent );
+	//allocate and create the depth image
+	vmaCreateImage( allocator, &dimg_info, &rimg_allocinfo, &depthImage.image, &depthImage.allocation, nullptr );
+	// build a image-view for the draw image to use for rendering
+	VkImageViewCreateInfo dview_info = vkinit::imageview_create_info( depthImage.imageFormat, depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT );
+	VK_CHECK( vkCreateImageView( device, &dview_info, nullptr, &depthImage.imageView ) );
+
+
 	// add to deletion queues
 	mainDeletionQueue.push_function( [ = ] () {
 		vkDestroyImageView( device, drawImage.imageView, nullptr );
 		vmaDestroyImage( allocator, drawImage.image, drawImage.allocation );
+
+		vkDestroyImageView( device, depthImage.imageView, nullptr );
+		vmaDestroyImage( allocator, depthImage.image, depthImage.allocation );
 	});
 }
 
