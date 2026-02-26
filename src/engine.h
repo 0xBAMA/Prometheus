@@ -70,6 +70,17 @@ public:
 	VkPipelineLayout trianglePipelineLayout;
 	VkPipeline trianglePipeline;
 
+	// for drawing a mesh
+	VkPipelineLayout meshPipelineLayout;
+	VkPipeline meshPipeline;
+	GPUMeshBuffers rectangle;
+	void initDefaultData ();
+	GPUMeshBuffers uploadMesh ( std::span<uint32_t> indices, std::span<Vertex> vertices );
+
+	// for buffer setup
+	AllocatedBuffer createBuffer( size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage );
+	void destroyBuffer( const AllocatedBuffer& buffer );
+
 	// also contains retained state for push constants
 	std::vector< ComputeEffect > computeEffects;
 
@@ -137,6 +148,7 @@ private:
 	void initPipelines ();
 	void initBackgroundPipelines ();
 	void initTrianglePipeline ();
+	void initMeshPipeline ();
 	void initImgui ();
 
 	// main loop helpers
