@@ -28,7 +28,7 @@
 void PrometheusInstance::Init () {
 	// initializing SDL
 	SDL_Init( SDL_INIT_VIDEO );
-	SDL_WindowFlags windowFlags = ( SDL_WindowFlags ) ( SDL_WINDOW_VULKAN );
+	SDL_WindowFlags windowFlags = ( SDL_WindowFlags ) ( SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE );
 
 	window = SDL_CreateWindow(
 		"Prometheus",
@@ -66,7 +66,11 @@ void PrometheusInstance::Draw () {
 
 	//request image from the swapchain
 	uint32_t swapchainImageIndex;
-	VK_CHECK( vkAcquireNextImageKHR( device, swapchain, 1000000000, getCurrentFrame().swapchainSemaphore, nullptr, &swapchainImageIndex ) );
+	VkResult e = vkAcquireNextImageKHR( device, swapchain, 1000000000, getCurrentFrame().swapchainSemaphore, nullptr, &swapchainImageIndex );
+	if ( e == VK_ERROR_OUT_OF_DATE_KHR ) {
+		resizeRequest = true;
+		return; // we will skip trying to draw the rest of the frame, because we have detected a swapchain mismatch
+	}
 
 	// Vulkan handles are aliased 64-bit pointers, basically shortens later code
 	VkCommandBuffer cmd = getCurrentFrame().mainCommandBuffer;
@@ -77,8 +81,9 @@ void PrometheusInstance::Draw () {
 	// begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
 	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info( VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT );
 
-	drawExtent.width = drawImage.imageExtent.width;
-	drawExtent.height = drawImage.imageExtent.height;
+	// this is for render scaling
+	drawExtent.height = std::min( swapchainExtent.height, drawImage.imageExtent.height ) * renderScale;
+	drawExtent.width= std::min( swapchainExtent.width, drawImage.imageExtent.width ) * renderScale;
 
 	// start the command buffer recording
 	VK_CHECK( vkBeginCommandBuffer( cmd, &cmdBeginInfo ) );
@@ -134,7 +139,11 @@ void PrometheusInstance::Draw () {
 	presentInfo.pWaitSemaphores = &swapchainPresentSemaphores[ swapchainImageIndex ];
 	presentInfo.waitSemaphoreCount = 1;
 	presentInfo.pImageIndices = &swapchainImageIndex;
-	VK_CHECK( vkQueuePresentKHR( graphicsQueue, &presentInfo ) );
+
+	VkResult presentResult = vkQueuePresentKHR( graphicsQueue, &presentInfo );
+	if ( presentResult == VK_ERROR_OUT_OF_DATE_KHR ) {
+		resizeRequest = true; // swapchain mismatch
+	}
 
 	//increase the number of frames drawn
 	frameNumber++;
@@ -153,6 +162,10 @@ void PrometheusInstance::MainLoop () {
 		// event handling loop
 		while ( SDL_PollEvent( &e ) != 0 ) {
 			if ( e.type == SDL_QUIT ) {
+				quit = true;
+			}
+
+			if ( e.type == SDL_KEYUP && e.key.keysym.scancode == SDL_SCANCODE_ESCAPE ) {
 				quit = true;
 			}
 
@@ -183,6 +196,7 @@ void PrometheusInstance::MainLoop () {
 			// ImGui::ShowDemoWindow();
 
 			if ( ImGui::Begin( "Edit" ) ) {
+				ImGui::SliderFloat( "Render Scale", &renderScale, 0.3f, 1.0f );
 				ImGui::ColorPicker3( "Color 1", ( float * ) &computeEffects[ 0 ].data.data1[ 0 ] );
 				ImGui::ColorPicker3( "Color 2", ( float * ) &computeEffects[ 0 ].data.data2[ 0 ] );
 			}
@@ -194,6 +208,11 @@ void PrometheusInstance::MainLoop () {
 			// we're ready to draw the next frame
 			Draw();
 		}
+	}
+
+	// checking to see if we have flagged a window resize
+	if ( resizeRequest ) {
+		resizeSwapchain();
 	}
 }
 
@@ -531,7 +550,7 @@ void PrometheusInstance::initTrianglePipeline () {
 
 	//connect the image format we will draw into, from draw image
 	pipelineBuilder.set_color_attachment_format( drawImage.imageFormat );
-	pipelineBuilder.set_depth_format( VK_FORMAT_UNDEFINED );
+	pipelineBuilder.set_depth_format( depthImage.imageFormat );
 
 	//finally build the pipeline
 	trianglePipeline = pipelineBuilder.build_pipeline( device );
@@ -590,7 +609,8 @@ void PrometheusInstance::initMeshPipeline () {
 	//no multisampling
 	pipelineBuilder.set_multisampling_none();
 	//no blending
-	pipelineBuilder.disable_blending();
+	// pipelineBuilder.disable_blending();
+	pipelineBuilder.enable_blending_additive();
 	//no depth testing
 	// pipelineBuilder.disable_depthtest();
 	pipelineBuilder.enable_depthtest( true, VK_COMPARE_OP_GREATER_OR_EQUAL );
@@ -866,6 +886,24 @@ void PrometheusInstance::initImgui () {
 //===========================================================================================================================
 // swapchain helpers
 //===========================================================================================================================
+void PrometheusInstance::resizeSwapchain () {
+	// wait till the device shows as idle
+	vkDeviceWaitIdle( device );
+
+	// kill the existing swapchain
+	destroySwapchain();
+
+	// use SDL to find the new window size
+	int w, h;
+	SDL_GetWindowSize( window, &w, &h );
+	windowExtent.width = w;
+	windowExtent.height = h;
+
+	// create the new swapchain and rearm trigger
+	createSwapchain( w, h );
+	resizeRequest = false;
+}
+
 void PrometheusInstance::createSwapchain ( uint32_t w, uint32_t h ) {
 	vkb::SwapchainBuilder swapchainBuilder{ physicalDevice, device, surface };
 	swapchainImageFormat = VK_FORMAT_B8G8R8A8_UNORM;

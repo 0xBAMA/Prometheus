@@ -63,6 +63,7 @@ constexpr bool useValidationLayers = true;
 class PrometheusInstance {
 public:
 
+	bool resizeRequest { false };
 	bool isInitialized { false };
 	bool stopRendering { false };
 	int frameNumber { 0 };
@@ -97,6 +98,7 @@ public:
 	AllocatedImage drawImage;
 	AllocatedImage depthImage;
 	VkExtent2D drawExtent;
+	float renderScale = 1.0f;
 
 	// our frameData struct, which contains command pool/buffer + sync primitive handles
 	frameData_t frameData[ FRAME_OVERLAP ];
@@ -117,7 +119,7 @@ public:
 	uint32_t graphicsQueueFamilyIndex;
 
 	// window size, swapchain size
-	VkExtent2D windowExtent { 1700 , 900 };
+	VkExtent2D windowExtent { 2880, 1800 };
 	VkExtent2D swapchainExtent;
 
 	// swapchain handles
@@ -160,6 +162,7 @@ private:
 	void drawBackground ( VkCommandBuffer cmd ) const;
 
 	// swapchain helpers
+	void resizeSwapchain ();
 	void createSwapchain ( uint32_t w, uint32_t h );
 	void destroySwapchain ();
 };
