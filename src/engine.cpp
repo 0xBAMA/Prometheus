@@ -84,7 +84,7 @@ void PrometheusInstance::Draw () {
 
 	// this is for render scaling
 	drawExtent.height = std::min( swapchainExtent.height, drawImage.imageExtent.height ) * renderScale;
-	drawExtent.width= std::min( swapchainExtent.width, drawImage.imageExtent.width ) * renderScale;
+	drawExtent.width = std::min( swapchainExtent.width, drawImage.imageExtent.width ) * renderScale;
 
 	// start the command buffer recording
 	VK_CHECK( vkBeginCommandBuffer( cmd, &cmdBeginInfo ) );
@@ -423,6 +423,12 @@ void PrometheusInstance::initDescriptors  () {
 		gpuSceneDataDescriptorLayout = builder.build( device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT );
 	}
 
+	{
+		DescriptorLayoutBuilder builder;
+		builder.add_binding( 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
+		singleImageDescriptorLayout = builder.build( device, VK_SHADER_STAGE_FRAGMENT_BIT );
+	}
+
 	drawImageDescriptors = globalDescriptorAllocator.allocate( device, drawImageDescriptorLayout );
 
 	VkDescriptorImageInfo imgInfo{};
@@ -590,7 +596,7 @@ void PrometheusInstance::initTrianglePipeline () {
 
 void PrometheusInstance::initMeshPipeline () {
 	VkShaderModule meshFragShader;
-	if ( !vkutil::load_shader_module( "../shaders/colored_triangle.frag.spv", device, &meshFragShader ) ) {
+	if ( !vkutil::load_shader_module( "../shaders/tex_img.frag.spv", device, &meshFragShader ) ) {
 		fmt::print( "Error when building the triangle fragment shader module\n" );
 	} else {
 		fmt::print( "Triangle fragment shader successfully loaded\n" );
@@ -614,6 +620,10 @@ void PrometheusInstance::initMeshPipeline () {
 	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 	pipeline_layout_info.pPushConstantRanges = &bufferRange;
 	pipeline_layout_info.pushConstantRangeCount = 1;
+
+	// descriptor for the single image sampler
+	pipeline_layout_info.pSetLayouts = &singleImageDescriptorLayout;
+	pipeline_layout_info.setLayoutCount = 1;
 
 	VK_CHECK( vkCreatePipelineLayout( device, &pipeline_layout_info, nullptr, &meshPipelineLayout ) );
 
@@ -677,9 +687,85 @@ void PrometheusInstance::destroyBuffer( const AllocatedBuffer& buffer ) {
 	vmaDestroyBuffer( allocator, buffer.buffer, buffer.allocation );
 }
 
+AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped ) {
+	AllocatedImage newImage;
+	newImage.imageFormat = format;
+	newImage.imageExtent = size;
+
+	VkImageCreateInfo img_info = vkinit::image_create_info( format, usage, size );
+	if ( mipmapped ) {
+		img_info.mipLevels = static_cast<uint32_t>( std::floor( std::log2( std::max( size.width, size.height ) ) ) ) + 1;
+	}
+
+	// always allocate images on dedicated GPU memory
+	VmaAllocationCreateInfo allocinfo = {};
+	allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	allocinfo.requiredFlags = VkMemoryPropertyFlags( VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
+
+	// allocate and create the image
+	VK_CHECK( vmaCreateImage( allocator, &img_info, &allocinfo, &newImage.image, &newImage.allocation, nullptr ) );
+
+	// if the format is a depth format, we will need to have it use the correct aspect flag
+	VkImageAspectFlags aspectFlag = VK_IMAGE_ASPECT_COLOR_BIT;
+	if ( format == VK_FORMAT_D32_SFLOAT ) {
+		aspectFlag = VK_IMAGE_ASPECT_DEPTH_BIT;
+	}
+
+	// build a image-view for the image
+	VkImageViewCreateInfo view_info = vkinit::imageview_create_info( format, newImage.image, aspectFlag );
+	view_info.subresourceRange.levelCount = img_info.mipLevels;
+
+	VK_CHECK( vkCreateImageView( device, &view_info, nullptr, &newImage.imageView ) );
+
+	return newImage;
+}
+
+AllocatedImage PrometheusInstance::createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped ) {
+	size_t dataSize = size.depth * size.width * size.height * 4;
+	AllocatedBuffer uploadbuffer = createBuffer( dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
+
+	// data from the void pointer, copied to the upload buffer
+	memcpy( uploadbuffer.info.pMappedData, data, dataSize );
+
+	// call to the read/write styled image creation function
+	AllocatedImage new_image = createImage( size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped );
+
+	// immediate mode submission, to copy the upload buffer to the allocated image
+	immediate_submit( [ & ] ( VkCommandBuffer cmd ) {
+		vkutil::transition_image( cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+
+		VkBufferImageCopy copyRegion = {};
+		copyRegion.bufferOffset = 0;
+		copyRegion.bufferRowLength = 0;
+		copyRegion.bufferImageHeight = 0;
+
+		copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.imageSubresource.mipLevel = 0;
+		copyRegion.imageSubresource.baseArrayLayer = 0;
+		copyRegion.imageSubresource.layerCount = 1;
+		copyRegion.imageExtent = size;
+
+		// copy the buffer into the image
+		vkCmdCopyBufferToImage( cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion );
+
+		// flagging the data as read-only, for shader reading... could just as easily do
+		vkutil::transition_image( cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+	});
+
+	// finished uploading, that data is now available
+	destroyBuffer( uploadbuffer );
+
+	return new_image;
+}
+
+void PrometheusInstance::destroyImage ( const AllocatedImage& img ) {
+	vkDestroyImageView( device, img.imageView, nullptr );
+	vmaDestroyImage( allocator, img.image, img.allocation );
+}
+
 GPUMeshBuffers PrometheusInstance::uploadMesh ( std::span<uint32_t> indices, std::span<Vertex> vertices ) {
-	const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
-	const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
+	const size_t vertexBufferSize = vertices.size() * sizeof( Vertex );
+	const size_t indexBufferSize = indices.size() * sizeof( uint32_t );
 
 	GPUMeshBuffers newSurface;
 
@@ -729,9 +815,9 @@ GPUMeshBuffers PrometheusInstance::uploadMesh ( std::span<uint32_t> indices, std
 	return newSurface;
 }
 
-
 void PrometheusInstance::initDefaultData() {
 
+// BASIC TEST MESH
 	testMeshes = loadGLTFMeshes( this,"..\\assets\\basicmesh.glb" ).value();
 
 	std::array<Vertex, 4> rect_vertices;
@@ -762,6 +848,49 @@ void PrometheusInstance::initDefaultData() {
 	mainDeletionQueue.push_function([&](){
 		destroyBuffer( rectangle.indexBuffer );
 		destroyBuffer( rectangle.vertexBuffer );
+	});
+
+// TEXTURES
+	// 3 default textures, white, grey, black. 1 pixel each
+	uint32_t white = glm::packUnorm4x8( glm::vec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
+	whiteImage = createImage( ( void * ) &white, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT );
+
+	uint32_t grey = glm::packUnorm4x8(glm::vec4( 0.66f, 0.66f, 0.66f, 1 ) );
+	greyImage = createImage( ( void * ) &grey, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT );
+
+	uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0 ) );
+	blackImage = createImage( ( void * ) &black, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT );
+
+	//checkerboard image
+	uint32_t magenta = glm::packUnorm4x8( glm::vec4( 1, 0, 1, 1 ) );
+	std::array< uint32_t, 16 * 16 > pixels; //for 16x16 checkerboard texture
+	for ( int x = 0; x < 16; x++ ) {
+		for ( int y = 0; y < 16; y++ ) {
+			pixels[ y * 16 + x ] = ( ( x % 2) ^ ( y % 2 ) ) ? magenta : black;
+		}
+	}
+	errorCheckerboardImage = createImage( pixels.data(), VkExtent3D{ 16, 16, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT );
+
+// SAMPLER OBJECTS
+	VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+
+	sampl.magFilter = VK_FILTER_NEAREST;
+	sampl.minFilter = VK_FILTER_NEAREST;
+
+	vkCreateSampler( device, &sampl, nullptr, &defaultSamplerNearest );
+
+	sampl.magFilter = VK_FILTER_LINEAR;
+	sampl.minFilter = VK_FILTER_LINEAR;
+	vkCreateSampler( device, &sampl, nullptr, &defaultSamplerLinear );
+
+	mainDeletionQueue.push_function([&](){
+		vkDestroySampler( device, defaultSamplerNearest,nullptr );
+		vkDestroySampler( device, defaultSamplerLinear,nullptr );
+
+		destroyImage( whiteImage );
+		destroyImage( greyImage );
+		destroyImage( blackImage );
+		destroyImage( errorCheckerboardImage );
 	});
 }
 
@@ -833,6 +962,16 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) {
 	// now draw the "mesh"
 	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline );
 
+	// dynamic descriptor allocation, to bind a texture
+	VkDescriptorSet imageSet = getCurrentFrame().frameDescriptors.allocate( device, singleImageDescriptorLayout );
+	{
+		DescriptorWriter writer;
+		writer.write_image( 0, errorCheckerboardImage.imageView, defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
+		writer.update_set( device, imageSet );
+	}
+
+	vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineLayout, 0, 1, &imageSet, 0, nullptr );
+
 	GPUDrawPushConstants push_constants;
 	push_constants.worldMatrix = glm::mat4{ 1.0f };
 	push_constants.vertexBuffer = rectangle.vertexBufferAddress;
@@ -850,10 +989,9 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) {
 
 	// view and camera projection
 	glm::mat4 view = glm::rotate( glm::translate( glm::vec3{ 0.0f,0.0f,-5.0f } ), rot, glm::vec3( 0.0f, 1.0f, 0.0f ) );
-	glm::mat4 projection = glm::perspective( glm::radians( 70.0f ), ( float ) drawExtent.width / ( float ) drawExtent.height, 10000.f, 0.1f);
+	glm::mat4 projection = glm::perspective( glm::radians( 70.0f ), ( float ) drawExtent.width / ( float ) drawExtent.height, 10000.f, 0.1f );
 
-	// invert the Y direction on projection matrix so that we are more similar
-	// to opengl and gltf axis
+	// invert the Y direction on projection matrix so that we are more similar to opengl and gltf axis
 	projection[ 1 ][ 1 ] *= -1.0f;
 
 	push_constants.worldMatrix = projection * view;

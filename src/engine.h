@@ -111,6 +111,21 @@ public:
 	VkExtent2D drawExtent;
 	float renderScale = 1.0f;
 
+	// some helper functions for allocating textures
+	AllocatedImage createImage ( VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false ); // storage image type
+	AllocatedImage createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false ); // loaded from disk
+	void destroyImage ( const AllocatedImage& img );
+
+	// and some default textures
+	AllocatedImage whiteImage;
+	AllocatedImage blackImage;
+	AllocatedImage greyImage;
+	AllocatedImage errorCheckerboardImage;
+
+	// and default sampler types
+	VkSampler defaultSamplerLinear;
+	VkSampler defaultSamplerNearest;
+
 	// our frameData struct, which contains command pool/buffer + sync primitive handles
 	frameData_t frameData[ FRAME_OVERLAP ];
 	frameData_t& getCurrentFrame () { return frameData[ frameNumber % FRAME_OVERLAP ]; }
@@ -126,6 +141,8 @@ public:
 
 	VkDescriptorSet drawImageDescriptors;
 	VkDescriptorSetLayout drawImageDescriptorLayout;
+
+	VkDescriptorSetLayout singleImageDescriptorLayout;
 
 	// the queue that we submit work to
 	VkQueue graphicsQueue;
