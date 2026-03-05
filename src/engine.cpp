@@ -60,6 +60,7 @@ void PrometheusInstance::Draw () {
 
 	// we want to take this opportunity to now reset the deletion queue, since this fence marks the completion
 	getCurrentFrame().deletionQueue.flush(); // of all operations which could be using the data...
+	getCurrentFrame().frameDescriptors.clear_pools( device ); // mark the allocated descriptors as available
 
 	// and now reset that fence so we can use it again, to signal this frame's completion
 	VK_CHECK( vkResetFences( device, 1, &getCurrentFrame().renderFence ) );
@@ -148,7 +149,6 @@ void PrometheusInstance::Draw () {
 	//increase the number of frames drawn
 	frameNumber++;
 }
-
 
 //============================================================================================================================
 // Main Loop
@@ -417,6 +417,12 @@ void PrometheusInstance::initDescriptors  () {
 		drawImageDescriptorLayout = builder.build( device, VK_SHADER_STAGE_COMPUTE_BIT );
 	}
 
+	{
+		DescriptorLayoutBuilder builder;
+		builder.add_binding( 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER );
+		gpuSceneDataDescriptorLayout = builder.build( device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT );
+	}
+
 	drawImageDescriptors = globalDescriptorAllocator.allocate( device, drawImageDescriptorLayout );
 
 	VkDescriptorImageInfo imgInfo{};
@@ -440,6 +446,23 @@ void PrometheusInstance::initDescriptors  () {
 		globalDescriptorAllocator.destroy_pool( device );
 		vkDestroyDescriptorSetLayout( device, drawImageDescriptorLayout, nullptr );
 	});
+
+	for ( int i = 0; i < FRAME_OVERLAP; i++ ) {
+		// create a descriptor pool
+		std::vector< DescriptorAllocatorGrowable::PoolSizeRatio > frameSizes = {
+			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 },
+		};
+
+		frameData[ i ].frameDescriptors = DescriptorAllocatorGrowable{};
+		frameData[ i ].frameDescriptors.init( device, 1000, frameSizes );
+
+		mainDeletionQueue.push_function([ &, i ]() {
+			frameData[ i ].frameDescriptors.destroy_pools( device );
+		});
+	}
 }
 
 void PrometheusInstance::initPipelines () {
@@ -491,7 +514,7 @@ void PrometheusInstance::initBackgroundPipelines () {
 	gradient.name = "gradient";
 	gradient.data = {};
 
-	//default colors
+	// default colors
 	gradient.data.data1 = glm::vec4( 1.0f, 0.0f, 0.0f, 1.0f );
 	gradient.data.data2 = glm::vec4( 0.0f, 0.0f, 1.0f, 1.0f );
 
@@ -759,11 +782,30 @@ void PrometheusInstance::drawBackground ( VkCommandBuffer cmd ) const {
 	vkCmdDispatch( cmd, std::ceil( drawExtent.width / 16.0f ), std::ceil( drawExtent.height / 16.0f ), 1 );
 }
 
-void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) const {
+void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) {
 	//begin a render pass  connected to our draw image
 	VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info( drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL );
 	VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info( depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL );
 	VkRenderingInfo renderInfo = vkinit::rendering_info( drawExtent, &colorAttachment, &depthAttachment );
+
+	//allocate a new uniform buffer for the scene data
+	AllocatedBuffer gpuSceneDataBuffer = createBuffer( sizeof( BasicGPUSceneData ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
+
+	//add it to the deletion queue of this frame so it gets deleted once its been used
+	getCurrentFrame().deletionQueue.push_function( [ =, this ] () {
+		destroyBuffer( gpuSceneDataBuffer );
+	});
+
+	//write the buffer
+	BasicGPUSceneData* sceneUniformData = ( BasicGPUSceneData * ) gpuSceneDataBuffer.allocation->GetMappedData();
+	*sceneUniformData = sceneData;
+
+	//create a descriptor set that binds that buffer and update it
+	VkDescriptorSet globalDescriptor = getCurrentFrame().frameDescriptors.allocate( device, gpuSceneDataDescriptorLayout);
+
+	DescriptorWriter writer;
+	writer.write_buffer( 0, gpuSceneDataBuffer.buffer, sizeof( BasicGPUSceneData ), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER );
+	writer.update_set( device, globalDescriptor );
 
 	vkCmdBeginRendering( cmd, &renderInfo);
 	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline );
@@ -802,10 +844,12 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) const {
 
 	push_constants.vertexBuffer = testMeshes[ 2 ]->meshBuffers.vertexBufferAddress;
 
+	// dynamic rotation via push constant
 	static float rot = 0.0f;
 	rot += 0.01f;
+
+	// view and camera projection
 	glm::mat4 view = glm::rotate( glm::translate( glm::vec3{ 0.0f,0.0f,-5.0f } ), rot, glm::vec3( 0.0f, 1.0f, 0.0f ) );
-	// camera projection
 	glm::mat4 projection = glm::perspective( glm::radians( 70.0f ), ( float ) drawExtent.width / ( float ) drawExtent.height, 10000.f, 0.1f);
 
 	// invert the Y direction on projection matrix so that we are more similar

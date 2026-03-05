@@ -38,6 +38,9 @@ struct frameData_t {
 
 	// handling frame-local resources
 	DeletionQueue deletionQueue;
+
+	// descriptor pool management
+	DescriptorAllocatorGrowable frameDescriptors;
 };
 
 struct ComputePushConstants {
@@ -45,6 +48,15 @@ struct ComputePushConstants {
 	glm::vec4 data2;
 	glm::vec4 data3;
 	glm::vec4 data4;
+};
+
+struct BasicGPUSceneData {
+	glm::mat4 view;
+	glm::mat4 proj;
+	glm::mat4 viewproj;
+	glm::vec4 ambientColor;
+	glm::vec4 sunlightDirection; // w for power
+	glm::vec4 sunlightColor;
 };
 
 struct ComputeEffect {
@@ -55,7 +67,6 @@ struct ComputeEffect {
 
 	ComputePushConstants data;
 };
-
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 constexpr bool useValidationLayers = true;
@@ -109,7 +120,9 @@ public:
 	VkCommandPool immediateCommandPool;
 	void immediate_submit( std::function< void( VkCommandBuffer cmd ) > && function );
 
+	BasicGPUSceneData sceneData;
 	DescriptorAllocator globalDescriptorAllocator;
+	VkDescriptorSetLayout gpuSceneDataDescriptorLayout;
 
 	VkDescriptorSet drawImageDescriptors;
 	VkDescriptorSetLayout drawImageDescriptorLayout;
@@ -158,7 +171,7 @@ private:
 
 	// main loop helpers
 	void drawImgui ( VkCommandBuffer cmd, VkImageView targetImageView );
-	void drawGeometry ( VkCommandBuffer cmd ) const;
+	void drawGeometry ( VkCommandBuffer cmd );
 	void drawBackground ( VkCommandBuffer cmd ) const;
 
 	// swapchain helpers
