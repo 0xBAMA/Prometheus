@@ -133,7 +133,7 @@ public:
 	VkFence immediateFence;
 	VkCommandBuffer immediateCommandBuffer;
 	VkCommandPool immediateCommandPool;
-	void immediate_submit( std::function< void( VkCommandBuffer cmd ) > && function );
+	void immediateSubmit( std::function< void( VkCommandBuffer cmd ) > && function );
 
 	BasicGPUSceneData sceneData;
 	DescriptorAllocator globalDescriptorAllocator;

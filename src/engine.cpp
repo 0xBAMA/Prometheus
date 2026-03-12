@@ -641,11 +641,9 @@ void PrometheusInstance::initMeshPipeline () {
 	pipelineBuilder.set_cull_mode( VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE );
 	//no multisampling
 	pipelineBuilder.set_multisampling_none();
-	//no blending
-	// pipelineBuilder.disable_blending();
-	pipelineBuilder.enable_blending_additive();
-	//no depth testing
-	// pipelineBuilder.disable_depthtest();
+	// alpha blending
+	pipelineBuilder.enable_blending_alphablend();
+	// depth testing
 	pipelineBuilder.enable_depthtest( true, VK_COMPARE_OP_GREATER_OR_EQUAL );
 
 	//connect the image format we will draw into, from draw image
@@ -665,7 +663,7 @@ void PrometheusInstance::initMeshPipeline () {
 	});
 }
 
-AllocatedBuffer PrometheusInstance::createBuffer( size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage ) {
+AllocatedBuffer PrometheusInstance::createBuffer ( size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage ) {
 	// allocate buffer
 	VkBufferCreateInfo bufferInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
 	bufferInfo.pNext = nullptr;
@@ -683,7 +681,7 @@ AllocatedBuffer PrometheusInstance::createBuffer( size_t allocSize, VkBufferUsag
 	return newBuffer;
 }
 
-void PrometheusInstance::destroyBuffer( const AllocatedBuffer& buffer ) {
+void PrometheusInstance::destroyBuffer ( const AllocatedBuffer& buffer ) {
 	vmaDestroyBuffer( allocator, buffer.buffer, buffer.allocation );
 }
 
@@ -731,7 +729,7 @@ AllocatedImage PrometheusInstance::createImage ( void* data, VkExtent3D size, Vk
 	AllocatedImage new_image = createImage( size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped );
 
 	// immediate mode submission, to copy the upload buffer to the allocated image
-	immediate_submit( [ & ] ( VkCommandBuffer cmd ) {
+	immediateSubmit( [ & ] ( VkCommandBuffer cmd ) {
 		vkutil::transition_image( cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
 
 		VkBufferImageCopy copyRegion = {};
@@ -792,7 +790,7 @@ GPUMeshBuffers PrometheusInstance::uploadMesh ( std::span<uint32_t> indices, std
 	// copy index buffer
 	memcpy( ( char* )data + vertexBufferSize, indices.data(), indexBufferSize );
 
-	immediate_submit( [&] ( VkCommandBuffer cmd ) {
+	immediateSubmit( [&] ( VkCommandBuffer cmd ) {
 		VkBufferCopy vertexCopy{ 0 };
 		vertexCopy.dstOffset = 0;
 		vertexCopy.srcOffset = 0;
@@ -815,7 +813,7 @@ GPUMeshBuffers PrometheusInstance::uploadMesh ( std::span<uint32_t> indices, std
 	return newSurface;
 }
 
-void PrometheusInstance::initDefaultData() {
+void PrometheusInstance::initDefaultData () {
 
 // BASIC TEST MESH
 	testMeshes = loadGLTFMeshes( this,"..\\assets\\basicmesh.glb" ).value();
@@ -1165,7 +1163,7 @@ void PrometheusInstance::destroySwapchain () {
 	}
 }
 
-void PrometheusInstance::immediate_submit( std::function< void( VkCommandBuffer cmd ) > && function ) {
+void PrometheusInstance::immediateSubmit( std::function< void( VkCommandBuffer cmd ) > && function ) {
 	VK_CHECK( vkResetFences( device, 1, &immediateFence ) );
 	VK_CHECK( vkResetCommandBuffer( immediateCommandBuffer, 0 ) );
 
