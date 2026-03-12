@@ -30,6 +30,11 @@ void PrometheusInstance::Init () {
 	SDL_Init( SDL_INIT_VIDEO );
 	SDL_WindowFlags windowFlags = ( SDL_WindowFlags ) ( SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE );
 
+	SDL_Rect viewRect;
+	SDL_GetDisplayBounds( 0, &viewRect );
+	windowExtent.width = viewRect.w;
+	windowExtent.height = viewRect.h;
+
 	window = SDL_CreateWindow(
 		"Prometheus",
 		SDL_WINDOWPOS_UNDEFINED,

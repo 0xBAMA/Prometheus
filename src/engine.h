@@ -149,7 +149,7 @@ public:
 	uint32_t graphicsQueueFamilyIndex;
 
 	// window size, swapchain size
-	VkExtent2D windowExtent { 2880, 1800 };
+	VkExtent2D windowExtent { 0,0 };
 	VkExtent2D swapchainExtent;
 
 	// swapchain handles
