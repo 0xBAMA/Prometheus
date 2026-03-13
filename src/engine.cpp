@@ -405,16 +405,19 @@ void PrometheusInstance::initSyncStructures () {
 	}
 
 	VK_CHECK( vkCreateFence( device, &fenceCreateInfo, nullptr, &immediateFence ) );
-	mainDeletionQueue.push_function( [ = ] ()  { vkDestroyFence( device, immediateFence, nullptr ); });
+	mainDeletionQueue.push_function( [ = ] ()  { vkDestroyFence( device, immediateFence, nullptr ); } );
 }
 
 void PrometheusInstance::initDescriptors  () {
 	//create a descriptor pool that will hold 10 sets with 1 image each
-	std::vector< DescriptorAllocator::PoolSizeRatio > sizes = {
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }
+	std::vector< DescriptorAllocatorGrowable::PoolSizeRatio > sizes = {
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 },
 	};
 
-	globalDescriptorAllocator.init_pool( device, 10, sizes );
+	globalDescriptorAllocator.init( device, 10, sizes );
 
 	{ //make the descriptor set layout for our compute draw
 		DescriptorLayoutBuilder builder;
@@ -454,7 +457,7 @@ void PrometheusInstance::initDescriptors  () {
 
 	//make sure both the descriptor allocator and the new layout get cleaned up properly
 	mainDeletionQueue.push_function( [ & ] () {
-		globalDescriptorAllocator.destroy_pool( device );
+		globalDescriptorAllocator.destroy_pools( device );
 		vkDestroyDescriptorSetLayout( device, drawImageDescriptorLayout, nullptr );
 	});
 
@@ -483,6 +486,7 @@ void PrometheusInstance::initPipelines () {
 	// graphics pipelines
 	initTrianglePipeline();
 	initMeshPipeline();
+	metalRoughMaterial.buildPipelines( this );
 }
 
 void PrometheusInstance::initBackgroundPipelines () {
@@ -895,6 +899,31 @@ void PrometheusInstance::initDefaultData () {
 		destroyImage( blackImage );
 		destroyImage( errorCheckerboardImage );
 	});
+
+// basic GLTF rendering setup
+	GLTFMetallic_Roughness::MaterialResources materialResources;
+	//default the material textures
+	materialResources.colorImage = whiteImage;
+	materialResources.colorSampler = defaultSamplerLinear;
+	materialResources.metalRoughImage = whiteImage;
+	materialResources.metalRoughSampler = defaultSamplerLinear;
+
+	//set the uniform buffer for the material data
+	AllocatedBuffer materialConstants = createBuffer( sizeof( GLTFMetallic_Roughness::MaterialConstants ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
+
+	//write the buffer
+	GLTFMetallic_Roughness::MaterialConstants* sceneUniformData = ( GLTFMetallic_Roughness::MaterialConstants * ) materialConstants.allocation->GetMappedData();
+	sceneUniformData->colorFactors = glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f };
+	sceneUniformData->metal_rough_factors = glm::vec4{ 1.0f,0.5f,0.0f,0.0f };
+
+	mainDeletionQueue.push_function( [ =, this ] () {
+		destroyBuffer( materialConstants );
+	});
+
+	materialResources.dataBuffer = materialConstants.buffer;
+	materialResources.dataBufferOffset = 0;
+
+	defaultData = metalRoughMaterial.writeMaterial( device, MaterialPass::MainColor, materialResources, globalDescriptorAllocator );
 }
 
 void PrometheusInstance::drawBackground ( VkCommandBuffer cmd ) const {
@@ -969,7 +998,7 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) {
 	VkDescriptorSet imageSet = getCurrentFrame().frameDescriptors.allocate( device, singleImageDescriptorLayout );
 	{
 		DescriptorWriter writer;
-		writer.write_image( 0, errorCheckerboardImage.imageView, defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
+		writer.write_image( 0, errorCheckerboardImage.imageView, defaultSamplerLinear, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
 		writer.update_set( device, imageSet );
 	}
 
@@ -1004,6 +1033,94 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) {
 	vkCmdDrawIndexed( cmd, testMeshes[ 2 ]->surfaces[ 0 ].count, 1, testMeshes[ 2 ]->surfaces[ 0 ].startIndex, 0, 0 );
 
 	vkCmdEndRendering( cmd );
+}
+
+void GLTFMetallic_Roughness::buildPipelines ( PrometheusInstance* engine ) {
+	VkShaderModule meshFragShader;
+	if ( !vkutil::load_shader_module( "../shaders/mesh.frag.spv", engine->device, &meshFragShader ) ) {
+		fmt::println( "Error when building the triangle fragment shader module" );
+	}
+
+	VkShaderModule meshVertexShader;
+	if ( !vkutil::load_shader_module( "../shaders/mesh.vert.spv", engine->device, &meshVertexShader ) ) {
+		fmt::println( "Error when building the triangle vertex shader module" );
+	}
+
+	VkPushConstantRange matrixRange{};
+	matrixRange.offset = 0;
+	matrixRange.size = sizeof( GPUDrawPushConstants );
+	matrixRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	DescriptorLayoutBuilder layoutBuilder;
+	layoutBuilder.add_binding( 0,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER );
+	layoutBuilder.add_binding( 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
+	layoutBuilder.add_binding( 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
+
+	materialLayout = layoutBuilder.build( engine->device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT );
+
+	VkDescriptorSetLayout layouts[] = { engine->gpuSceneDataDescriptorLayout, materialLayout };
+
+	VkPipelineLayoutCreateInfo mesh_layout_info = vkinit::pipeline_layout_create_info();
+	mesh_layout_info.setLayoutCount = 2;
+	mesh_layout_info.pSetLayouts = layouts;
+	mesh_layout_info.pPushConstantRanges = &matrixRange;
+	mesh_layout_info.pushConstantRangeCount = 1;
+
+	VkPipelineLayout newLayout;
+	VK_CHECK( vkCreatePipelineLayout( engine->device, &mesh_layout_info, nullptr, &newLayout ) );
+
+	opaquePipeline.layout = newLayout;
+	transparentPipeline.layout = newLayout;
+
+	// build the stage-create-info for both vertex and fragment stages. This lets
+	// the pipeline know the shader modules per stage
+	PipelineBuilder pipelineBuilder;
+	pipelineBuilder.set_shaders( meshVertexShader, meshFragShader );
+	pipelineBuilder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
+	pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL );
+	pipelineBuilder.set_cull_mode( VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE );
+	pipelineBuilder.set_multisampling_none();
+	pipelineBuilder.disable_blending();
+	pipelineBuilder.enable_depthtest( true, VK_COMPARE_OP_GREATER_OR_EQUAL );
+
+	//render format
+	pipelineBuilder.set_color_attachment_format( engine->drawImage.imageFormat );
+	pipelineBuilder.set_depth_format( engine->depthImage.imageFormat );
+
+	// use the triangle layout we created
+	pipelineBuilder._pipelineLayout = newLayout;
+
+	// finally build the pipeline
+	opaquePipeline.pipeline = pipelineBuilder.build_pipeline( engine->device );
+
+	// create the transparent variant
+	pipelineBuilder.enable_blending_additive();
+	pipelineBuilder.enable_depthtest( false, VK_COMPARE_OP_GREATER_OR_EQUAL );
+	transparentPipeline.pipeline = pipelineBuilder.build_pipeline( engine->device );
+
+	vkDestroyShaderModule( engine->device, meshFragShader, nullptr );
+	vkDestroyShaderModule( engine->device, meshVertexShader, nullptr );
+}
+
+MaterialInstance GLTFMetallic_Roughness::writeMaterial ( VkDevice device, MaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator ) {
+	MaterialInstance matData;
+	matData.passType = pass;
+	if ( pass == MaterialPass::Transparent ) {
+		matData.pipeline = &transparentPipeline;
+	} else {
+		matData.pipeline = &opaquePipeline;
+	}
+
+	matData.materialSet = descriptorAllocator.allocate( device, materialLayout );
+
+	writer.clear();
+	writer.write_buffer( 0, resources.dataBuffer, sizeof( MaterialConstants ), resources.dataBufferOffset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER );
+	writer.write_image( 1, resources.colorImage.imageView, resources.colorSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
+	writer.write_image( 2, resources.metalRoughImage.imageView, resources.metalRoughSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
+
+	writer.update_set( device, matData.materialSet );
+
+	return matData;
 }
 
 void PrometheusInstance::initImgui () {

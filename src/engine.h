@@ -65,7 +65,41 @@ struct ComputeEffect {
 	VkPipeline pipeline;
 	VkPipelineLayout layout;
 
+	// need to figure out adding buffers + textures here
+		// this is core functionality, with configurable descriptors for the particular effects
+
 	ComputePushConstants data;
+};
+
+struct GLTFMetallic_Roughness {
+// material wrapper defined in vk_types
+	MaterialPipeline opaquePipeline;
+	MaterialPipeline transparentPipeline;
+
+	VkDescriptorSetLayout materialLayout;
+
+	struct MaterialConstants {
+		glm::vec4 colorFactors;
+		glm::vec4 metal_rough_factors;
+		//padding, we need it anyway for uniform buffers
+		glm::vec4 extra[ 14 ];
+	};
+
+	struct MaterialResources {
+		AllocatedImage colorImage;
+		VkSampler colorSampler;
+		AllocatedImage metalRoughImage;
+		VkSampler metalRoughSampler;
+		VkBuffer dataBuffer;
+		uint32_t dataBufferOffset;
+	};
+
+	DescriptorWriter writer;
+
+	void buildPipelines ( PrometheusInstance* engine );
+	void clearResources ( VkDevice device );
+
+	MaterialInstance writeMaterial ( VkDevice device, MaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator );
 };
 
 constexpr unsigned int FRAME_OVERLAP = 2;
@@ -90,6 +124,10 @@ public:
 	void initDefaultData ();
 	GPUMeshBuffers uploadMesh ( std::span<uint32_t> indices, std::span<Vertex> vertices );
 	std::vector<std::shared_ptr<MeshAsset>> testMeshes;
+
+	// GLTF mesh drawing
+	MaterialInstance defaultData;
+	GLTFMetallic_Roughness metalRoughMaterial;
 
 	// for buffer setup
 	AllocatedBuffer createBuffer( size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage );
@@ -136,7 +174,7 @@ public:
 	void immediateSubmit( std::function< void( VkCommandBuffer cmd ) > && function );
 
 	BasicGPUSceneData sceneData;
-	DescriptorAllocator globalDescriptorAllocator;
+	DescriptorAllocatorGrowable globalDescriptorAllocator;
 	VkDescriptorSetLayout gpuSceneDataDescriptorLayout;
 
 	VkDescriptorSet drawImageDescriptors;
