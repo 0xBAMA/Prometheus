@@ -643,7 +643,8 @@ void PrometheusInstance::initMeshPipeline () {
 	//connecting the vertex and pixel shaders to the pipeline
 	pipelineBuilder.set_shaders( meshVertexShader, meshFragShader );
 	//it will draw triangles
-	pipelineBuilder.set_input_topology( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
+	pipelineBuilder.set_input_topology( VK_PRIMITIVE_TOPOLOGY_POINT_LIST );
+	// pipelineBuilder.set_input_topology( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
 	//filled triangles
 	pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL );
 	//no backface culling
@@ -969,7 +970,7 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) {
 	writer.update_set( device, globalDescriptor );
 
 	vkCmdBeginRendering( cmd, &renderInfo);
-	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline );
+	// vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline );
 
 	//set dynamic viewport and scissor
 	VkViewport viewport = {};
@@ -989,7 +990,7 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) {
 	vkCmdSetScissor( cmd, 0, 1, &scissor );
 
 	//launch a draw command to draw 3 vertices
-	vkCmdDraw( cmd, 3, 1, 0, 0 );
+	// vkCmdDraw( cmd, 3, 1, 0, 0 );
 
 	// now draw the "mesh"
 	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline );
@@ -1006,22 +1007,18 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) {
 
 	GPUDrawPushConstants push_constants;
 	push_constants.worldMatrix = glm::mat4{ 1.0f };
+	push_constants.tOffset = frameNumber;
 	push_constants.vertexBuffer = rectangle.vertexBufferAddress;
 
-	vkCmdPushConstants( cmd, meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( GPUDrawPushConstants ), &push_constants );
-	vkCmdBindIndexBuffer( cmd, rectangle.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32 );
-
-	vkCmdDrawIndexed( cmd, 6, 1, 0, 0, 0 );
+	// vkCmdPushConstants( cmd, meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( GPUDrawPushConstants ), &push_constants );
+	// vkCmdBindIndexBuffer( cmd, rectangle.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32 );
+	// vkCmdDrawIndexed( cmd, 6, 1, 0, 0, 0 );
 
 	push_constants.vertexBuffer = testMeshes[ 2 ]->meshBuffers.vertexBufferAddress;
 
-	// dynamic rotation via push constant
-	static float rot = 0.0f;
-	rot += 0.01f;
-
 	// view and camera projection
-	glm::mat4 view = glm::rotate( glm::translate( glm::vec3{ 0.0f,0.0f,-5.0f } ), rot, glm::vec3( 0.0f, 1.0f, 0.0f ) );
-	glm::mat4 projection = glm::perspective( glm::radians( 70.0f ), ( float ) drawExtent.width / ( float ) drawExtent.height, 10000.f, 0.1f );
+	glm::mat4 view = glm::rotate( glm::translate( glm::vec3{ 0.0f,0.0f,-5.0f } ), frameNumber / 100.0f, glm::vec3( 0.0f, 1.0f, 0.0f ) );
+	glm::mat4 projection = glm::perspective( glm::radians( 30.0f ), ( float ) drawExtent.width / ( float ) drawExtent.height, 10000.f, 0.1f );
 
 	// invert the Y direction on projection matrix so that we are more similar to opengl and gltf axis
 	projection[ 1 ][ 1 ] *= -1.0f;
@@ -1078,6 +1075,8 @@ void GLTFMetallic_Roughness::buildPipelines ( PrometheusInstance* engine ) {
 	pipelineBuilder.set_shaders( meshVertexShader, meshFragShader );
 	pipelineBuilder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
 	pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL );
+	// pipelineBuilder.set_input_topology( VK_PRIMITIVE_TOPOLOGY_POINT_LIST );
+	// pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL );
 	pipelineBuilder.set_cull_mode( VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE );
 	pipelineBuilder.set_multisampling_none();
 	pipelineBuilder.disable_blending();

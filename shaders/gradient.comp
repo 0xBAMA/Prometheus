@@ -1,23 +1,23 @@
+//=========================================================
 #version 460
-
-//size of a workgroup for compute
+//=========================================================
+// size of a workgroup for compute
 layout ( local_size_x = 16, local_size_y = 16 ) in;
-
-//descriptor bindings for the pipeline
+// descriptor bindings for the pipeline
 layout ( rgba16f, set = 0, binding = 0 ) uniform image2D image;
-
+//=========================================================
 layout ( push_constant ) uniform constants {
 	vec4 data1;
 	vec4 data2;
 	vec4 data3;
 	vec4 data4;
 } PushConstants;
-//---------------------------------------------------------
+//=========================================================
 void main () {
 	ivec2 texelCoord = ivec2( gl_GlobalInvocationID.xy );
 	ivec2 size = imageSize( image );
-	vec4 color = vec4( mix( PushConstants.data1.xyz, PushConstants.data2.xyz,
-	vec3( float( gl_GlobalInvocationID.y ) / float( size.y ) ) ), 1.0f );
 
+	vec4 color = vec4( vec3( texelCoord.x ^ texelCoord.y ) / 2048.0f, 1.0f );
 	imageStore( image, texelCoord, color );
 }
+//=========================================================

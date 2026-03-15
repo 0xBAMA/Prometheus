@@ -12,5 +12,6 @@ layout ( location = 0 ) out vec4 outFragColor;
 layout ( set = 0, binding = 0 ) uniform sampler2D displayTexture;
 
 void main () {
-	outFragColor = texture( displayTexture, inUV );
+	outFragColor = texture( displayTexture, inUV ).grba;
+	outFragColor.a = 1.0f;
 }

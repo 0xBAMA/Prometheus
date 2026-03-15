@@ -91,6 +91,7 @@ struct GPUMeshBuffers {
 // push constants for our mesh object draws
 struct GPUDrawPushConstants {
 	glm::mat4 worldMatrix;
+	float tOffset;
 	VkDeviceAddress vertexBuffer;
 };
 //< vbuf_types
