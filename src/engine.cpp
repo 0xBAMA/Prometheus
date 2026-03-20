@@ -624,7 +624,7 @@ void PrometheusInstance::initMeshPipeline () {
 	VkPushConstantRange bufferRange{};
 	bufferRange.offset = 0;
 	bufferRange.size = sizeof( GPUDrawPushConstants );
-	bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 
 	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 	pipeline_layout_info.pPushConstantRanges = &bufferRange;
@@ -1024,7 +1024,7 @@ void PrometheusInstance::drawGeometry ( VkCommandBuffer cmd ) {
 	projection[ 1 ][ 1 ] *= -1.0f;
 
 	push_constants.worldMatrix = projection * view;
-	vkCmdPushConstants( cmd, meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( GPUDrawPushConstants ), &push_constants );
+	vkCmdPushConstants( cmd, meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( GPUDrawPushConstants ), &push_constants );
 	vkCmdBindIndexBuffer( cmd, testMeshes[ 2 ]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32 );
 
 	vkCmdDrawIndexed( cmd, testMeshes[ 2 ]->surfaces[ 0 ].count, 1, testMeshes[ 2 ]->surfaces[ 0 ].startIndex, 0, 0 );
