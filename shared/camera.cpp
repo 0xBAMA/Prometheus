@@ -23,6 +23,7 @@ glm::mat4 Camera::getRotationMatrix() const
     return glm::toMat4(yawRotation) * glm::toMat4(pitchRotation);
 }
 
+/*
 void Camera::processSDLEvent(SDL_Event& e)
 {
     if (e.type == SDL_KEYDOWN) {
@@ -44,6 +45,7 @@ void Camera::processSDLEvent(SDL_Event& e)
         pitch -= (float)e.motion.yrel / 200.f;
     }
 }
+*/
 
 void Camera::update()
 {

@@ -12,14 +12,22 @@
 #include <functional>
 #include <deque>
 
-#include <vulkan/vulkan.h>
+#define VK_NO_PROTOTYPES
+// #include <vulkan/vulkan.h>
+#include "../src/third_party/volk/volk.h"
 #include <vulkan/vk_enum_string_helper.h>
 #include <vk_mem_alloc.h>
 
 #include <fmt/core.h>
-
+#define GLM_ENABLE_EXPERIMENTAL
+#define GLM_FORCE_SWIZZLE
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
+#include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtc/packing.hpp>
+#include <glm/gtx/string_cast.hpp>
+
 //< intro 
 
 // we will add our main reusable types here
@@ -35,102 +43,9 @@ struct AllocatedBuffer {
 	VkBuffer buffer;
 	VmaAllocation allocation;
 	VmaAllocationInfo info;
+	VkDeviceAddress deviceAddress;
 };
 
-struct GPUGLTFMaterial {
-	glm::vec4 colorFactors;
-	glm::vec4 metal_rough_factors;
-	glm::vec4 extra[ 14 ];
-};
-
-static_assert(sizeof(GPUGLTFMaterial) == 256);
-
-struct GPUSceneData {
-	glm::mat4 view;
-	glm::mat4 proj;
-	glm::mat4 viewproj;
-	glm::vec4 ambientColor;
-	glm::vec4 sunlightDirection; // w for sun power
-	glm::vec4 sunlightColor;
-};
-
-//> mat_types
-enum class MaterialPass : uint8_t {
-	MainColor,
-	Transparent,
-	Other
-};
-
-struct MaterialPipeline {
-	VkPipeline pipeline;
-	VkPipelineLayout layout;
-};
-
-struct MaterialInstance {
-	MaterialPipeline* pipeline;
-	VkDescriptorSet materialSet;
-	MaterialPass passType;
-};
-//< mat_types
-//> vbuf_types
-struct Vertex {
-	glm::vec3 position;
-	float uv_x;
-	glm::vec3 normal;
-	float uv_y;
-	glm::vec4 color;
-};
-
-// holds the resources needed for a mesh
-struct GPUMeshBuffers {
-	AllocatedBuffer indexBuffer;
-	AllocatedBuffer vertexBuffer;
-	VkDeviceAddress vertexBufferAddress;
-};
-
-// push constants for our mesh object draws
-struct GPUDrawPushConstants {
-	glm::mat4 worldMatrix;
-	float tOffset;
-	VkDeviceAddress vertexBuffer;
-};
-//< vbuf_types
-
-//> node_types
-struct DrawContext;
-
-// base class for a renderable dynamic object
-class IRenderable {
-	virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
-};
-
-// implementation of a drawable scene node.
-// the scene node can hold children and will also keep a transform to propagate
-// to them
-struct Node : public IRenderable {
-
-	// parent pointer must be a weak pointer to avoid circular dependencies
-	std::weak_ptr< Node > parent;
-	std::vector< std::shared_ptr< Node > > children;
-
-	glm::mat4 localTransform;
-	glm::mat4 worldTransform;
-
-	void refreshTransform ( const glm::mat4& parentMatrix ) {
-		worldTransform = parentMatrix * localTransform;
-		for ( auto c : children ) {
-			c->refreshTransform( worldTransform );
-		}
-	}
-
-	virtual void Draw ( const glm::mat4& topMatrix, DrawContext& ctx ) {
-		// draw children
-		for ( auto& c : children ) {
-			c->Draw( topMatrix, ctx );
-		}
-	}
-};
-//< node_types
 //> intro
 #define VK_CHECK(x)                                                     \
     do {                                                                \
@@ -141,3 +56,60 @@ struct Node : public IRenderable {
         }                                                               \
     } while (0)
 //< intro
+
+static VkInstance* globalVkInstancePtr = nullptr;
+static VkDevice* globalVkDevicePtr = nullptr;
+static VmaAllocator* vmaGlobalAllocatorPtr = nullptr;
+
+static void SetDebugName ( VkObjectType type, uint64_t handle, const char* name ) {
+	// Must call extension functions through a function pointer:
+	PFN_vkSetDebugUtilsObjectNameEXT pfnSetDebugUtilsObjectNameEXT = ( PFN_vkSetDebugUtilsObjectNameEXT ) vkGetInstanceProcAddr( *globalVkInstancePtr, "vkSetDebugUtilsObjectNameEXT" );
+
+	// // Set a name on the image
+	// const VkDebugUtilsObjectNameInfoEXT imageNameInfo =
+	// {
+	// 	.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+	// 	.pNext = NULL,
+	// 	.objectType = VK_OBJECT_TYPE_IMAGE,
+	// 	.objectHandle = (uint64_t)image,
+	// 	.pObjectName = "Brick Diffuse Texture",
+	// };
+	//
+	// pfnSetDebugUtilsObjectNameEXT(device, &imageNameInfo);
+
+	VkDebugUtilsObjectNameInfoEXT info{};
+	info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+	info.pNext = NULL;
+	info.objectType = type;
+	info.objectHandle = handle;
+	info.pObjectName = name;
+
+	pfnSetDebugUtilsObjectNameEXT( *globalVkDevicePtr, &info );
+}
+
+static AllocatedBuffer createBuffer ( size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, std::string debugName = "" ) {
+	// allocate buffer
+	VkBufferCreateInfo bufferInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+	bufferInfo.pNext = nullptr;
+	bufferInfo.size = allocSize;
+	bufferInfo.usage = usage | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT;
+
+	VmaAllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = memoryUsage;
+	vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	AllocatedBuffer newBuffer;
+
+	// allocate the buffer
+	VK_CHECK( vmaCreateBuffer( *vmaGlobalAllocatorPtr, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation, &newBuffer.info ) );
+
+	VkBufferDeviceAddressInfo deviceAddressInfo = {};
+	deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+	deviceAddressInfo.buffer = newBuffer.buffer;
+	newBuffer.deviceAddress = vkGetBufferDeviceAddress( *globalVkDevicePtr, &deviceAddressInfo  );
+
+	if ( debugName != "" ) {
+		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) newBuffer.buffer, debugName.c_str() );
+	}
+
+	return newBuffer;
+}

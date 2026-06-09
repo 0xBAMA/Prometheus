@@ -20,10 +20,12 @@ struct DescriptorLayoutBuilder {
 struct DescriptorWriter {
     std::deque<VkDescriptorImageInfo> imageInfos;
     std::deque<VkDescriptorBufferInfo> bufferInfos;
+	std::deque<VkWriteDescriptorSetAccelerationStructureKHR> accelerationStructureInfos;
     std::vector<VkWriteDescriptorSet> writes;
 
     void write_image(int binding,VkImageView image,VkSampler sampler , VkImageLayout layout, VkDescriptorType type);
-    void write_buffer(int binding,VkBuffer buffer,size_t size, size_t offset,VkDescriptorType type); 
+    void write_buffer(int binding,VkBuffer buffer,size_t size, size_t offset,VkDescriptorType type);
+	void write_acceleration_structure( int binding, VkAccelerationStructureKHR* accel );
 
     void clear();
     void update_set(VkDevice device, VkDescriptorSet set);

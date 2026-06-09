@@ -14,13 +14,10 @@ add_library (vkguide_shared STATIC
 	vk_loader.cpp
 	camera.cpp
 	camera.h
-	meshes.h
-	meshes.cpp
 )
 
 set_property(TARGET vkguide_shared PROPERTY CXX_STANDARD 20)
-target_compile_definitions(vkguide_shared PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 target_include_directories(vkguide_shared PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(vkguide_shared PUBLIC "${PROJECT_SOURCE_DIR}/src/third_party/fastgltf/include/")
-target_link_libraries(vkguide_shared PUBLIC vma glm Vulkan::Vulkan fmt::fmt stb_image SDL2::SDL2 fastgltf)
-target_precompile_headers(vkguide_shared PUBLIC <optional> <vector> <memory> <string> <vector> <unordered_map> <glm/mat4x4.hpp>  <glm/vec4.hpp> <vulkan/vulkan.h>)
+target_link_libraries(vkguide_shared PUBLIC vma Vulkan::Vulkan fmt::fmt stb_image SDL3::SDL3 fastgltf)
+#target_precompile_headers(vkguide_shared PUBLIC <optional> <vector> <memory> <string> <vector> <unordered_map> <glm/mat4x4.hpp>  <glm/vec4.hpp> <vulkan/vulkan.h>)

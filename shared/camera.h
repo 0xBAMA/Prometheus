@@ -1,4 +1,4 @@
-#include "SDL_events.h"
+// #include "SDL_events.h"
 #include <vk_types.h>
 
 class Camera {
@@ -13,7 +13,7 @@ public:
     glm::mat4 getViewMatrix() const;
     glm::mat4 getRotationMatrix() const;
 
-    void processSDLEvent(SDL_Event& e);
+    // void processSDLEvent(SDL_Event& e);
 
     void update();
 };

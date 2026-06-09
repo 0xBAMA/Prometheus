@@ -125,12 +125,36 @@ void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, s
 	writes.push_back(write);
 }
 //< write_buffer
+void DescriptorWriter::write_acceleration_structure( int binding, VkAccelerationStructureKHR* accel ) {
+	// auto& storedAccel = accelerationStructures.emplace_back(accel);
+
+	auto& asInfo = accelerationStructureInfos.emplace_back(
+		VkWriteDescriptorSetAccelerationStructureKHR{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+			.pNext = nullptr,
+			.accelerationStructureCount = 1,
+			.pAccelerationStructures = accel
+		});
+
+	VkWriteDescriptorSet write{
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
+	};
+
+	write.pNext = &asInfo;
+	write.dstBinding = binding;
+	write.dstSet = VK_NULL_HANDLE;
+	write.descriptorCount = 1;
+	write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+
+	writes.push_back( write );
+}
 //> writer_end
-void DescriptorWriter::clear()
-{
+
+void DescriptorWriter::clear() {
     imageInfos.clear();
     writes.clear();
     bufferInfos.clear();
+	accelerationStructureInfos.clear();
 }
 
 void DescriptorWriter::update_set(VkDevice device, VkDescriptorSet set)
