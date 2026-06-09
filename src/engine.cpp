@@ -1333,13 +1333,21 @@ void PrometheusInstance::initBVH () {
 		// setting up a single instance...
 	createInfo.geometryFlags = VK_GEOMETRY_OPAQUE_BIT_KHR;
 	createInfo.buildFlags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR;
-	createInfo.instanceBuffer = createBuffer( sizeof( TLASInstance ), VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO );
+	createInfo.instanceBuffer = createBuffer( 2 * sizeof( TLASInstance ), VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO );
 
 	// writing instance data to the buffer
 	TLASInstance * instances = ( TLASInstance * ) createInfo.instanceBuffer.allocation->GetMappedData();
 	instances[ 0 ].BLASAddress = BLASRecords[ 0 ].address_;
 	instances[ 0 ].transform = {
 		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f
+	};
+
+	// second instance of heightmap
+	instances[ 1 ].BLASAddress = BLASRecords[ 0 ].address_;
+	instances[ 1 ].transform = {
+		1.0f, 0.0f, 0.0f, 1.5f,
 		0.0f, 1.0f, 0.0f, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f
 	};
