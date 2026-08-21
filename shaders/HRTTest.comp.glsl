@@ -15,11 +15,16 @@ layout( set = 0, binding = 2 ) uniform accelerationStructureEXT tlas;
 
 void main () {
 
+	vec2 uv = vec2(
+		remap( gl_GlobalInvocationID.y, 0.0f, imageSize( accumulator ).y, -0.5f, 0.5f ),
+		remap( gl_GlobalInvocationID.x, 0.0f, imageSize( accumulator ).x, -0.5f, 0.5f )
+	);
+
 	// basic camera setup for testing the hardware ray queries...
 	vec3 rayOrigin = vec3( 0.0f, 0.0f, 3.0f );
 	vec3 rayDirection =
-		Rotate3D( 0.1f * GlobalData.frameNumber + remap( gl_GlobalInvocationID.y, 0.0f, imageSize( accumulator ).y, -0.5f, 0.5f ), vec3( 1.0f, 0.0f, 0.0f ) ) *
-		Rotate3D( 0.03f * GlobalData.frameNumber + remap( gl_GlobalInvocationID.x, 0.0f, imageSize( accumulator ).x, -0.5f, 0.5f ), vec3( 0.0f, 1.0f, 0.0f ) ) *
+		Rotate3D( 0.1f * GlobalData.frameNumber + uv.x, vec3( 1.0f, 0.0f, 0.0f ) ) *
+		Rotate3D( 0.03f * GlobalData.frameNumber + uv.y, vec3( 0.0f, 1.0f, 0.0f ) ) *
 		vec3( 0.0f, 0.0f, -1.0f );
 
 	// initializing the query
@@ -48,5 +53,6 @@ void main () {
 		color = vec3( 0.0f, 0.0f, 0.5f );
 	}
 
-	imageStore( accumulator, ivec2( gl_GlobalInvocationID.xy ), vec4( saturate( color + rayDirection / 5.0f ), 1.0f ) );
+	 imageStore( accumulator, ivec2( gl_GlobalInvocationID.xy ), vec4( saturate( color + rayDirection / 5.0f ), 1.0f ) );
+//	imageStore( accumulator, ivec2( gl_GlobalInvocationID.xy ), vec4( uv, 0.0f, 1.0f ) );
 }

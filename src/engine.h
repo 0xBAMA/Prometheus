@@ -45,16 +45,6 @@ struct BLASRecord {
 	BLASCreateInfo createInfo;
 };
 
-struct TLASInstance {
-	VkTransformMatrixKHR transform = {};
-	uint32_t instanceCustomIndex : 24 = 0;
-	uint32_t mask : 8 = 0;
-	uint32_t shaderBindingTableOffset : 24 = 0;
-	VkGeometryInstanceFlagBitsKHR flags : 8 = {};
-	VkDeviceAddress BLASAddress = 0;
-};
-static_assert(sizeof(TLASInstance) == sizeof(VkAccelerationStructureInstanceKHR));
-
 struct TLASCreateInfo {
 	VkGeometryFlagsKHR geometryFlags = {};
 	VkBuildAccelerationStructureFlagsKHR buildFlags = {};

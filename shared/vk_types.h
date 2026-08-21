@@ -100,7 +100,8 @@ static AllocatedBuffer createBuffer ( size_t allocSize, VkBufferUsageFlags usage
 	AllocatedBuffer newBuffer;
 
 	// allocate the buffer
-	VK_CHECK( vmaCreateBuffer( *vmaGlobalAllocatorPtr, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation, &newBuffer.info ) );
+	// VK_CHECK( vmaCreateBuffer( *vmaGlobalAllocatorPtr, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation, &newBuffer.info ) );
+	VK_CHECK( vmaCreateBufferWithAlignment( *vmaGlobalAllocatorPtr, &bufferInfo, &vmaallocInfo, 16, &newBuffer.buffer, &newBuffer.allocation, &newBuffer.info ) );
 
 	VkBufferDeviceAddressInfo deviceAddressInfo = {};
 	deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
