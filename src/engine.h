@@ -181,23 +181,7 @@ struct debugStringConfig {
 constexpr unsigned int FRAME_OVERLAP = 2;
 constexpr bool useValidationLayers = true;
 
-struct ComputeEffect {
-	// pipeline is the thing we use to invoke this shader pass
-	VkPipeline pipeline;
-
-	// pipeline layout gives us what we need for sending push constants and buffer attachments
-	VkPipelineLayout pipelineLayout;
-
-	// this is the descriptor set layout for this particular compute effect (UBO + any SSBOs + any images/textures)
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorSet descriptorSet;
-
-	// retained state for the push constants
-	PushConstants pushConstants;
-
-	// so we can have the main loop code local to the declaration
-	std::function< void( VkCommandBuffer cmd ) > invoke;
-};
+#include "enginePipeline.h"
 
 inline uint32_t genWangSeed () {
 	static thread_local std::mt19937 seedRNG( [] {

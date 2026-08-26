@@ -150,6 +150,70 @@ void DescriptorWriter::write_acceleration_structure( int binding, VkAcceleration
 }
 //> writer_end
 
+struct descriptorItem {
+
+	// the descriptor index in the descriptor set
+	int index = 0;
+
+	// expressing the specific type of descriptor
+	// usually one of:
+	// VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+	// VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+	// VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+	// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+	VkDescriptorType type;
+
+	// for simplicity, this handles both image and buffer descriptors
+	// std::function used so that the behavior can be dynamic at runtime
+
+	// IMAGE DESCRIPTOR
+	VkSampler sampler = VK_NULL_HANDLE;
+	VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+	std::function<VkImageView()> getImageView;
+	descriptorItem (
+		uint32_t index_in,
+		VkDescriptorType type_in,
+		VkSampler sampler_in,
+		std::function<VkImageView()> getImageViewLambda,
+		VkImageLayout layout_in = VK_IMAGE_LAYOUT_GENERAL )
+	{
+		index = index_in;
+		type = type_in;
+		sampler = sampler_in;
+		getImageView = getImageViewLambda;
+		layout = layout_in;
+	}
+
+	// BUFFER DESCRIPTOR
+	std::function<VkBuffer()> getBuffer;
+	size_t size = 0;
+	size_t offset = 0;
+	descriptorItem (
+		int index_in,
+		VkDescriptorType type_in,
+		std::function<VkBuffer()> getBufferLambda,
+		size_t size_in = 0, size_t offset_in = 0 )
+	{
+		index = index_in;
+		type = type_in;
+		getBuffer = getBufferLambda;
+		size = size_in;
+		offset = offset_in;
+	}
+
+	// so we can iterate through the list at runtime
+	void write ( DescriptorWriter& writer ) {
+		if ( type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE || type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ) {
+			// writing an image descriptor
+			writer.write_image( index, getImageView(), sampler, layout, type );
+		} else {
+			// writing a buffer descriptor
+			writer.write_buffer( index, getBuffer(), size, offset, type );
+		}
+		// if you want to handle other stuff (e.g. BVH stuff), this needs to handle that
+	}
+};
+
 void DescriptorWriter::clear() {
     imageInfos.clear();
     writes.clear();

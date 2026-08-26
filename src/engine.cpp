@@ -74,9 +74,9 @@ void PrometheusInstance::Init () {
 	initResources();
 	initBVH();
 	initDescriptors();
-	initComputePasses();
 	initImgui();
 	initDefaultData();
+	initComputePasses();
 	initLights();
 
 	// everything went fine
@@ -183,12 +183,12 @@ void PrometheusInstance::Draw () {
 		scopedTimer start( "Accumulate" );
 		Accumulate.invoke( cmd );
 	}
-	*/
 
 	{ // placeholder test for building BLAS + TLAS + doing ray queries in a shader
 		scopedTimer start( "Hardware RT Test" );
 		HRTTest.invoke( cmd );
 	}
+	*/
 
 	{ // compute shader to accumulate the raster result + put the resolved final image into the drawImage...
 		scopedTimer start( "Present" );
@@ -1511,6 +1511,7 @@ static VkBufferMemoryBarrier2 makeBufferBarrier ( VkBuffer buf, VkPipelineStageF
 }
 
 void PrometheusInstance::initComputePasses () {
+	/*
 	{ // testing hardware RT
 		{ // descriptor layout
 			DescriptorLayoutBuilder builder;
@@ -1606,8 +1607,9 @@ void PrometheusInstance::initComputePasses () {
 			vkCmdPipelineBarrier2( cmd, &barrierDependency );
 		};
 	}
+	*/
 
-	if ( false ) { // Raytrace update
+	{ // Raytrace update
 		{ // descriptor layout
 			DescriptorLayoutBuilder builder;
 			builder.add_binding( 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ); // global config UBO
@@ -1714,7 +1716,7 @@ void PrometheusInstance::initComputePasses () {
 		};
 	}
 
-	if ( false ) { // Line Rasterization
+	{ // Line Rasterization
 		{ // descriptor layout
 			// we're eventually going to just want 32-bit uint IDs out of this process, but for now I think color makes sense...
 				// we of course also need depth for the z-testing.
@@ -1845,7 +1847,7 @@ void PrometheusInstance::initComputePasses () {
 		};
 	}
 
-	if ( false ) { // Accumulate
+	{ // Accumulate
 		{ // descriptor layout
 			DescriptorLayoutBuilder builder;
 			builder.add_binding( 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ); // global config UBO
@@ -2244,6 +2246,7 @@ void PrometheusInstance::initComputePasses () {
 	}
 
 	{ // Present
+		/*
 		{ // descriptor layout
 			DescriptorLayoutBuilder builder;
 			builder.add_binding( 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ); // global config UBO
@@ -2300,15 +2303,28 @@ void PrometheusInstance::initComputePasses () {
 				vkDestroyPipeline( device, BufferPresent.pipeline, nullptr );
 			});
 		}
+		*/
+
+		ComputeConfig config;
+		config.name = "Buffer Present";
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0, [ & ] () { return Resource( GlobalUBO.buffer ); } },
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,  [ & ] () { return Resource( drawImage.imageView ); } },
+			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,  [ & ] () { return Resource( XYZImage.imageView ); } }
+		};
+		config.shaderPath = "../shaders/bufferPresent.comp.glsl.spv";
+		BufferPresent.init( &device, &mainDeletionQueue, config );
 
 		// invoke() lambda
 		BufferPresent.invoke = [ & ]( VkCommandBuffer cmd ) {
 			BufferPresent.descriptorSet = getCurrentFrame().frameDescriptors.allocate( device, BufferPresent.descriptorSetLayout );
 			{
 				DescriptorWriter writer;
-				writer.write_buffer( 0, GlobalUBO.buffer, sizeof( GlobalData ), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER );
-				writer.write_image( 1, drawImage.imageView, defaultSamplerNearest, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE );
-				writer.write_image( 2, XYZImage.imageView, defaultSamplerLinear, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
+				// writer.write_buffer( 0, GlobalUBO.buffer, sizeof( GlobalData ), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER );
+				// writer.write_image( 1, drawImage.imageView, defaultSamplerNearest, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE );
+				// writer.write_image( 2, XYZImage.imageView, defaultSamplerLinear, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
+				for ( auto& d : BufferPresent.descriptors )
+					d.write( writer );
 				writer.update_set( device, BufferPresent.descriptorSet );
 			}
 
