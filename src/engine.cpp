@@ -2245,66 +2245,7 @@ void PrometheusInstance::initComputePasses () {
 		};
 	}
 
-	{ // Present
-		/*
-		{ // descriptor layout
-			DescriptorLayoutBuilder builder;
-			builder.add_binding( 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ); // global config UBO
-			builder.add_binding( 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ); // draw image
-			builder.add_binding( 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ); // accumulation Buffer -> linear filter
-			BufferPresent.descriptorSetLayout = builder.build( device, VK_SHADER_STAGE_COMPUTE_BIT );
-			SetDebugName( VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, ( uint64_t ) BufferPresent.descriptorSetLayout, "Buffer Present Descriptor Set Layout" );
-		}
-
-		{ // pipeline layout + compute pipeline
-			VkPushConstantRange pushConstant{};
-			pushConstant.offset = 0;
-			pushConstant.size = sizeof( PushConstants );
-			pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-			VkPipelineLayoutCreateInfo computeLayout{};
-			computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-			computeLayout.pNext = nullptr;
-			computeLayout.pSetLayouts = &BufferPresent.descriptorSetLayout;
-			computeLayout.setLayoutCount = 1;
-			computeLayout.pPushConstantRanges = &pushConstant;
-			computeLayout.pushConstantRangeCount = 1;
-
-			VK_CHECK( vkCreatePipelineLayout( device, &computeLayout, nullptr, &BufferPresent.pipelineLayout ) );
-			SetDebugName( VK_OBJECT_TYPE_PIPELINE_LAYOUT, ( uint64_t ) BufferPresent.pipelineLayout, "Buffer Present Pipeline Layout" );
-
-			VkShaderModule BufferPresentShader;
-			if ( !vkutil::load_shader_module("../shaders/bufferPresent.comp.glsl.spv", device, &BufferPresentShader ) ) {
-				fmt::print( "Error when building the Buffer Present Compute Shader\n" );
-			}
-			SetDebugName( VK_OBJECT_TYPE_SHADER_MODULE, ( uint64_t ) BufferPresentShader, "Buffer Present Shader Module" );
-
-			VkPipelineShaderStageCreateInfo stageinfo{};
-			stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			stageinfo.pNext = nullptr;
-			stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-			stageinfo.module = BufferPresentShader;
-			stageinfo.pName = "main";
-
-			VkComputePipelineCreateInfo computePipelineCreateInfo{};
-			computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-			computePipelineCreateInfo.pNext = nullptr;
-			computePipelineCreateInfo.layout = BufferPresent.pipelineLayout;
-			computePipelineCreateInfo.stage = stageinfo;
-
-			VK_CHECK( vkCreateComputePipelines( device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &BufferPresent.pipeline ) );
-			SetDebugName( VK_OBJECT_TYPE_PIPELINE, ( uint64_t ) BufferPresent.pipeline, "Buffer Present Compute Pipeline" );
-			vkDestroyShaderModule( device, BufferPresentShader, nullptr );
-
-			// deletors for the pipeline layout + pipeline
-			mainDeletionQueue.push_function( [ & ] () {
-				vkDestroyDescriptorSetLayout( device, BufferPresent.descriptorSetLayout, nullptr );
-				vkDestroyPipelineLayout( device, BufferPresent.pipelineLayout, nullptr );
-				vkDestroyPipeline( device, BufferPresent.pipeline, nullptr );
-			});
-		}
-		*/
-
+	{
 		ComputeConfig config;
 		config.name = "Buffer Present";
 		config.descriptorSetLayout = {
@@ -2320,29 +2261,21 @@ void PrometheusInstance::initComputePasses () {
 			BufferPresent.descriptorSet = getCurrentFrame().frameDescriptors.allocate( device, BufferPresent.descriptorSetLayout );
 			{
 				DescriptorWriter writer;
-				// writer.write_buffer( 0, GlobalUBO.buffer, sizeof( GlobalData ), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER );
-				// writer.write_image( 1, drawImage.imageView, defaultSamplerNearest, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE );
-				// writer.write_image( 2, XYZImage.imageView, defaultSamplerLinear, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
 				for ( auto& d : BufferPresent.descriptors )
 					d.write( writer );
 				writer.update_set( device, BufferPresent.descriptorSet );
 			}
 
+			// this stuff is always the same...
 			vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, BufferPresent.pipeline );
-
-			// bind the descriptor set, as just recorded
 			vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, BufferPresent.pipelineLayout, 0, 1, &BufferPresent.descriptorSet, 0, nullptr );
 
-			// get a new wang RNG seed
+			// get a new wang RNG seed + send the current value of the push constants
 			BufferPresent.pushConstants.wangSeed = genWangSeed();
-
-			// send the current value of the push constants
 			vkCmdPushConstants( cmd, BufferPresent.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &BufferPresent.pushConstants );
 
-			// and the actual compute dispatch for the simulation agents
+			// and the actual compute dispatch for the compute pass
 			vkCmdDispatch( cmd, ( drawExtent.width + 15 ) / 16, ( drawExtent.height + 15 ) / 16, 1 );
-		};
-	}
 
 	{ // BBox precompute
 		{ // descriptor layout
