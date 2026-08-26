@@ -1333,11 +1333,11 @@ void PrometheusInstance::initBVH () {
 		// setting up a single instance...
 	createInfo.geometryFlags = VK_GEOMETRY_OPAQUE_BIT_KHR;
 	createInfo.buildFlags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR;
-	createInfo.instanceBuffer = createBuffer( 2 * sizeof( VkAccelerationStructureInstanceKHR ), VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO );
+	createInfo.instanceBuffer = createBuffer( 2 * sizeof( TLASInstance ), VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO );
 
 	// writing instance data to the buffer
-	VkAccelerationStructureInstanceKHR * instances = ( VkAccelerationStructureInstanceKHR * ) createInfo.instanceBuffer.allocation->GetMappedData();
-	instances[ 0 ].accelerationStructureReference = BLASRecords[ 0 ].address_;
+	TLASInstance * instances = ( TLASInstance * ) createInfo.instanceBuffer.allocation->GetMappedData();
+	instances[ 0 ].BLASAddress = BLASRecords[ 0 ].address_;
 	instances[ 0 ].transform = {
 		1.0f, 0.0f, 0.0f, 0.0f,
 		0.0f, 1.0f, 0.0f, 0.0f,
@@ -1345,26 +1345,26 @@ void PrometheusInstance::initBVH () {
 	};
 
 	// second instance of heightmap
-	instances[ 1 ].accelerationStructureReference = BLASRecords[ 0 ].address_;
+	instances[ 1 ].BLASAddress = BLASRecords[ 0 ].address_;
 	instances[ 1 ].transform = {
 		1.0f, 0.0f, 0.0f, 1.5f,
 		0.0f, 1.0f, 0.0f, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f
 	};
-	const VkAccelerationStructureGeometryKHR geometryInfo = {
-		.sType        = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
-		.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
-		.geometry     = {.instances =
-			{
-				.sType           = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
-				.arrayOfPointers = false,
-				.data            = createInfo.instanceBuffer.deviceAddress,
-			}},
-		.flags        = static_cast<VkGeometryFlagsKHR>(createInfo.geometryFlags),
-	};
 
-    const uint32_t instanceCount = uint32_t(createInfo.instanceBuffer.allocation->GetSize() / sizeof(VkAccelerationStructureInstanceKHR));
-	fmt::print( "trying to create {} instances\n", instanceCount );
+	const VkAccelerationStructureGeometryKHR geometryInfo = {
+      .sType        = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+      .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
+      .geometry     = {.instances =
+                         {
+                           .sType           = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+                           .arrayOfPointers = false,
+                           .data            = createInfo.instanceBuffer.deviceAddress,
+                     }},
+      .flags        = static_cast<VkGeometryFlagsKHR>(createInfo.geometryFlags),
+    };
+
+    const uint32_t instanceCount = uint32_t(createInfo.instanceBuffer.allocation->GetSize() / sizeof(TLASInstance));
 
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo = {
       .sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
@@ -2785,9 +2785,8 @@ AllocatedBuffer PrometheusInstance::createBuffer ( size_t allocSize, VkBufferUsa
 	vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 	AllocatedBuffer newBuffer;
 
-	// allocate the buffer (aligned on 16 bytes)
-	// VK_CHECK( vmaCreateBuffer( allocator, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation, &newBuffer.info ) );
-	VK_CHECK( vmaCreateBufferWithAlignment( allocator, &bufferInfo, &vmaallocInfo, 16, &newBuffer.buffer, &newBuffer.allocation, &newBuffer.info ) );
+	// allocate the buffer
+	VK_CHECK( vmaCreateBuffer( allocator, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation, &newBuffer.info ) );
 
 	VkBufferDeviceAddressInfo deviceAddressInfo = {};
 	deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
