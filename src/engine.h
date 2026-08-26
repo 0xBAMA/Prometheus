@@ -259,6 +259,9 @@ public:
 	ComputeEffect DebugLineDraw;
 	ComputeEffect DebugStringDraw;
 
+	// testing
+	ComputeEffect testPipe;
+
 	// for precomputing the grid acceleration structure on the GPU
 	ComputeEffect BBoxPrecompute;
 	ComputeEffect UncompactedGridPrecompute;

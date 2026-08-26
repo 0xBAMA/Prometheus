@@ -168,27 +168,10 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, PickISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, SpectrumISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
-	/*
-	{ // compute shader to do one update of the raytrace process
-		scopedTimer start( "Raytrace" );
-		Raytrace.invoke( cmd );
+	{
+		scopedTimer start( "Test 1" );
+		testPipe.invoke( cmd );
 	}
-
-	{ // line drawing
-		scopedTimer start( "Line Raster" );
-		lineRaster.invoke( cmd );
-	}
-
-	{ // accumulate the result into a buffer
-		scopedTimer start( "Accumulate" );
-		Accumulate.invoke( cmd );
-	}
-
-	{ // placeholder test for building BLAS + TLAS + doing ray queries in a shader
-		scopedTimer start( "Hardware RT Test" );
-		HRTTest.invoke( cmd );
-	}
-	*/
 
 	{ // compute shader to accumulate the raster result + put the resolved final image into the drawImage...
 		scopedTimer start( "Present" );
@@ -1512,6 +1495,43 @@ static VkBufferMemoryBarrier2 makeBufferBarrier ( VkBuffer buf, VkPipelineStageF
 
 void PrometheusInstance::initComputePasses () {
 
+	{
+		ComputeConfig config;
+		config.name = "Test 1";
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( XYZImage.imageView ); } },
+		};
+		config.shaderPath = "../shaders/test.comp.glsl.spv";
+		testPipe.init( &device, &mainDeletionQueue, config );
+
+		// invoke() lambda
+		testPipe.invoke = [ & ]( VkCommandBuffer cmd ) {
+			testPipe.descriptorSet = getCurrentFrame().frameDescriptors.allocate( device, testPipe.descriptorSetLayout );
+			{
+				DescriptorWriter writer;
+				for ( auto& d : testPipe.descriptors )
+					d.write( writer );
+				writer.update_set( device, testPipe.descriptorSet );
+			}
+
+			// this stuff is always the same...
+			vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, testPipe.pipeline );
+			vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, testPipe.pipelineLayout, 0, 1, &testPipe.descriptorSet, 0, nullptr );
+
+			// get a new wang RNG seed + send the current value of the push constants
+			testPipe.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, testPipe.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &testPipe.pushConstants );
+
+			// and the actual compute dispatch for the compute pass
+			vkCmdDispatch( cmd, ( drawExtent.width + 15 ) / 16, ( drawExtent.height + 15 ) / 16, 1 );
+
+			// need to then insert any required barriers
+		};
+	}
 
 	{ // Debug Text Draw
 		{ // descriptor layout
@@ -1821,9 +1841,14 @@ void PrometheusInstance::initComputePasses () {
 		ComputeConfig config;
 		config.name = "Buffer Present";
 		config.descriptorSetLayout = {
-			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0, [ & ] () { return Resource( GlobalUBO.buffer ); } },
-			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,  [ & ] () { return Resource( drawImage.imageView ); } },
-			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,  [ & ] () { return Resource( XYZImage.imageView ); } }
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( drawImage.imageView ); } },
+
+			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () { return Resource( XYZImage.imageView ); } }
 		};
 		config.shaderPath = "../shaders/bufferPresent.comp.glsl.spv";
 		BufferPresent.init( &device, &mainDeletionQueue, config );
