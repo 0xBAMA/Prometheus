@@ -116,6 +116,10 @@ struct ComputeConfig {
 
 	std::string shaderPath;
 
+	std::function< VkDescriptorSet( VkDescriptorSetLayout dsl ) > allocateDescriptorSet;
+	std::function< void( VkCommandBuffer cmd ) > dispatch;
+	std::function< void( VkCommandBuffer cmd ) > updatePushConstants;
+
 };
 
 struct ComputeEffect {
@@ -137,6 +141,11 @@ struct ComputeEffect {
 
 	// so we can have the main loop code local to the declaration
 	std::function< void( VkCommandBuffer cmd ) > invoke;
+	std::function< VkDescriptorSet( VkDescriptorSetLayout dsl ) > allocateDescriptorSet;
+	std::function< void( VkCommandBuffer cmd ) > dispatch;
+	std::function< void( VkCommandBuffer cmd ) > updatePushConstants;
+
+	VkDevice* devicePtr;
 
 	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue,  const ComputeConfig config ) {
 		{ // the first thing this needs is the descriptor layout
@@ -198,6 +207,34 @@ struct ComputeEffect {
 			});
 		}
 
+		allocateDescriptorSet = config.allocateDescriptorSet;
+		dispatch = config.dispatch;
+		updatePushConstants = config.updatePushConstants;
+
+		devicePtr = device;
 	}
+
+	void bindPipelineAndDescriptorSets( VkCommandBuffer cmd ) {
+		vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline );
+		vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr );
+	}
+
+	void invoke2( VkCommandBuffer cmd ) {
+		descriptorSet = allocateDescriptorSet( descriptorSetLayout );
+		{
+			DescriptorWriter writer;
+			for ( auto& d : descriptors )
+				d.write( writer );
+			writer.update_set( *devicePtr, descriptorSet );
+		}
+
+		// setup for buffers etc
+		bindPipelineAndDescriptorSets( cmd );
+		updatePushConstants( cmd );
+
+		// invoke the actual pass
+		dispatch( cmd );
+	}
+
 };
 

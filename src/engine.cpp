@@ -170,7 +170,7 @@ void PrometheusInstance::Draw () {
 
 	{
 		scopedTimer start( "Test 1" );
-		testPipe.invoke( cmd );
+		testPipe.invoke2( cmd );
 	}
 
 	{ // compute shader to accumulate the raster result + put the resolved final image into the drawImage...
@@ -1497,6 +1497,7 @@ void PrometheusInstance::initComputePasses () {
 
 	{
 		ComputeConfig config;
+
 		config.name = "Test 1";
 		config.descriptorSetLayout = {
 			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
@@ -1505,32 +1506,23 @@ void PrometheusInstance::initComputePasses () {
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
 				[ & ] () { return Resource( XYZImage.imageView ); } },
 		};
+
 		config.shaderPath = "../shaders/test.comp.glsl.spv";
-		testPipe.init( &device, &mainDeletionQueue, config );
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
 
-		// invoke() lambda
-		testPipe.invoke = [ & ]( VkCommandBuffer cmd ) {
-			testPipe.descriptorSet = getCurrentFrame().frameDescriptors.allocate( device, testPipe.descriptorSetLayout );
-			{
-				DescriptorWriter writer;
-				for ( auto& d : testPipe.descriptors )
-					d.write( writer );
-				writer.update_set( device, testPipe.descriptorSet );
-			}
-
-			// this stuff is always the same...
-			vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, testPipe.pipeline );
-			vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, testPipe.pipelineLayout, 0, 1, &testPipe.descriptorSet, 0, nullptr );
-
-			// get a new wang RNG seed + send the current value of the push constants
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
 			testPipe.pushConstants.wangSeed = genWangSeed();
 			vkCmdPushConstants( cmd, testPipe.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &testPipe.pushConstants );
-
-			// and the actual compute dispatch for the compute pass
-			vkCmdDispatch( cmd, ( drawExtent.width + 15 ) / 16, ( drawExtent.height + 15 ) / 16, 1 );
-
-			// need to then insert any required barriers
 		};
+
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdDispatch( cmd, ( drawExtent.width + 15 ) / 16, ( drawExtent.height + 15 ) / 16, 1 );
+		};
+
+		// creating the actual API resources
+		testPipe.init( &device, &mainDeletionQueue, config );
 	}
 
 	{ // Debug Text Draw
