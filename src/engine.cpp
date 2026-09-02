@@ -1603,7 +1603,7 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
-			vkCmdDispatch( cmd, ( drawExtent.width + 15 ) / 16, ( drawExtent.height + 15 ) / 16, 1 );
+			vkCmdDispatch( cmd, ( ( drawExtent.width / 2 ) + 15 ) / 16, ( ( drawExtent.height / 2 ) + 15 ) / 16, 1 );
 		};
 
 		// creating the actual API resources

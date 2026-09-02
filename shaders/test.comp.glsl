@@ -137,8 +137,9 @@ float noiseFBM( in vec3 pos ) {
 //}
 
 float de2(vec3 p){
-	float scale = 10.0f;
-	p /= scale;
+	vec3 pOrig = p;
+	float scalar = 1.0f;
+	p /= scalar;
 //	p.y *= -1.0f;
 //	float d, a;
 //	d=a=1.;
@@ -152,29 +153,17 @@ float de2(vec3 p){
 //	return d * scale;
 
 
-//	vec3 Q;
-//	float i,j,d=1.,a;
-//	d=dot(sin(p),cos(p.yzx))+1.2;
-//	a=1.;
-//	for(j=0.;j++<13.;)
-//	Q=(p+fract(sin(j)*3e3)*9.)*a,
-//	Q+=sin(Q*1.05)*2.,
-//	Q=sin(Q),
-//	d+=Q.x*Q.y*Q.z/a*.4,
-//	a*=2.;
-//	return max( distance( vec3( 0.0f ), p ) - 15.0f, d*.4*scale );
 
-	vec3 Q;
-	float i,j,d=1.,a;
-	d=min(p.y,0.)+.3;
-	a=1.;
-	for(j=0.;j++<9.;)
-	Q=(p+vec3(9,0,0)+fract(sin(j)*1e3)*6.283)*a,
-	Q+=sin(Q)*2.,
-	Q=sin(Q),
-	d+=Q.x*Q.y*Q.z/a,
-	a*=2.;
-	return d*.3 * scale;
+	#define V vec2(.7,-.7)
+	#define G(p)dot(p,V)
+	float i=0.,g=0.,e=1.;
+	float t = 0.34; // change to see different behavior
+	for(int j=0;j++<8;){
+		p=abs(Rotate3D(0.34,vec3(1,-3,5))*p*2.)-1.,
+		p.xz-=(G(p.xz)-sqrt(G(p.xz)*G(p.xz)+.05))*V;
+	}
+	return scalar * length(p.xz)/3e2 - 0.1f * noiseFBM( 4.0f * pOrig + vec3( 619.0f ) );
+
 }
 
 float density( vec3 p ) {
@@ -183,9 +172,10 @@ float density( vec3 p ) {
 //	return noise( p * 1.0f );
 
 	float val = de2( p );
-	if ( val > 0.0f )
+	if ( val > GlobalData.epsilon )
 		return 0.0f;
-	return 10.0f;
+//	return noiseFBM( p );
+	return 1.0f;
 //	return GetLuma( matWood( p * 0.1f ) ).r;
 
 //	return 40.0f * pow( saturate( 2.0f * noise( p * 3.0f ) - 0.4f ), 6.0f ) * pow( saturate( 2.0f * noise( p * 13.0f ) - 0.4f ), 6.0f ) * step( 0.0f, max( -( length( p ) - 3.0f ), p.y ) );
@@ -229,7 +219,7 @@ float getSceneIntersection ( ray_t ray ) {
 float deltaTrack( ray_t ray ) {
 	vec3 hitPos = ray.origin;
 	float tTotal = 0.0f;
-	float maxDensity = 20.0f;
+	float maxDensity = 50.0f;
 	float sd = -1.0f;
 
 	for ( int i = 0; i < 1000; i++ ) {
@@ -254,7 +244,7 @@ float deltaTrack( ray_t ray ) {
 void main () {
 //=============================================================================================================================
 	// initializing the RNG
-	const ivec2 pixel = ivec2( gl_GlobalInvocationID.xy );
+	const ivec2 pixel = ivec2( gl_GlobalInvocationID.xy ) + imageSize( image ) / 4;
 	seed = PushConstants.wangSeed + 8675309 * pixel.x + 42069 * pixel.y;
 
 //=============================================================================================================================
@@ -319,8 +309,9 @@ void main () {
 //				ray.direction = cosWeightedRandomHemisphereDirection( ray.direction );
 //				ray.direction = normalize( 0.5f * ray.direction + RandomUnitVector() );
 
-				 transmission *= vec3( 0.9f, 0.94f, 0.98f ) * ( 0.8f + 0.2f * noiseFBM( ray.origin ) );
-//				transmission *= mix( blood, bone, saturate( -0.25f + 5.0f * noise( ray.origin ) ) );
+//				 transmission *= vec3( 0.9f, 0.94f, 0.98f );
+//				transmission *= mix( brass, nvidia, saturate( ( noiseFBM( ray.origin ) ) ) );
+				transmission *= nvidia;
 //				transmission *= matWood( ray.origin * 0.1f );
 
 				// using the Draine phase function...
@@ -328,7 +319,7 @@ void main () {
 //				vec3 perpendicular = cross( ( dot( ray.direction, vec3( 1.0f, 0.0f, 0.0f ) ) > 0.001f ) ? vec3( 1.0f, 0.0f, 0.0f ) : vec3( 1.0f, 0.0f, 0.0f ), ray.direction );
 //				ray.direction = Rotate3D( tau * rFloat(), ray.direction ) * Rotate3D( pi * draineSample, perpendicular ) * ray.direction;
 
-				ray.direction = sampleApproxMieDirection( ray.direction, mix( 5, 50, noise( 5.0f * ray.origin ) ), rFloat(), rFloat(), rFloat() );
+				ray.direction = sampleApproxMieDirection( ray.direction, 15, rFloat(), rFloat(), rFloat() );
 
 			} else {
 			// this is a surface scattering event
