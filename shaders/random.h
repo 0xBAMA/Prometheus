@@ -13,8 +13,7 @@ float NormalizedRandomFloat () {
 	return float( wangHash() ) / 4294967296.0f;
 }
 
-#define rFloat() NormalizedRandomFloat()
-#define rFloat2() vec2(NormalizedRandomFloat(),NormalizedRandomFloat())
+
 
 uint rng_state;
 uint PCGHash() {
@@ -67,12 +66,21 @@ vec2 RandomInUnitDisk () {
 	return RandomUnitVector().xy;
 }
 
-float NormalDistributionRand() {
+vec2 NormalDistributionRand2() {
 	// https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform
 	float U1 = NormalizedRandomFloat();
 	float U2 = NormalizedRandomFloat();
-	return sqrt( -2.0f * log( U1 ) ) * cos( tau * U2 );
+	return sqrt( -2.0f * log( U1 ) ) * vec2( cos( tau * U2 ), sin( tau * U2 ) );
 }
+
+float NormalDistributionRand() {
+	return NormalDistributionRand2().x;
+}
+
+#define rFloat() NormalizedRandomFloat()
+#define rFloatN() NormalDistributionRand()
+#define rFloat2() vec2(NormalizedRandomFloat(),NormalizedRandomFloat())
+#define rFloatN2() NormalDistributionRand2()
 
 vec3 cosWeightedRandomHemisphereDirection( const vec3 n ) {
 	vec2 rv2 = vec2( NormalizedRandomFloat(), NormalizedRandomFloat() );

@@ -36,6 +36,17 @@ layout( set = 0, binding = 0, scalar ) uniform globalData {
 	uint maxPrimitives;
 
 	// nsight layout: vec2u; vec2u; vec4; int; int; int; int; int; float; float; float; vec2i; uint; uint;
+
+	vec3 basisX;
+	vec3 basisY;
+	vec3 basisZ;
+	vec3 viewerPosition;
+	float FoV;
+	int bounces;
+	int raymarchMaxSteps;
+	float raymarchUnderstep;
+	float raymarchMaxDistance;
+	float epsilon;
 } GlobalData;
 //=========================================================
 
@@ -92,3 +103,10 @@ mat3 Rotate3D ( const float angle, const vec3 axis ) {
 	);
 }
 #endif
+
+bool checkerBoard ( in float scale, in vec3 p ) {
+	return ( step( 0.0f,
+		cos( scale * pi * p.x + pi / 2.0f ) *
+		cos( scale * pi * p.y + pi / 2.0f ) *
+		cos( scale * pi * p.z + pi / 2.0f ) ) == 0 );
+}

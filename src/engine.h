@@ -148,6 +148,17 @@ struct GlobalData {
 	// for mapping into the geometry buffer
 	uint32_t numPrimitives{ 0 };		// setting where the pointer into the primitive buffer is
 	uint32_t maxPrimitives{ 10000000 };	// setting the max primitive count (100k is 5x more than I've done so far... aka "plenty")
+
+	vec3 basisX;
+	vec3 basisY;
+	vec3 basisZ;
+	vec3 viewerPosition;
+	float FoV;
+	int bounces;
+	int raymarchMaxSteps;
+	float raymarchUnderstep;
+	float raymarchMaxDistance;
+	float epsilon;
 };
 
 // smallest scope CPU->GPU passing of information
@@ -197,6 +208,19 @@ inline uint32_t genWangSeed () {
 
 class PrometheusInstance {
 public:
+	// simplified state for the interactive camera + scene
+	vec3 basisX = vec3( 1.0f, 0.0f, 0.0f );
+	vec3 basisY = vec3( 0.0f, 1.0f, 0.0f );
+	vec3 basisZ = vec3( 0.0f, 0.0f, 1.0f );
+	vec3 viewerPosition = vec3( 0.0f );
+	float FoV = 0.618f;
+	int bounces = 16;
+	int raymarchMaxSteps = 200;
+	float raymarchUnderstep = 0.99f;
+	float raymarchMaxDistance = 100.0f;
+	float epsilon = 0.001f;
+	bool screenshotRequested = false;
+
 	// RT state
 	TLASRecord mainTLAS;
 	AllocatedBuffer IBObuffer;

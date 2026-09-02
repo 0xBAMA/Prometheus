@@ -131,6 +131,18 @@ void PrometheusInstance::Draw () {
 	globalData.framesSinceReset++;
 	globalData.resolutionScalar = renderScale;
 
+	// little imgui thing? tbd
+	globalData.basisX = basisX;
+	globalData.basisY = basisY;
+	globalData.basisZ = basisZ;
+	globalData.viewerPosition = viewerPosition;
+	globalData.FoV = FoV;
+	globalData.bounces = bounces;
+	globalData.raymarchMaxSteps = raymarchMaxSteps;
+	globalData.raymarchUnderstep = raymarchUnderstep;
+	globalData.raymarchMaxDistance = raymarchMaxDistance;
+	globalData.epsilon = epsilon;
+
 	// write directly from the memory on the PrometheusInstance
 	GlobalData* uniformData = ( GlobalData * ) GlobalUBO.allocation->GetMappedData();
 	*uniformData = globalData;
@@ -176,6 +188,11 @@ void PrometheusInstance::Draw () {
 	{ // compute shader to accumulate the raster result + put the resolved final image into the drawImage...
 		scopedTimer start( "Present" );
 		BufferPresent.invoke( cmd );
+	}
+
+	if ( screenshotRequested ) {
+		screenshotRequested = false;
+		screenshot();
 	}
 
 	{ // do the debug line draw over top of the final LDR color
@@ -255,6 +272,15 @@ void PrometheusInstance::MainLoop () {
 		while ( SDL_PollEvent( &e ) ) {
 			ImGui_ImplSDL3_ProcessEvent( &e );
 
+			// I want to move to the input handler I wrote as soon as possible
+			const bool* kb = SDL_GetKeyboardState( NULL );
+			const SDL_Keymod k		= SDL_GetModState();
+			const bool shift		= ( k & SDL_KMOD_SHIFT );
+			const bool alt			= ( k & SDL_KMOD_ALT );
+			const bool control		= ( k & SDL_KMOD_CTRL );
+			const bool caps			= ( k & SDL_KMOD_CAPS );
+			const bool super		= ( k & SDL_KMOD_GUI );
+
 			if ( e.type == SDL_EVENT_QUIT ) {
 				quit = true;
 			}
@@ -267,28 +293,27 @@ void PrometheusInstance::MainLoop () {
 				showMenu = !showMenu;
 			}
 
+			/*
 			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_N ) {
 				lightManager.MouseLightToUserLight();
 				globalData.reset = 1;
 			}
 
-			const bool shift = SDL_GetModState() & SDL_KMOD_LSHIFT;
-			const float amount = shift ? 0.1f : 0.01f;
-
 			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_EQUALS ) {
-				globalData.brightnessScalar *= 1.0f + amount;
+				globalData.brightnessScalar *= 1.0f + shift ? 0.01f : 0.1f;
 			}
 
 			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_MINUS ) {
-				globalData.brightnessScalar /= 1.0f + amount;
+				globalData.brightnessScalar /= 1.0f + shift ? 0.01f : 0.1f;
 			}
 
 			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_K ) {
 				lightManager.clearList();
 				globalData.reset = 1;
 			}
+			*/
 
-			const bool* kb = SDL_GetKeyboardState( NULL );
+
 			// if ( kb[ SDL_SCANCODE_RIGHT ] || kb[ SDL_SCANCODE_D ] ) {
 				// globalData.rotation = glm::rotate( globalData.rotation, amount, glm::vec3( 0.0f, 1.0f, 0.0f ) );
 				// globalData.reset = 1;
@@ -299,24 +324,84 @@ void PrometheusInstance::MainLoop () {
 
 			if ( kb[ SDL_SCANCODE_D ] ) {
 				globalData.reset = true;
-				lightManager.MouseLight->parameters.rotation -= amount;
+				lightManager.MouseLight->parameters.rotation -= shift ? 0.01f : 0.1f;
 			}
 
 			if ( kb[ SDL_SCANCODE_A ] ) {
 				globalData.reset = true;
-				lightManager.MouseLight->parameters.rotation += amount;
+				lightManager.MouseLight->parameters.rotation += shift ? 0.01f : 0.1f;
 			}
 
 			if ( kb[ SDL_SCANCODE_T ] && shift ) {
-				screenshot();
+				// screenshot();
+				screenshotRequested = true;
+			}
+
+			{ // placeholder interactive camera from Daedalus
+				// quaternion based rotation via retained state in the basis vectors
+				const float scalar = shift ? 0.1f : ( control ? 0.0005f : 0.02f );
+				if ( kb[ SDL_SCANCODE_W ] ) {
+					glm::quat rot = glm::angleAxis( scalar, basisX ); // basisX is the axis, therefore remains untransformed
+					basisY = ( rot * vec4( basisY, 0.0f ) ).xyz();
+					basisZ = ( rot * vec4( basisZ, 0.0f ) ).xyz();
+				}
+				if ( kb[ SDL_SCANCODE_S ] ) {
+					glm::quat rot = glm::angleAxis( -scalar, basisX );
+					basisY = ( rot * vec4( basisY, 0.0f ) ).xyz();
+					basisZ = ( rot * vec4( basisZ, 0.0f ) ).xyz();
+				}
+				if ( kb[ SDL_SCANCODE_A ] ) {
+					glm::quat rot = glm::angleAxis( -scalar, basisY ); // same as above, but basisY is the axis
+					basisX = ( rot * vec4( basisX, 0.0f ) ).xyz();
+					basisZ = ( rot * vec4( basisZ, 0.0f ) ).xyz();
+				}
+				if ( kb[ SDL_SCANCODE_D ] ) {
+					glm::quat rot = glm::angleAxis( scalar, basisY );
+					basisX = ( rot * vec4( basisX, 0.0f ) ).xyz();
+					basisZ = ( rot * vec4( basisZ, 0.0f ) ).xyz();
+				}
+				if ( kb[ SDL_SCANCODE_Q ] ) {
+					glm::quat rot = glm::angleAxis( scalar, basisZ ); // and again for basisZ
+					basisX = ( rot * vec4( basisX, 0.0f ) ).xyz();
+					basisY = ( rot * vec4( basisY, 0.0f ) ).xyz();
+				}
+				if ( kb[ SDL_SCANCODE_E ] ) {
+					glm::quat rot = glm::angleAxis( -scalar, basisZ );
+					basisX = ( rot * vec4( basisX, 0.0f ) ).xyz();
+					basisY = ( rot * vec4( basisY, 0.0f ) ).xyz();
+				}
+
+				// zoom in and out with plus/minus
+				if ( kb[ SDL_SCANCODE_MINUS ] ) {
+					FoV += scalar;
+				}
+				if ( kb[ SDL_SCANCODE_EQUALS ] ) {
+					FoV -= scalar;
+				}
+
+				// f to reset basis, shift + f to reset basis and home to origin
+				if ( kb[ SDL_SCANCODE_F ] ) {
+					if ( shift ) viewerPosition = vec3( 0.0f, 0.0f, 0.0f );
+					basisX = vec3( 1.0f, 0.0f, 0.0f );
+					basisY = vec3( 0.0f, 1.0f, 0.0f );
+					basisZ = vec3( 0.0f, 0.0f, 1.0f );
+				}
+				if ( kb[ SDL_SCANCODE_UP ] )		viewerPosition += 10.0f * scalar * basisZ;
+				if ( kb[ SDL_SCANCODE_DOWN ] )		viewerPosition -= 10.0f * scalar * basisZ;
+				if ( kb[ SDL_SCANCODE_RIGHT ] )		viewerPosition += 10.0f * scalar * basisX;
+				if ( kb[ SDL_SCANCODE_LEFT ] )		viewerPosition -= 10.0f * scalar * basisX;
+				if ( kb[ SDL_SCANCODE_PAGEDOWN ] )	viewerPosition += 10.0f * scalar * basisY;
+				if ( kb[ SDL_SCANCODE_PAGEUP ] )	viewerPosition -= 10.0f * scalar * basisY;
 			}
 		}
 
+		/*
 		static glm::vec2 lastMousePos = glm::vec2( 0.0f );
 		if ( distance( lastMousePos, globalData.mouseLoc.xy() ) > 8.0f ) {
 			globalData.reset = true;
 			lastMousePos = globalData.mouseLoc.xy();
 		}
+		*/
 
 		// handling minimized application
 		if ( stopRendering ) {
