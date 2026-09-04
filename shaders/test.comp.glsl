@@ -329,13 +329,33 @@ void main () {
 				const vec3 normal = SDFNormal( ray.origin + ray.direction * d );
 				ray.origin = ray.origin + ray.direction * d + 3.0f * GlobalData.epsilon * normal;
 
-				// bool mirror = ( rFloat() < 0.15f );
-				bool mirror = false;
+				switch ( SDFMaterial ) {
+					case NOHIT: // shouldn't be hitting this
+						break;
 
-				// transmission *= vec3( mirror ? 0.99f : 0.5f );
-				// transmission *= vec3( 0.65f, 0.55f, 0.55f );
-				accumulatedRadiance += transmission * vec3( 9.9f ) * platinum;
-				ray.direction = ( mirror ) ?  reflect( ray.direction, normal ) : cosWeightedRandomHemisphereDirection( normal );
+					case EMISSIVE:
+						accumulatedRadiance += transmission * SDFAlbedo;
+						ray.direction = cosWeightedRandomHemisphereDirection( normal );
+						break;
+
+					case DIFFUSE:
+						transmission *= SDFAlbedo;
+						ray.direction = cosWeightedRandomHemisphereDirection( normal );
+						break;
+
+					case METALLIC:
+						transmission *= SDFAlbedo;
+						ray.direction = normalize( ( 1.0f + GlobalData.epsilon ) * normal + mix( reflect( ray.direction, normal ), RandomUnitVector(), SDFRough ) );
+						break;
+
+					case MIRROR:
+						transmission *= SDFAlbedo;
+						ray.direction = reflect( ray.direction, normal );
+						break;
+
+					default:
+						break;
+				}
 			}
 		}
 	}
