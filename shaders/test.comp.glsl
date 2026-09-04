@@ -53,32 +53,88 @@ int bounce = 0;
 //	return d * scale;
 //}
 
+#define NOHIT						0
+#define EMISSIVE					1
+#define DIFFUSE						3
+#define METALLIC					4
+#define MIRROR						5
+
+vec3 hitColor;
+int hitSurfaceType;
+float hitRoughness;
+
 #define rot(a) mat2(cos(a),sin(a),-sin(a),cos(a))
 float de( vec3 p ){
-//	float scale = 1.5f;
-//	p /= scale;
-//	float s = 2.;
-//	float e = 0.;
-//	for(int j=0;++j<7;)
-//	p.xz=abs(p.xz)-2.3,
-//	p.z>p.x?p=p.zyx:p,
-//	p.z=1.5-abs(p.z-1.3+sin(p.z)*.2),
-//	p.y>p.x?p=p.yxz:p,
-//	p.x=3.-abs(p.x-5.+sin(p.x*3.)*.2),
-//	p.y>p.x?p=p.yxz:p,
-//	p.y=.9-abs(p.y-.4),
-//	e=12.*clamp(.3/min(dot(p,p),1.),.0,1.)+
-//	2.*clamp(.1/min(dot(p,p),1.),.0,1.),
-//	p=e*p-vec3(7,1,1),
-//	s*=e;
-//	return (length(p)/s) * scale;
+	const vec3 pOriginal = p;
+	float sceneDist = 1000.0f;
+	hitColor = vec3( 0.0f );
+	hitSurfaceType = NOHIT;
+	hitRoughness = 0.0f;
 
-//	p = Rotate3D( 0.618f, normalize( vec3( 6.0f, 1.0f, 9.0f ) ) ) * p;
-	p -= vec3( 0.0f, 0.0f, 0.0f );
-	float r = 8.; // radius of the circle
-	float l = length(p.xz) - r;
+	{
+		float scalar = 3.0f;
+		p /= scalar;
+		float d = 1e5;
+		const int n = 3;
+		const float fn = float(n);
+		for(int i = 0; i < n; i++){
+			vec3 q = p;
+			float a = float(i)*fn*2.422; //*6.283/fn
+			a *= a;
+			q.z += float(i)*float(i)*1.67; //*3./fn
+			q.xy *= Rotate2D(a);
+			float b = (length(length(sin(q.xy) + cos(q.yz))) - .15);
+			float f = max(0., 1. - abs(b - d));
+			d = min(d, b) - .25*f*f;
+		}
+		d *= scalar;
+		p = pOriginal;
+		sceneDist = min( d, sceneDist );
+		if ( sceneDist == d && d < GlobalData.epsilon ) {
+			hitSurfaceType = MIRROR;
+			hitColor = iron;
+		}
+	}
 
-	return length(vec2(p.y, l)) - 1.618f;
+	{
+		float scalar = 3.0f;
+		vec3 k = vec3( 5.0, 2.0, 1.0 );
+		p.y += 5.5;
+		p /= scalar;
+		for( int j = 0; ++j < 8; ) {
+			p.xz = abs( p.xz );
+			p.xz = p.z > p.x ? p.zx : p.xz;
+			p.z = 0.9 - abs( p.z - 0.9 );
+			p.xy = p.y > p.x ? p.yx : p.xy;
+			p.x -= 2.3;
+			p.xy = p.y > p.x ? p.yx : p.xy;
+			p.y += 0.1;
+			p = k + ( p - k ) * 3.2;
+		}
+		float d = scalar * ( length( p ) / 6e3 - 0.001 );
+		p = pOriginal;
+
+		sceneDist = min( d, sceneDist );
+		if ( sceneDist == d && d < GlobalData.epsilon ) {
+			hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
+			hitRoughness = 0.1f;
+			hitColor = ( hitSurfaceType == MIRROR ) ? vec3( 0.99f ) : carrot;
+		}
+	}
+
+	{
+		p -= vec3( 0.0f, 0.0f, 0.0f );
+		float r = 18.; // radius of the circle
+		float l = length(p.xz) - r;
+		float dRing = length(vec2(p.y, l)) - 1.618f;
+
+		sceneDist = min( dRing, sceneDist );
+		if ( sceneDist == dRing && dRing < GlobalData.epsilon ) {
+			hitSurfaceType = EMISSIVE;
+			hitColor = vec3( 10.0f );
+		}
+	}
+	return sceneDist;
 }
 
 float hash(vec3 p)  // replace this by something better
@@ -118,52 +174,35 @@ float noiseFBM( in vec3 pos ) {
 	return f;
 }
 
-//mat2 rot2(in float a){ float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
-//float de2(vec3 p){
-//	float d = 1e5;
-//	const int n = 3;
-//	const float fn = float(n);
-//	for(int i = 0; i < n; i++){
-//		vec3 q = p;
-//		float a = float(i)*fn*2.422; //*6.283/fn
-//		a *= a;
-//		q.z += float(i)*float(i)*1.67; //*3./fn
-//		q.xy *= rot2(a);
-//		float b = (length(length(sin(q.xy) + cos(q.yz))) - .15);
-//		float f = max(0., 1. - abs(b - d));
-//		d = min(d, b) - .25*f*f;
-//	}
-//	return max( length( p ) - 15.0f, d );
-//}
-
 float de2(vec3 p){
 	vec3 pOrig = p;
-	float scalar = 1.0f;
+	float scalar = 2.0f;
 	p /= scalar;
 //	p.y *= -1.0f;
+//	p.y += 2.0f;
 //	float d, a;
 //	d=a=1.;
-//	for(int j=0;j++<20;)
+//	for(int j=0;j++<18;)
 //	p.xz=abs(p.xz)*Rotate2D(pi/4.),
 //	d=min(d,max(length(p.zx)-.3,p.y-.4)/a),
 //	p.yx*=Rotate2D(.5),
 //	p.y-=3.,
 //	p*=1.5,
 //	a*=1.5;
-//	return d * scale;
+//	return d * scalar - 0.03f * noiseFBM( pOrig * 5.0f );
 
 
-
-	#define V vec2(.7,-.7)
-	#define G(p)dot(p,V)
-	float i=0.,g=0.,e=1.;
-	float t = 0.34; // change to see different behavior
-	for(int j=0;j++<8;){
-		p=abs(Rotate3D(0.34,vec3(1,-3,5))*p*2.)-1.,
-		p.xz-=(G(p.xz)-sqrt(G(p.xz)*G(p.xz)+.05))*V;
-	}
-	return scalar * length(p.xz)/3e2 - 0.1f * noiseFBM( 4.0f * pOrig + vec3( 619.0f ) );
-
+	vec3 Q;
+	float i,j,d=1.,a;
+	d=dot(sin(p),cos(p.yzx))+1.2;
+	a=1.;
+	for(j=0.;j++<11.;)
+		Q=(p+fract(sin(j)*3e3)*9.)*a,
+		Q+=sin(Q*1.05)*2.,
+		Q=sin(Q),
+		d+=Q.x*Q.y*Q.z/a*.4,
+		a*=2.;
+	return d*.4 * scalar;
 }
 
 float density( vec3 p ) {
@@ -230,7 +269,7 @@ float deltaTrack( ray_t ray ) {
 		hitPos += t * ray.direction;
 		tTotal += t;
 
-		sd = de2( hitPos );
+		sd = de2( hitPos ) * 0.9f; // understep
 
 		// if you hit
 		if ( density( hitPos ) > rFloat() || tTotal > GlobalData.raymarchMaxDistance ) {
@@ -304,26 +343,17 @@ void main () {
 			if ( deltaD < d ) {
 			// this is a volume scattering event
 
-				// this should be sampling a phase function
+				transmission *= 0.99f;
 				ray.origin = ray.origin + ray.direction * deltaD;
-//				ray.direction = cosWeightedRandomHemisphereDirection( ray.direction );
-//				ray.direction = normalize( 0.5f * ray.direction + RandomUnitVector() );
-
-//				 transmission *= vec3( 0.9f, 0.94f, 0.98f );
-//				transmission *= mix( brass, nvidia, saturate( ( noiseFBM( ray.origin ) ) ) );
-				transmission *= nvidia;
-//				transmission *= matWood( ray.origin * 0.1f );
-
-				// using the Draine phase function...
-//				float draineSample = sampleDraineCos( rFloat(), 0.2f, 0.5f );
-//				vec3 perpendicular = cross( ( dot( ray.direction, vec3( 1.0f, 0.0f, 0.0f ) ) > 0.001f ) ? vec3( 1.0f, 0.0f, 0.0f ) : vec3( 1.0f, 0.0f, 0.0f ), ray.direction );
-//				ray.direction = Rotate3D( tau * rFloat(), ray.direction ) * Rotate3D( pi * draineSample, perpendicular ) * ray.direction;
-
 				ray.direction = sampleApproxMieDirection( ray.direction, 15, rFloat(), rFloat(), rFloat() );
 
 			} else {
 			// this is a surface scattering event
-				// I want to handle materials just like Daedalus
+				// I want to handle materials just like Daedalus... that can happen here, using global stuff
+
+				int SDFMaterial = hitSurfaceType;
+				vec3 SDFAlbedo = hitColor;
+				float SDFRough = hitRoughness;
 
 				// generating a new ray from the intersection
 				const vec3 normal = SDFNormal( ray.origin + ray.direction * d );
