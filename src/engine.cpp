@@ -1580,6 +1580,8 @@ static VkBufferMemoryBarrier2 makeBufferBarrier ( VkBuffer buf, VkPipelineStageF
 
 void PrometheusInstance::initComputePasses () {
 
+	renderScale = 0.6f;
+
 	{
 		ComputeConfig config;
 
@@ -1603,7 +1605,7 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
-			vkCmdDispatch( cmd, ( ( drawExtent.width / 2 ) + 15 ) / 16, ( ( drawExtent.height / 2 ) + 15 ) / 16, 1 );
+			vkCmdDispatch( cmd, ( ( drawExtent.width ) + 15 ) / 16, ( ( drawExtent.height ) + 15 ) / 16, 1 );
 		};
 
 		// creating the actual API resources

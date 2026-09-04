@@ -244,12 +244,12 @@ float deltaTrack( ray_t ray ) {
 void main () {
 //=============================================================================================================================
 	// initializing the RNG
-	const ivec2 pixel = ivec2( gl_GlobalInvocationID.xy ) + imageSize( image ) / 4;
+	const ivec2 pixel = ivec2( gl_GlobalInvocationID.xy );
 	seed = PushConstants.wangSeed + 8675309 * pixel.x + 42069 * pixel.y;
 
 //=============================================================================================================================
 	// initial imagespace position for camera + jitter
-	vec2 uv = ( ( vec2( pixel ) + rFloatN2() ) / imageSize( image ).xy ) * 2.0f - vec2( 1.0f );
+	vec2 uv = ( ( vec2( pixel ) + rFloatN2() ) / ( GlobalData.presentBufferResolution ) ) * 2.0f - vec2( 1.0f );
 
 //=============================================================================================================================
 	// spherical camera logic, this will be replaced
