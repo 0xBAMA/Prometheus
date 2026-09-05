@@ -87,8 +87,8 @@ void PrometheusInstance::Init () {
 // Draw
 //============================================================================================================================
 void PrometheusInstance::Draw () {
-	// wait until the gpu has finished rendering the last frame. Timeout of 3 seconds
-	VK_CHECK( vkWaitForFences( device, 1, &getCurrentFrame().renderFence, true, 3000000000 ) );
+	// wait until the gpu has finished rendering the last frame. Timeout of u
+	VK_CHECK( vkWaitForFences( device, 1, &getCurrentFrame().renderFence, true, UINT64_MAX ) );
 
 	// we want to take this opportunity to now reset the deletion queue, since this fence marks the completion
 	getCurrentFrame().deletionQueue.flush(); // of all operations which could be using the data...
