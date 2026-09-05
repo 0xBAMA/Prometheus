@@ -388,6 +388,11 @@ void main () {
 				}
 			}
 		}
+
+		// russian roulette termination
+		float maxChannel = max( transmission.r, max( transmission.g, transmission.b ) );
+		if ( rFloat() > maxChannel ) break;
+		transmission *= 1.0f / maxChannel; // compensation term
 	}
 
 	color = accumulatedRadiance;
