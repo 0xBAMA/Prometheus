@@ -214,7 +214,7 @@ public:
 	vec3 basisZ = vec3( 0.0f, 0.0f, 1.0f );
 	vec3 viewerPosition = vec3( 0.0f );
 	float FoV = 0.618f;
-	int bounces = 16;
+	int bounces = 32;
 	int raymarchMaxSteps = 200;
 	float raymarchUnderstep = 0.99f;
 	float raymarchMaxDistance = 100.0f;

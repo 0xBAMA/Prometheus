@@ -9,6 +9,7 @@ layout ( local_size_x = 16, local_size_y = 16 ) in;
 #include "random.h"
 #include "draine2.h" // phase function
 #include "pbrConstants.glsl"
+#include "hg_sdf.h"
 //=============================================================================================================================
 layout ( rgba32f, set = 0, binding = 1 ) uniform image2D image; // accumulator image
 //=============================================================================================================================
@@ -19,39 +20,104 @@ struct ray_t {
 //=============================================================================================================================
 int bounce = 0;
 //=============================================================================================================================
-//float de( vec3 p ){
-//	float s = 2.;
-//	float e = 0.;
-//	for(int j=0;++j<7;)
-//	p.xz=abs(p.xz)-2.3,
-//	p.z>p.x?p=p.zyx:p,
-//	p.z=1.5-abs(p.z-1.3+sin(p.z)*.2),
-//	p.y>p.x?p=p.yxz:p,
-//	p.x=3.-abs(p.x-5.+sin(p.x*3.)*.2),
-//	p.y>p.x?p=p.yxz:p,
-//	p.y=.9-abs(p.y-.4),
-//	e=12.*clamp(.3/min(dot(p,p),1.),.0,1.)+
-//	2.*clamp(.1/min(dot(p,p),1.),.0,1.),
-//	p=e*p-vec3(7,1,1),
-//	s*=e;
-//	return length(p)/s;
-//}
+#define fold45(p)(p.y>p.x)?p.yx:p
+float deTemple(vec3 p) {
+	float scale = 2.1, off0 = .8, off1 = .3, off2 = .83;
+	vec3 off =vec3(2.,.2,.1);
+	float s=1.0;
+	for(int i = 0;++i<20;) {
+		p.xy = abs(p.xy);
+		p.xy = fold45(p.xy);
+		p.y -= off0;
+		p.y = -abs(p.y);
+		p.y += off0;
+		p.x += off1;
+		p.xz = fold45(p.xz);
+		p.x -= off2;
+		p.xz = fold45(p.xz);
+		p.x += off1;
+		p -= off;
+		p *= scale;
+		p += off;
+		s *= scale;
+	}
+	return length(p)/s;
+}
 
-//float de(vec3 p){
-//	const float scale = 2.0f;
-//
-//	p /= scale;
-//	float d, a;
-//	d=a=1.;
-//	for(int j=0;j++<16;)
-//	p.xz=abs(p.xz)*Rotate2D(pi/4.),
-//	d=min(d,max(length(p.zx)-.3,p.y-.4)/a),
-//	p.yx*=Rotate2D(.5),
-//	p.y-=3.,
-//	p*=1.5,
-//	a*=1.5;
-//	return d * scale;
-//}
+float deSmooth(vec3 p){
+	float d = 1e5;
+	const int n = 3;
+	const float fn = float(n);
+	for(int i = 0; i < n; i++){
+		vec3 q = p;
+		float a = float(i)*fn*2.422; //*6.283/fn
+		a *= a;
+		q.z += float(i)*float(i)*1.67; //*3./fn
+		q.xy *= Rotate2D(a);
+		float b = (length(length(sin(q.xy) + cos(q.yz))) - .15);
+		float f = max(0., 1. - abs(b - d));
+		d = min(d, b) - .25*f*f;
+	}
+	return d;
+}
+
+vec3 Rotate(vec3 z,float AngPFXY,float AngPFYZ,float AngPFXZ) {
+	float sPFXY = sin(radians(AngPFXY)); float cPFXY = cos(radians(AngPFXY));
+	float sPFYZ = sin(radians(AngPFYZ)); float cPFYZ = cos(radians(AngPFYZ));
+	float sPFXZ = sin(radians(AngPFXZ)); float cPFXZ = cos(radians(AngPFXZ));
+
+	float zx = z.x; float zy = z.y; float zz = z.z; float t;
+
+	// rotate BACK
+	t = zx; // XY
+	zx = cPFXY * t - sPFXY * zy; zy = sPFXY * t + cPFXY * zy;
+	t = zx; // XZ
+	zx = cPFXZ * t + sPFXZ * zz; zz = -sPFXZ * t + cPFXZ * zz;
+	t = zy; // YZ
+	zy = cPFYZ * t - sPFYZ * zz; zz = sPFYZ * t + cPFYZ * zz;
+	return vec3(zx,zy,zz);
+}
+
+vec4 OrbitTrap;
+float deIFS( vec3 p ) {
+	float Scale = 1.34f;
+	float FoldY = 1.025709f;
+	float FoldX = 1.025709f;
+	float FoldZ = 0.035271f;
+	float JuliaX = -1.763517f;
+	float JuliaY = 0.392486f;
+	float JuliaZ = -1.734913f;
+	float AngX = -51.080209f;
+	float AngY = 0.0f;
+	float AngZ = -29.096322f;
+	float Offset = -3.036726f;
+	bool EnableOffset = true;
+	int Iterations = 80;
+	float Precision = 1.0f;
+	// output _sdf c = _SDFDEF)
+
+	OrbitTrap = vec4(0.0f);
+	float u2 = 1;
+	float v2 = 1;
+	if(EnableOffset)p = Offset+abs(vec3(p.x,p.y,p.z));
+
+	vec3 p0 = vec3(JuliaX,JuliaY,JuliaZ);
+	float l = 0.0;
+	int i=0;
+	for (i=0; i<Iterations; i++) {
+		p = Rotate(p,AngX,AngY,AngZ);
+		p.x=abs(p.x+FoldX)-FoldX;
+		p.y=abs(p.y+FoldY)-FoldY;
+		p.z=abs(p.z+FoldZ)-FoldZ;
+		p=p*Scale+p0;
+		l=length(p);
+		float rr = dot(p,p);
+
+		OrbitTrap.r = max( OrbitTrap.r, rr );
+		// hitColor = vec3( abs( p / 10.0f ) );
+	}
+	return Precision*(l)*pow(Scale, -float(i));
+}
 
 #define NOHIT						0
 #define EMISSIVE					1
@@ -72,7 +138,7 @@ float de( vec3 p ){
 	hitRoughness = 0.0f;
 
 	{
-		float scalar = 3.0f;
+		float scalar = 10.0f;
 		p /= scalar;
 		float d = 1e5;
 		const int n = 3;
@@ -97,39 +163,26 @@ float de( vec3 p ){
 	}
 
 	{
-		float scalar = 3.0f;
-		vec3 k = vec3( 5.0, 2.0, 1.0 );
-		p.y += 5.5;
-		p /= scalar;
-		for( int j = 0; ++j < 8; ) {
-			p.xz = abs( p.xz );
-			p.xz = p.z > p.x ? p.zx : p.xz;
-			p.z = 0.9 - abs( p.z - 0.9 );
-			p.xy = p.y > p.x ? p.yx : p.xy;
-			p.x -= 2.3;
-			p.xy = p.y > p.x ? p.yx : p.xy;
-			p.y += 0.1;
-			p = k + ( p - k ) * 3.2;
-		}
-		float d = scalar * ( length( p ) / 6e3 - 0.001 );
-		p = pOriginal;
-
+		float scalar = 5.0f;
+		float d = deIFS( p / scalar ) * scalar;
 		sceneDist = min( d, sceneDist );
 		if ( sceneDist == d && d < GlobalData.epsilon ) {
-			hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
-			hitRoughness = 0.1f;
-			hitColor = ( hitSurfaceType == MIRROR ) ? vec3( 0.99f ) : carrot;
+//			if ( OrbitTrap.r > 1.1f ) {
+				hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
+//				hitRoughness = 0.1f;
+//				hitColor = ( hitSurfaceType == MIRROR ) ? vec3( 0.99f ) : brass;
+				hitColor = vec3( 0.99f );
+//			} else {
+//				hitSurfaceType = EMISSIVE;
+//				hitColor = vec3( 1.0f );
+//			}
 		}
 	}
 
 	{
-		p -= vec3( 0.0f, 0.0f, 0.0f );
-		float r = 18.; // radius of the circle
-		float l = length(p.xz) - r;
-		float dRing = length(vec2(p.y, l)) - 1.618f;
-
-		sceneDist = min( dRing, sceneDist );
-		if ( sceneDist == dRing && dRing < GlobalData.epsilon ) {
+		float d = fBox( p - vec3( 0.0f, 5.0f, 0.0f ), vec3( 5.0f, 0.1f, 5.0f ) );
+		sceneDist = min( d, sceneDist );
+		if ( sceneDist == d && d < GlobalData.epsilon ) {
 			hitSurfaceType = EMISSIVE;
 			hitColor = vec3( 10.0f );
 		}
@@ -176,27 +229,14 @@ float noiseFBM( in vec3 pos ) {
 
 float de2(vec3 p){
 	vec3 pOrig = p;
-	float scalar = 2.0f;
+	float scalar = 8.0f;
 	p /= scalar;
-//	p.y *= -1.0f;
-//	p.y += 2.0f;
-//	float d, a;
-//	d=a=1.;
-//	for(int j=0;j++<18;)
-//	p.xz=abs(p.xz)*Rotate2D(pi/4.),
-//	d=min(d,max(length(p.zx)-.3,p.y-.4)/a),
-//	p.yx*=Rotate2D(.5),
-//	p.y-=3.,
-//	p*=1.5,
-//	a*=1.5;
-//	return d * scalar - 0.03f * noiseFBM( pOrig * 5.0f );
-
 
 	vec3 Q;
 	float i,j,d=1.,a;
 	d=dot(sin(p),cos(p.yzx))+1.2;
 	a=1.;
-	for(j=0.;j++<11.;)
+	for(j=0.;j++<14.;)
 		Q=(p+fract(sin(j)*3e3)*9.)*a,
 		Q+=sin(Q*1.05)*2.,
 		Q=sin(Q),
@@ -279,6 +319,23 @@ float deltaTrack( ray_t ray ) {
 
 	return tTotal;
 }
+
+float deltaTrackSparse( ray_t ray ) {
+	vec3 hitPos = ray.origin;
+	float tTotal = 0.0f;
+	float maxDensity = 1.0f;
+
+	for ( int i = 0; i < 100; i++ ) {
+		float t = -log( rFloat() ) / maxDensity;
+		hitPos += t * ray.direction;
+		tTotal += t;
+		if ( 0.1f > rFloat() || tTotal > GlobalData.raymarchMaxDistance ) {
+			break;
+		}
+	}
+
+	return tTotal;
+}
 //=============================================================================================================================
 void main () {
 //=============================================================================================================================
@@ -301,9 +358,12 @@ void main () {
 	baseVec = Rotate3D( pi / 2.0f, vec3( 2.5f, 0.4f, 1.0f ) ) * baseVec; // this is to match the other camera
 
 	ray_t ray;
-	ray.origin = GlobalData.viewerPosition;
 	ray.direction = normalize( -baseVec.x * GlobalData.basisX + baseVec.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * baseVec.z * GlobalData.basisZ );
 //	ray.direction = normalize( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * GlobalData.basisZ );
+	ray.origin = GlobalData.viewerPosition;
+
+//	ray.origin = GlobalData.FoV * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + GlobalData.viewerPosition;
+//	ray.direction = -1.0f * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + vec3( GlobalData.basisZ );
 
 //=============================================================================================================================
 	// begin the process of taking a new sample
@@ -325,8 +385,9 @@ void main () {
 
 		const float d = getSceneIntersection( ray );
 		const float deltaD = deltaTrack( ray );
+		const float deltaDS = deltaTrackSparse( ray );
 
-		if ( deltaD > GlobalData.raymarchMaxDistance && d > GlobalData.raymarchMaxDistance ) {
+		if ( min( min( deltaDS, deltaD ), d ) >= GlobalData.raymarchMaxDistance ) {
 
 		// this ray has escaped the scene to the sky, so we take a sky sample + kill it
 			// accumulatedRadiance += transmission * max( 3.0f * dot( ray.direction, vec3( 0.0f, 0.0f, 1.0f ) ), 0.0f );
@@ -340,12 +401,12 @@ void main () {
 
 			// first, doing a delta track raymarch to compare with the scene intersection distance
 
-			if ( deltaD < d ) {
+			if ( min( deltaD, deltaDS ) < d ) {
 			// this is a volume scattering event
 
-				transmission *= 0.99f;
-				ray.origin = ray.origin + ray.direction * deltaD;
-				ray.direction = sampleApproxMieDirection( ray.direction, 15, rFloat(), rFloat(), rFloat() );
+				transmission *= ( deltaD < deltaDS ) ? vec3( 0.999f ) : pearl;
+				ray.origin = ray.origin + ray.direction * ( ( deltaD < deltaDS ) ? deltaD : deltaDS );
+				ray.direction = sampleApproxMieDirection( ray.direction, ( deltaD < deltaDS ) ? 15 : 5, rFloat(), rFloat(), rFloat() );
 
 			} else {
 			// this is a surface scattering event
