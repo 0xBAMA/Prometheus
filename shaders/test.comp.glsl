@@ -214,6 +214,10 @@ vec3 hitColor;
 int hitSurfaceType;
 float hitRoughness;
 
+float dBBox( vec3 p ) {
+	return fBox( p, vec3( 20.0f ) );
+}
+
 #define rot(a) mat2(cos(a),sin(a),-sin(a),cos(a))
 float de( vec3 p ){
 	const vec3 pOriginal = p;
@@ -322,7 +326,7 @@ float getSceneIntersection ( ray_t ray ) {
 float deltaTrack( ray_t ray ) {
 	vec3 hitPos = ray.origin;
 	float tTotal = 0.0f;
-	float maxDensity = 350.0f;
+	float maxDensity = 500.0f;
 	float sd = -1.0f;
 
 	for ( int i = 0; i < 1000; i++ ) {
@@ -349,13 +353,20 @@ float deltaTrack( ray_t ray ) {
 float deltaTrackSparse( ray_t ray ) {
 	vec3 hitPos = ray.origin;
 	float tTotal = 0.0f;
-	float maxDensity = 0.2f;
+	float maxDensity = 0.3f;
+	float sd = -1.0f;
 
 	for ( int i = 0; i < 100; i++ ) {
 		float t = -log( rFloat() ) / maxDensity;
+
+		t = max( sd, t );
+
 		hitPos += t * ray.direction;
 		tTotal += t;
-		if ( 0.1f > rFloat() || tTotal > GlobalData.raymarchMaxDistance ) {
+
+		sd = dBBox( hitPos ) * 0.9f; // understep
+
+		if ( ( ( sd < 0.0f ) ? 0.1f : 0.0f ) > rFloat() || tTotal > GlobalData.raymarchMaxDistance ) {
 			break;
 		}
 	}
@@ -419,7 +430,7 @@ void main () {
 
 		// this ray has escaped the scene to the sky, so we take a sky sample + kill it
 			// accumulatedRadiance += transmission * max( 3.0f * dot( ray.direction, vec3( 0.0f, 0.0f, 1.0f ) ), 0.0f );
-			accumulatedRadiance += transmission * 5.0f * step( 0.8f, dot( ray.direction, vec3( 0.0f, 0.0f, -1.0f ) ) );
+			accumulatedRadiance += transmission * 13.0f * step( 0.8f, dot( ray.direction, vec3( 0.0f, 0.0f, -1.0f ) ) );
 			break;
 
 		} else {
