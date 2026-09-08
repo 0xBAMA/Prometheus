@@ -58,6 +58,10 @@ float noiseFBM( in vec3 pos ) {
 //=============================================================================================================================
 int bounce = 0;
 //=============================================================================================================================
+float dBBox( vec3 p ) {
+	return fBox( p, vec3( 60.0f ) );
+}
+//=============================================================================================================================
 #define fold45(p)(p.y>p.x)?p.yx:p
 float deTemple(vec3 p) {
 	float scale = 2.1, off0 = .8, off1 = .3, off2 = .83;
@@ -95,9 +99,34 @@ float deCage ( vec3 p ) {
 	return d;
 }
 
+float deCaves( vec3 p ){
+	float scalar = 15.0f;
+	float dbox = dBBox( p );
+	if ( dbox > 0.0f ) {
+		return dbox;
+	}
+
+	p.z -= 10.0f;
+	p /= scalar;
+	vec3 Q, U = vec3( 1.0f );
+	float d=1.0, a=1.0f;
+	d = min( length( fract( p.xz) -0.5f ) - 0.2f, 0.3f - abs( p.y - 0.2f ) );
+	for( int j = 0; j++ < 9; a += a )
+	Q = p * a * 9.0f,
+	Q.yz *= Rotate2D( a ),
+	d += abs( dot( sin( Q ), U ) ) / a * 0.02f;
+	return d * 0.6f * scalar + 0.6f * noiseFBM( p * 6.0f ) * noise( p * 2.0f );
+}
+
 float deLumpy(vec3 p){
 	vec3 pOrig = p;
-	float scalar = 8.0f;
+
+	float dbox = dBBox( p );
+	if ( dbox > 0.0f ) {
+		return dbox;
+	}
+
+	float scalar = 9.0f;
 	p /= scalar;
 
 	vec3 Q;
@@ -110,11 +139,16 @@ float deLumpy(vec3 p){
 	Q=sin(Q),
 	d+=Q.x*Q.y*Q.z/a*.4,
 	a*=2.;
-	return d*.4 * scalar;
+	return d*.4 * scalar - 1.6f * noiseFBM( p * 12.0f ) * noise( p * 4.0f );
 }
 
 float deChunky(vec3 p){
-	float scalar = 20.0f;
+	float dbox = dBBox( p );
+	if ( dbox > 0.0f ) {
+		return dbox;
+	}
+
+	float scalar = 12.0f;
 	p/=scalar;
 	vec3 Q;
 	float i,j,d=1.,a;
@@ -126,7 +160,7 @@ float deChunky(vec3 p){
 	Q=sin(Q),
 	d+=Q.x*Q.y*Q.z/a,
 	a*=2.;
-	return d*.3 * scalar - 1.6f * noiseFBM( p * 12.0f ) * noise( p * 4.0f );
+	return d*.3 * scalar - 0.8f * noiseFBM( p * 6.0f ) * noise( p * 2.0f );
 }
 
 float deSmooth(vec3 p){
@@ -204,20 +238,77 @@ float deIFS( vec3 p ) {
 	return Precision*(l)*pow(Scale, -float(i));
 }
 
+mat3 rotZ ( float t ) {
+	float s = sin( t );
+	float c = cos( t );
+	return mat3( c, s, 0., -s, c, 0., 0., 0., 1. );
+}
+
+mat3 rotX ( float t ) {
+	float s = sin( t );
+	float c = cos( t );
+	return mat3( 1., 0., 0., 0., c, s, 0., -s, c );
+}
+
+mat3 rotY ( float t ) {
+	float s = sin( t );
+	float c = cos( t );
+	return mat3 (c, 0., -s, 0., 1., 0, s, 0, c);
+}
+
+float deIFS2 ( vec3 p ){
+	vec2 rm = radians( 360.0 ) * vec2( 0.468359, 0.95317 ); // vary x,y 0.0 - 1.0
+	mat3 scene_mtx = rotX( rm.x ) * rotY( rm.x ) * rotZ( rm.x ) * rotX( rm.y );
+	float scaleAccum = 1.;
+	for( int i = 0; i < 18; ++i ) {
+		p.yz = sqrt( p.yz * p.yz + 0.16406 );
+		p *= 1.21;
+		scaleAccum *= 1.21;
+		p -= vec3( 2.43307, 5.28488, 0.9685 );
+		p = scene_mtx * p;
+	}
+	return length( p ) / scaleAccum - 0.15;
+}
+//=============================================================================================================================
+struct intersection_t {
+	float dTravel;
+	vec3 albedo;
+	vec3 normal;
+	bool frontfaceHit;
+	int materialID;
+	float IoR;
+	float roughness;
+
+// tbd:
+// material properties... IoR, roughness...
+// absorption state...
+};
+//=============================================================================================================================
+// default "constructor"
+//=============================================================================================================================
+intersection_t DefaultIntersection() {
+	intersection_t intersection;
+	intersection.dTravel = GlobalData.raymarchMaxDistance;
+	intersection.albedo = vec3( 0.0f );
+	intersection.normal = vec3( 0.0f );
+	intersection.frontfaceHit = false;
+	intersection.materialID = 0; // indicates an escaped ray
+	intersection.IoR = 1.0f / 1.5f;
+	intersection.roughness = 0.0f;
+	return intersection;
+}
+//=============================================================================================================================
 #define NOHIT						0
 #define EMISSIVE					1
 #define DIFFUSE						3
 #define METALLIC					4
 #define MIRROR						5
-
+#define VOLUME_DENSE				6
+#define VOLUME_SPARSE				7
+//=============================================================================================================================
 vec3 hitColor;
 int hitSurfaceType;
 float hitRoughness;
-
-float dBBox( vec3 p ) {
-	return fBox( p, vec3( 20.0f ) );
-}
-
 #define rot(a) mat2(cos(a),sin(a),-sin(a),cos(a))
 float de( vec3 p ){
 	const vec3 pOriginal = p;
@@ -226,15 +317,7 @@ float de( vec3 p ){
 	hitSurfaceType = NOHIT;
 	hitRoughness = 0.0f;
 
-//	{
-//		float scalar = 30.0f;
-//		float d = deIFS( p / scalar ) * scalar;
-//		sceneDist = min( d, sceneDist );
-//		if ( sceneDist == d && d < GlobalData.epsilon ) {
-//			hitSurfaceType = DIFFUSE;
-//			hitColor = titanium;
-//		}
-//	}
+	const float dBounds = dBBox( p );
 
 //	{
 //		float d = distance( pOriginal, vec3( 0.0f ) ) - 2.0f;
@@ -250,26 +333,27 @@ float de( vec3 p ){
 //	}
 
 //	{
-//		float scalar = 10.0f;
+//		float scalar = 2.0f;
 //		float d = deSmooth( p / scalar ) * scalar;
-//		sceneDist = min( d, sceneDist );
+//		sceneDist = min( max( d, dBounds ), sceneDist );
 //		if ( sceneDist == d && d < GlobalData.epsilon ) {
 //			hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
-//			hitRoughness = 0.01f;
-//			hitColor = ( hitSurfaceType == MIRROR ) ? vec3( 0.99f ) : iron;
+////			hitRoughness = 0.01f;
+//			// hitColor = ( hitSurfaceType == MIRROR ) ? vec3( 0.99f ) : iron;
+//			hitColor = vec3( 0.99f );
 ////			mix( tire, gold, noiseFBM( 0.1f * p + vec3( noise( 0.1f * p + vec3( 15.0f, 0.4f, 2.3f ) ), noise( 0.1f * p ), noise( 0.1f * p + vec3( 3.2f, 15.4f, 0.3f ) ) ) ) );
 //		}
 //	}
 
-	{
-		pMod1( p.y, 5.0f );
-		float d = fBox( p - vec3( 0.0f, 0.0f, 10.0f ), vec3( 150.0f, 5.0f, 0.5f ) );
-		sceneDist = min( d, sceneDist );
-		if ( sceneDist == d && d < GlobalData.epsilon ) {
-			hitSurfaceType = EMISSIVE;
-			hitColor = vec3( 5.0f );
-		}
-	}
+//	{
+//		pMod1( p.y, 5.0f );
+//		float d = fBox( p - vec3( 0.0f, 0.0f, 5.0f ), vec3( 150.0f, 5.0f, 0.5f ) );
+//		sceneDist = min( d, sceneDist );
+//		if ( sceneDist == d && d < GlobalData.epsilon ) {
+//			hitSurfaceType = EMISSIVE;
+//			hitColor = vec3( 5.0f );
+//		}
+//	}
 	return sceneDist;
 }
 
@@ -295,7 +379,8 @@ vec3 SDFNormal( in vec3 position ) {
 	return normalize( vec3( de( position ) ) - vec3( de( position - e.xyy ), de( position - e.yxy ), de( position - e.yyx ) ) );
 }
 //=============================================================================================================================
-float raymarch ( in ray_t ray ) {
+intersection_t raymarch ( in ray_t ray ) {
+	intersection_t result = DefaultIntersection();
 	float dQuery = 0.0f;
 	float dTotal = 0.0f;
 	vec3 pQuery = ray.origin;
@@ -307,26 +392,24 @@ float raymarch ( in ray_t ray ) {
 			break;
 		}
 	}
-	return dTotal;
-}
-//=============================================================================================================================
-// when the scene intersection returns, you need to know what kind of scattering event is happening
-//=============================================================================================================================
-float getSceneIntersection ( ray_t ray ) {
-	// evaluate the scene intersection based on this ray
-		// I would like to add TinyBVH here + look into the BLAS/TLAS structure there for instancing
 
-	// I also want to consider the delta tracking raymarch
+	// fill out the result struct...
+	result.dTravel = dTotal;
+	result.materialID = hitSurfaceType;
+	result.normal = SDFNormal( ray.origin + dTotal * ray.direction );
+	result.frontfaceHit = true; // tbd
+	result.roughness = hitRoughness;
+	result.albedo = hitColor;
+	result.IoR = 1.0f; // also tbd
 
-	// as a placeholder, I'm doing SDF intersection
-	return raymarch( ray );
-//	return 1000.0f;
+	return result;
 }
 
-float deltaTrack( ray_t ray ) {
+intersection_t deltaTrack( ray_t ray ) {
+	intersection_t result = DefaultIntersection();
 	vec3 hitPos = ray.origin;
 	float tTotal = 0.0f;
-	float maxDensity = 500.0f;
+	float maxDensity = 300.0f;
 	float sd = -1.0f;
 
 	for ( int i = 0; i < 1000; i++ ) {
@@ -347,13 +430,23 @@ float deltaTrack( ray_t ray ) {
 		}
 	}
 
-	return tTotal;
+	// fill out the intersection struct
+	result.dTravel = tTotal;
+	result.albedo = mix( nvidia / 2.0f, vec3( 0.999f ), 0.8f ); // tbd, color should probably come from the density function
+	result.normal = vec3( 0.0f ); // not appropriate to consider here
+	result.frontfaceHit = true;  // ditto
+	result.materialID = VOLUME_DENSE;
+	result.IoR = 1.0f; // not significant
+	result.roughness = 0.0f; // not significant
+
+	return result;
 }
 
-float deltaTrackSparse( ray_t ray ) {
+intersection_t deltaTrackSparse( ray_t ray ) {
+	intersection_t result = DefaultIntersection();
 	vec3 hitPos = ray.origin;
 	float tTotal = 0.0f;
-	float maxDensity = 0.3f;
+	float maxDensity = 0.15f;
 	float sd = -1.0f;
 
 	for ( int i = 0; i < 100; i++ ) {
@@ -371,8 +464,43 @@ float deltaTrackSparse( ray_t ray ) {
 		}
 	}
 
-	return tTotal;
+	// fill out the intersection struct
+	result.dTravel = tTotal;
+	result.albedo = sapphire; // tbd, color should probably come from the density function
+	result.normal = vec3( 0.0f ); // not appropriate to consider here
+	result.frontfaceHit = true;  // ditto
+	result.materialID = VOLUME_SPARSE;
+	result.IoR = 1.0f; // not significant
+	result.roughness = 0.0f; // not significant
+
+	return result;
 }
+//=============================================================================================================================
+// when the scene intersection returns, you need to know what kind of scattering event is happening
+//=============================================================================================================================
+intersection_t getSceneIntersection ( ray_t ray ) {
+	// evaluate the scene intersection based on this ray
+	// I would like to add TinyBVH here + look into the BLAS/TLAS structure there for instancing
+
+	intersection_t SDFResult = raymarch( ray );
+	intersection_t DeltaDense = deltaTrack( ray );
+	intersection_t DeltaSparse = deltaTrackSparse( ray );
+
+	intersection_t result = DefaultIntersection();
+	float minDistance = min( SDFResult.dTravel, min( DeltaDense.dTravel, DeltaSparse.dTravel ) );
+
+	if ( minDistance == SDFResult.dTravel ) {
+		result = SDFResult;
+	} else if ( minDistance == DeltaDense.dTravel ) {
+		result = DeltaDense;
+	} else if ( minDistance == DeltaSparse.dTravel ) {
+		result = DeltaSparse;
+	}
+
+	return result;
+}
+
+
 //=============================================================================================================================
 void main () {
 //=============================================================================================================================
@@ -420,77 +548,73 @@ void main () {
 				// this should happen based on the delta tracking raymarch, low density everywhere
 			// "nohit" scene intersection - ray escaped the scene without encountering a surface or volume scattering event
 
-		const float d = getSceneIntersection( ray );
-		const float deltaD = deltaTrack( ray );
-		const float deltaDS = deltaTrackSparse( ray );
+		intersection_t sceneIntersection = getSceneIntersection( ray );
 
+		// kill the ray, once possible contribution becomes very small
 		if ( max( transmission.x, max( transmission.y, transmission.z ) ) < 0.001f ) break;
 
-		if ( min( min( deltaDS, deltaD ), d ) >= GlobalData.raymarchMaxDistance ) {
+		// epsilon bump for surfaces... returning a 0 vector for the normal on the volume stuff makes this work for both cases
+		ray.origin = ray.origin + ray.direction * sceneIntersection.dTravel + 3.0f * GlobalData.epsilon * sceneIntersection.normal;
 
-		// this ray has escaped the scene to the sky, so we take a sky sample + kill it
+		if ( sceneIntersection.materialID != EMISSIVE ) transmission *= sceneIntersection.albedo;
+
+	// direct lighting contribution
+		// generate a point on the light
+
+		// checking occlusion...
+		ray_t shadowRay;
+		shadowRay.origin = ray.origin;
+		// vec3 pLight = vec3( 30.0f, 0.1f * CircleOffset() );
+		// shadowRay.direction = normalize( pLight - shadowRay.origin );
+		shadowRay.direction = vec3( 1.0f, 0.0f, 0.0f );
+		intersection_t lightOcclusion = getSceneIntersection( shadowRay );
+		// if ( lightOcclusion.dTravel >= distance( pLight, ray.origin ) )
+		if ( lightOcclusion.dTravel >= GlobalData.raymarchMaxDistance )
+			accumulatedRadiance += transmission * vec3( 1.0f );
+
+		switch ( sceneIntersection.materialID ) {
+			// ESCAPE
+			case NOHIT:
+			// this ray has escaped the scene to the sky, so we take a sky sample + kill it
 			// accumulatedRadiance += transmission * max( 3.0f * dot( ray.direction, vec3( 0.0f, 0.0f, 1.0f ) ), 0.0f );
-			accumulatedRadiance += transmission * 13.0f * step( 0.8f, dot( ray.direction, vec3( 0.0f, 0.0f, -1.0f ) ) );
+			// accumulatedRadiance += transmission * 13.0f * step( 0.8f, dot( ray.direction, vec3( 0.0f, 0.0f, -1.0f ) ) );
+			bounce = GlobalData.bounces;
 			break;
 
-		} else {
+			// SURFACES
+			case EMISSIVE:
+			accumulatedRadiance += transmission * sceneIntersection.albedo;
+			ray.direction = cosWeightedRandomHemisphereDirection( sceneIntersection.normal );
+			break;
 
-		// this ray interacts with the scene
-			// direct lighting contribution - tbd, transmission needs to be corrected... directional sun should be a scalar
+			case DIFFUSE:
+			ray.direction = cosWeightedRandomHemisphereDirection( sceneIntersection.normal );
+			break;
 
-			// first, doing a delta track raymarch to compare with the scene intersection distance
+			case METALLIC:
+			ray.direction = normalize( ( 1.0f + GlobalData.epsilon ) * sceneIntersection.normal + mix( reflect( ray.direction, sceneIntersection.normal ), RandomUnitVector(), sceneIntersection.roughness ) );
+			break;
 
-			if ( min( deltaD, deltaDS ) < d ) {
-			// this is a volume scattering event
+			case MIRROR:
+			ray.direction = reflect( ray.direction, sceneIntersection.normal );
+			break;
 
-				transmission *= ( deltaD < deltaDS ) ? mix( nvidia / 2.0f, vec3( 0.99f ), 0.8f ) : sapphire;
-				ray.origin = ray.origin + ray.direction * ( ( deltaD < deltaDS ) ? deltaD : deltaDS );
-				ray.direction = sampleApproxMieDirection( ray.direction, ( deltaD < deltaDS ) ? 15 : 5, rFloat(), rFloat(), rFloat() );
+			// VOLUMES
+			case VOLUME_DENSE:
+			ray.direction = sampleApproxMieDirection( ray.direction, 15, rFloat(), rFloat(), rFloat() );
+			break;
 
-			} else {
-			// this is a surface scattering event
-				// I want to handle materials just like Daedalus... that can happen here, using global stuff
+			case VOLUME_SPARSE:
+			ray.direction = sampleApproxMieDirection( ray.direction, 5, rFloat(), rFloat(), rFloat() );
+			break;
 
-				int SDFMaterial = hitSurfaceType;
-				vec3 SDFAlbedo = hitColor;
-				float SDFRough = hitRoughness;
-
-				// generating a new ray from the intersection
-				const vec3 normal = SDFNormal( ray.origin + ray.direction * d );
-				ray.origin = ray.origin + ray.direction * d + 3.0f * GlobalData.epsilon * normal;
-
-				switch ( SDFMaterial ) {
-					case NOHIT: // shouldn't be hitting this
-						break;
-
-					case EMISSIVE:
-						accumulatedRadiance += transmission * SDFAlbedo;
-						ray.direction = cosWeightedRandomHemisphereDirection( normal );
-						break;
-
-					case DIFFUSE:
-						transmission *= SDFAlbedo;
-						ray.direction = cosWeightedRandomHemisphereDirection( normal );
-						break;
-
-					case METALLIC:
-						transmission *= SDFAlbedo;
-						ray.direction = normalize( ( 1.0f + GlobalData.epsilon ) * normal + mix( reflect( ray.direction, normal ), RandomUnitVector(), SDFRough ) );
-						break;
-
-					case MIRROR:
-						transmission *= SDFAlbedo;
-						ray.direction = reflect( ray.direction, normal );
-						break;
-
-					default:
-						break;
-				}
-			}
+			default:
+			break;
 		}
 
-		// russian roulette termination
-		float maxChannel = max( transmission.r, max( transmission.g, transmission.b ) );
+		// russian roulette termination - alternative scheme based on https://bsky.app/profile/maxtarpini.bsky.social/post/3msgzb2s7bk2s
+		// float maxChannel = max( transmission.r, max( transmission.g, transmission.b ) );
+		float maxChannel = dot( transmission, vec3( 0.2126f, 0.7152f, 0.0722f ) );
 		if ( rFloat() > maxChannel ) break;
 		transmission *= 1.0f / maxChannel; // compensation term
 	}
