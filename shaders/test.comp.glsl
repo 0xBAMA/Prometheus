@@ -59,11 +59,12 @@ float noiseFBM( in vec3 pos ) {
 int bounce = 0;
 //=============================================================================================================================
 float dBBox( vec3 p ) {
-	return fBox( p, vec3( 60.0f ) );
+	return fBox( p, vec3( 100.0f ) );
 }
 //=============================================================================================================================
 #define fold45(p)(p.y>p.x)?p.yx:p
 float deTemple(vec3 p) {
+	p.z *= -1.0f;
 	float scale = 2.1, off0 = .8, off1 = .3, off2 = .83;
 	vec3 off =vec3(2.,.2,.1);
 	float s=1.0;
@@ -126,7 +127,7 @@ float deLumpy(vec3 p){
 		return dbox;
 	}
 
-	float scalar = 9.0f;
+	float scalar = 12.0f;
 	p /= scalar;
 
 	vec3 Q;
@@ -139,7 +140,7 @@ float deLumpy(vec3 p){
 	Q=sin(Q),
 	d+=Q.x*Q.y*Q.z/a*.4,
 	a*=2.;
-	return d*.4 * scalar - 1.6f * noiseFBM( p * 12.0f ) * noise( p * 4.0f );
+	return d*.4 * scalar - 4.6f * noiseFBM( p * 6.0f ) * ( pow( noise( p * 2.0f ), 2.0f ) - 0.2f );
 }
 
 float deChunky(vec3 p){
@@ -333,18 +334,20 @@ float de( vec3 p ){
 //		}
 //	}
 
-//	{
-//		float scalar = 2.0f;
-//		float d = deSmooth( p / scalar ) * scalar;
-//		sceneDist = min( max( d, dBounds ), sceneDist );
-//		if ( sceneDist == d && d < GlobalData.epsilon ) {
-//			hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
-////			hitRoughness = 0.01f;
-//			// hitColor = ( hitSurfaceType == MIRROR ) ? vec3( 0.99f ) : iron;
-//			hitColor = vec3( 0.99f );
-////			mix( tire, gold, noiseFBM( 0.1f * p + vec3( noise( 0.1f * p + vec3( 15.0f, 0.4f, 2.3f ) ), noise( 0.1f * p ), noise( 0.1f * p + vec3( 3.2f, 15.4f, 0.3f ) ) ) ) );
-//		}
-//	}
+	{
+		float scalar = 20.0f;
+		float d = deTemple( p.zyx / scalar ) * scalar;
+		sceneDist = min( max( d, dBounds ), sceneDist );
+		if ( sceneDist == d && d < GlobalData.epsilon ) {
+			// hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
+			hitSurfaceType = DIFFUSE;
+//			hitRoughness = 0.01f;
+			// hitColor = ( hitSurfaceType == MIRROR ) ? vec3( 0.99f ) : iron;
+			// hitColor = vec3( 0.99f );
+			hitColor = gold;
+//			mix( tire, gold, noiseFBM( 0.1f * p + vec3( noise( 0.1f * p + vec3( 15.0f, 0.4f, 2.3f ) ), noise( 0.1f * p ), noise( 0.1f * p + vec3( 3.2f, 15.4f, 0.3f ) ) ) ) );
+		}
+	}
 
 //	{
 //		pMod1( p.y, 5.0f );
@@ -363,7 +366,7 @@ float density( vec3 p ) {
 //	return 10.0f * step( 0.0f, -de2( p ) );
 //	return noise( p * 1.0f );
 
-	float val = ( deChunky( p ) );
+	float val = ( deLumpy( p ) );
 	if ( val > GlobalData.epsilon )
 		return 0.0f;
 	return noise( p * 6.0f );
@@ -395,7 +398,7 @@ intersection_t raymarch ( in ray_t ray ) {
 	}
 
 	// fill out the result struct...
-	result.dTravel = dTotal;
+	result.dTravel = ( dQuery < GlobalData.epsilon ) ? dTotal : ( GlobalData.raymarchMaxDistance + 10.0f );
 	result.materialID = hitSurfaceType;
 	result.normal = SDFNormal( ray.origin + dTotal * ray.direction );
 	result.frontfaceHit = true; // tbd
@@ -421,7 +424,7 @@ intersection_t deltaTrack( ray_t ray ) {
 		hitPos += t * ray.direction;
 		tTotal += t;
 
-		sd = deChunky( hitPos ) * 0.9f; // understep
+		sd = deLumpy( hitPos ) * 0.9f; // understep
 
 		// if you hit
 		if ( sd <= GlobalData.epsilon ) {
@@ -433,7 +436,8 @@ intersection_t deltaTrack( ray_t ray ) {
 
 	// fill out the intersection struct
 	result.dTravel = tTotal;
-	result.albedo = mix( nvidia / 2.0f, vec3( 0.999f ), 0.8f ); // tbd, color should probably come from the density function
+	// result.albedo = mix( nvidia / 2.0f, vec3( 0.999f ), 0.8f ); // tbd, color should probably come from the density function
+	result.albedo = mix( mix( nvidia / 2.0f, nvidia, 1.0f - noiseFBM( ( ray.origin + tTotal * ray.direction ) * 2.0f ) ), vec3( 0.99f ), 0.8f );
 	result.normal = vec3( 0.0f ); // not appropriate to consider here
 	result.frontfaceHit = true;  // ditto
 	result.materialID = VOLUME_DENSE;
@@ -565,11 +569,14 @@ void main () {
 		// checking occlusion...
 		ray_t shadowRay;
 		shadowRay.origin = ray.origin;
-		// vec3 pLight = vec3( 30.0f, 0.1f * CircleOffset() );
-		// shadowRay.direction = normalize( pLight - shadowRay.origin );
+#define POINTLIGHT
+#ifdef POINTLIGHT
+		vec3 pLight = vec3( 1000.0f, 1.0f * CircleOffset() );
+		shadowRay.direction = normalize( pLight - shadowRay.origin );
+#else
 		shadowRay.direction = vec3( 1.0f, 0.0f, 0.0f );
+#endif
 		intersection_t lightOcclusion = getSceneIntersection( shadowRay );
-		// if ( lightOcclusion.dTravel >= distance( pLight, ray.origin ) )
 		if ( lightOcclusion.dTravel >= GlobalData.raymarchMaxDistance )
 			accumulatedRadiance += transmission * vec3( 1.0f );
 
