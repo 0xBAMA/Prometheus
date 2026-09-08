@@ -219,7 +219,7 @@ public:
 	float raymarchUnderstep = 0.99f;
 	float raymarchMaxDistance = 100.0f;
 	float epsilon = 0.0001f;
-	bool screenshotRequested = false;
+	int screenshotRequested = 0;
 
 	// RT state
 	TLASRecord mainTLAS;

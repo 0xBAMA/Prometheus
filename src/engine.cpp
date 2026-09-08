@@ -190,19 +190,19 @@ void PrometheusInstance::Draw () {
 		BufferPresent.invoke( cmd );
 	}
 
-	if ( screenshotRequested ) {
-		screenshotRequested = false;
-		screenshot();
-	}
+	if ( screenshotRequested ) { // decrement to zero
+		if ( !--screenshotRequested )
+			screenshot();
+	} else {
+		{ // do the debug line draw over top of the final LDR color
+			scopedTimer start( "Debug Line Draw" );
+			DebugLineDraw.invoke( cmd );
+		}
 
-	{ // do the debug line draw over top of the final LDR color
-		scopedTimer start( "Debug Line Draw" );
-		DebugLineDraw.invoke( cmd );
-	}
-
-	{ // do the debug string draw
-		scopedTimer start( "Debug String Draw" );
-		DebugStringDraw.invoke( cmd );
+		{ // do the debug string draw
+			scopedTimer start( "Debug String Draw" );
+			DebugStringDraw.invoke( cmd );
+		}
 	}
 
 	// transition the images for the copy
@@ -334,7 +334,7 @@ void PrometheusInstance::MainLoop () {
 
 			if ( kb[ SDL_SCANCODE_T ] && shift ) {
 				// screenshot();
-				screenshotRequested = true;
+				screenshotRequested = FRAME_OVERLAP;
 			}
 
 			{ // placeholder interactive camera from Daedalus
