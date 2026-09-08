@@ -160,7 +160,7 @@ float deChunky(vec3 p){
 	Q=sin(Q),
 	d+=Q.x*Q.y*Q.z/a,
 	a*=2.;
-	return d*.3 * scalar - 0.8f * noiseFBM( p * 6.0f ) * noise( p * 2.0f );
+	return ( d*.3 * scalar - 6.6f * noiseFBM( p * 6.0f ) * pow( noise( p * 1.0f ), 7.0f ) );
 }
 
 float deSmooth(vec3 p){
@@ -309,6 +309,7 @@ intersection_t DefaultIntersection() {
 vec3 hitColor;
 int hitSurfaceType;
 float hitRoughness;
+
 #define rot(a) mat2(cos(a),sin(a),-sin(a),cos(a))
 float de( vec3 p ){
 	const vec3 pOriginal = p;
@@ -362,7 +363,7 @@ float density( vec3 p ) {
 //	return 10.0f * step( 0.0f, -de2( p ) );
 //	return noise( p * 1.0f );
 
-	float val = deChunky( p );
+	float val = ( deChunky( p ) );
 	if ( val > GlobalData.epsilon )
 		return 0.0f;
 	return noise( p * 6.0f );
@@ -619,7 +620,7 @@ void main () {
 		transmission *= 1.0f / maxChannel; // compensation term
 	}
 
-	color = accumulatedRadiance;
+	color = clamp( accumulatedRadiance, 0.0f, 100.0f );
 
 //=============================================================================================================================
 	// load the previous color, mix the new and old values based on the current sampleCount
