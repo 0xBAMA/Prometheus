@@ -520,16 +520,16 @@ void main () {
 //=============================================================================================================================
 	// spherical camera logic, this will be replaced
 	const float aspectRatio = float( imageSize( image ).x ) / float( imageSize( image ).y );
-	uv *= 0.4f;
-	uv.y /= aspectRatio;
-	uv.x -= 0.05f;
-	uv = vec2( atan( uv.y, uv.x ) + 0.5f, ( length( uv ) + 0.5f ) * acos( -1.0f ) );
-	vec3 baseVec = normalize( vec3( cos( uv.y ) * cos( uv.x ), sin( uv.y ), cos( uv.y ) * sin( uv.x ) ) );
-	baseVec = Rotate3D( pi / 2.0f, vec3( 2.5f, 0.4f, 1.0f ) ) * baseVec; // this is to match the other camera
+//	uv *= 0.4f;
+//	uv.y /= aspectRatio;
+//	uv.x -= 0.05f;
+//	uv = vec2( atan( uv.y, uv.x ) + 0.5f, ( length( uv ) + 0.5f ) * acos( -1.0f ) );
+//	vec3 baseVec = normalize( vec3( cos( uv.y ) * cos( uv.x ), sin( uv.y ), cos( uv.y ) * sin( uv.x ) ) );
+//	baseVec = Rotate3D( pi / 2.0f, vec3( 2.5f, 0.4f, 1.0f ) ) * baseVec; // this is to match the other camera
 
 	ray_t ray;
-	ray.direction = normalize( -baseVec.x * GlobalData.basisX + baseVec.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * baseVec.z * GlobalData.basisZ );
-//	ray.direction = normalize( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * GlobalData.basisZ );
+//	ray.direction = normalize( -baseVec.x * GlobalData.basisX + baseVec.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * baseVec.z * GlobalData.basisZ );
+	ray.direction = normalize( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * GlobalData.basisZ );
 	ray.origin = GlobalData.viewerPosition;
 
 //	ray.origin = GlobalData.FoV * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + GlobalData.viewerPosition;
