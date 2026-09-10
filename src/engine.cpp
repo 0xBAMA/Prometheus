@@ -1572,6 +1572,9 @@ void PrometheusInstance::initComputePasses () {
 
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
 				[ & ] () { return Resource( XYZImage.imageView ); } },
+
+			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
 		};
 
 		config.shaderPath = "../shaders/test.comp.glsl.spv";
@@ -2452,6 +2455,7 @@ void PrometheusInstance::initDefaultData () {
 		destroyImage( whiteImage );
 		destroyImage( greyImage );
 		destroyImage( blackImage );
+		destroyImage( jakobLUTImage );
 	});
 }
 

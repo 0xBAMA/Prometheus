@@ -11,8 +11,20 @@ layout ( local_size_x = 16, local_size_y = 16 ) in;
 #include "pbrConstants.glsl"
 #include "hg_sdf.h"
 #include "wood.h"
+#include "XYZSpectrum.h"
 //=============================================================================================================================
 layout ( rgba32f, set = 0, binding = 1 ) uniform image2D image; // accumulator image
+//=============================================================================================================================
+layout ( set = 0, binding = 2 ) uniform sampler3D jakobLUT; // spectral reflectance LUT
+//float fma ( float a, float b, float c ) {/
+//	return a * b + c;
+//}
+float sRGBtoReflectance ( vec3 sRGBColor, float lambda ) {
+	vec3 coeff = texture( jakobLUT, sRGBColor ).rgb;
+	float x = fma( fma( coeff.x, lambda, coeff.y ), lambda, coeff.z ),
+	y = 1.0f / sqrt( fma( x, x, 1.f ) );
+	return fma( 0.5f * x, y, 0.5f);
+}
 //=============================================================================================================================
 struct ray_t {
 	vec3 origin;
@@ -273,7 +285,7 @@ float deIFS2 ( vec3 p ){
 //=============================================================================================================================
 struct intersection_t {
 	float dTravel;
-	vec3 albedo;
+	float albedo;
 	vec3 normal;
 	bool frontfaceHit;
 	int materialID;
@@ -290,7 +302,7 @@ struct intersection_t {
 intersection_t DefaultIntersection() {
 	intersection_t intersection;
 	intersection.dTravel = GlobalData.raymarchMaxDistance;
-	intersection.albedo = vec3( 0.0f );
+	intersection.albedo = 0.0f;
 	intersection.normal = vec3( 0.0f );
 	intersection.frontfaceHit = false;
 	intersection.materialID = 0; // indicates an escaped ray
@@ -307,15 +319,17 @@ intersection_t DefaultIntersection() {
 #define VOLUME_DENSE				6
 #define VOLUME_SPARSE				7
 //=============================================================================================================================
-vec3 hitColor;
+float hitColor;
 int hitSurfaceType;
 float hitRoughness;
+
+float wavelength;
 
 #define rot(a) mat2(cos(a),sin(a),-sin(a),cos(a))
 float de( vec3 p ){
 	const vec3 pOriginal = p;
 	float sceneDist = 1000.0f;
-	hitColor = vec3( 0.0f );
+	hitColor = 0.0f;
 	hitSurfaceType = NOHIT;
 	hitRoughness = 0.0f;
 
@@ -344,7 +358,7 @@ float de( vec3 p ){
 //			hitRoughness = 0.01f;
 			// hitColor = ( hitSurfaceType == MIRROR ) ? vec3( 0.99f ) : iron;
 			// hitColor = vec3( 0.99f );
-			hitColor = gold;
+			hitColor = sRGBtoReflectance( gold, wavelength );
 //			mix( tire, gold, noiseFBM( 0.1f * p + vec3( noise( 0.1f * p + vec3( 15.0f, 0.4f, 2.3f ) ), noise( 0.1f * p ), noise( 0.1f * p + vec3( 3.2f, 15.4f, 0.3f ) ) ) ) );
 		}
 	}
@@ -437,7 +451,7 @@ intersection_t deltaTrack( ray_t ray ) {
 	// fill out the intersection struct
 	result.dTravel = tTotal;
 	// result.albedo = mix( nvidia / 2.0f, vec3( 0.999f ), 0.8f ); // tbd, color should probably come from the density function
-	result.albedo = mix( mix( nvidia / 2.0f, nvidia, 1.0f - noiseFBM( ( ray.origin + tTotal * ray.direction ) * 2.0f ) ), vec3( 0.99f ), 0.8f );
+	result.albedo = sRGBtoReflectance( mix( mix( nvidia / 2.0f, nvidia, 1.0f - noiseFBM( ( ray.origin + tTotal * ray.direction ) * 2.0f ) ), vec3( 0.99f ), 0.8f ), wavelength );
 	result.normal = vec3( 0.0f ); // not appropriate to consider here
 	result.frontfaceHit = true;  // ditto
 	result.materialID = VOLUME_DENSE;
@@ -471,7 +485,7 @@ intersection_t deltaTrackSparse( ray_t ray ) {
 
 	// fill out the intersection struct
 	result.dTravel = tTotal;
-	result.albedo = sapphire; // tbd, color should probably come from the density function
+	result.albedo = sRGBtoReflectance( sapphire, wavelength ); // tbd, color should probably come from the density function
 	result.normal = vec3( 0.0f ); // not appropriate to consider here
 	result.frontfaceHit = true;  // ditto
 	result.materialID = VOLUME_SPARSE;
@@ -532,16 +546,18 @@ void main () {
 	ray.direction = normalize( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * GlobalData.basisZ );
 	ray.origin = GlobalData.viewerPosition;
 
+	// uniformly sampling wavelength, to start...
+		// this should be based on the film sensitivity curves
+	// wavelength = mix( 380.0f, 830.0f, rFloat() );
+	wavelength = mix( 400.0f, 700.0f, rFloat() );
+
 //	ray.origin = GlobalData.FoV * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + GlobalData.viewerPosition;
 //	ray.direction = -1.0f * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + vec3( GlobalData.basisZ );
 
 //=============================================================================================================================
-	// begin the process of taking a new sample
-	vec3 color = vec3( 0.0f );
-
-	// placeholder, I want to get into the habit of doing things spectrally
-	vec3 transmission = vec3( 1.0f );
-	vec3 accumulatedRadiance = vec3( 0.0f );
+// begin the process of taking a new sample
+	float transmission = 1.0f;
+	float accumulatedRadiance = 0.0f;
 
 //=============================================================================================================================
 	// pathtracing logic, starting with the incoming camera ray
@@ -556,7 +572,7 @@ void main () {
 		intersection_t sceneIntersection = getSceneIntersection( ray );
 
 		// kill the ray, once possible contribution becomes very small
-		if ( max( transmission.x, max( transmission.y, transmission.z ) ) < 0.001f ) break;
+//		if ( max( transmission.x, max( transmission.y, transmission.z ) ) < 0.001f ) break;
 
 		// epsilon bump for surfaces... returning a 0 vector for the normal on the volume stuff makes this work for both cases
 		ray.origin = ray.origin + ray.direction * sceneIntersection.dTravel + 3.0f * GlobalData.epsilon * sceneIntersection.normal;
@@ -578,7 +594,7 @@ void main () {
 #endif
 		intersection_t lightOcclusion = getSceneIntersection( shadowRay );
 		if ( lightOcclusion.dTravel >= GlobalData.raymarchMaxDistance )
-			accumulatedRadiance += transmission * vec3( 1.0f );
+			accumulatedRadiance += transmission * 10.0f;
 
 		switch ( sceneIntersection.materialID ) {
 			// ESCAPE
@@ -622,12 +638,15 @@ void main () {
 
 		// russian roulette termination - alternative scheme based on https://bsky.app/profile/maxtarpini.bsky.social/post/3msgzb2s7bk2s
 		// float maxChannel = max( transmission.r, max( transmission.g, transmission.b ) );
-		float maxChannel = dot( transmission, vec3( 0.2126f, 0.7152f, 0.0722f ) );
-		if ( rFloat() > maxChannel ) break;
-		transmission *= 1.0f / maxChannel; // compensation term
+		// float maxChannel = dot( transmission, vec3( 0.2126f, 0.7152f, 0.0722f ) );
+		// if ( rFloat() > maxChannel ) break;
+		// transmission *= 1.0f / maxChannel; // compensation term
+
+		if ( rFloat() > transmission ) break;
+		transmission *= 1.0f / transmission; // compensation term
 	}
 
-	color = clamp( accumulatedRadiance, 0.0f, 100.0f );
+	vec3 color = wl_rgb( wavelength ) * clamp( accumulatedRadiance, 0.0f, 100.0f );
 
 //=============================================================================================================================
 	// load the previous color, mix the new and old values based on the current sampleCount
