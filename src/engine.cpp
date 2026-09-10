@@ -2122,6 +2122,18 @@ int PrometheusInstance::addDebugString ( vec2 position, std::string displayText,
 	return debugStrings.size() - 1;
 }
 
+void PrometheusInstance::updateString ( int index, vec2 position, std::string displayText, vec3 color, int fontSelect, float zDepth ){
+	debugStringConfig& s = debugStrings[ index ];
+
+	// for runtime usage
+	s.debugStringWriteLocation = position;
+	s.debugStringDepth = zDepth;
+	s.debugStringFillColor = vec4( color, 1.0f );
+	s.debugStringBackgroundColor = vec4( 0.0f );
+	s.debugStringFontPick = std::clamp( fontSelect, 0, 2 );
+	s.debugStringLength = sprintf( ( char * ) s.debugStringData, "%s", displayText.c_str() );
+}
+
 // 2D line segment
 int PrometheusInstance::addDebugDrawLine ( vec2 a, vec2 b, vec3 color, float zDepthA, float zDepthB ) {
 	// need to update the buffer with the new line
@@ -2133,7 +2145,7 @@ int PrometheusInstance::addDebugDrawLine ( vec2 a, vec2 b, vec3 color, float zDe
 	linePointData[ debugLineDrawNumLines + 1 ].color = vec4( color, 1.0f );
 
 	debugLineDrawNumLines += 2;
-	return debugLineDrawNumLines;
+	return debugLineDrawNumLines; // this is an allocation, and the memory can be reused
 }
 
 // 2D bounding box helper, draws 4 lines
@@ -2143,7 +2155,7 @@ int PrometheusInstance::addDebugDrawBox ( vec2 min, vec2 max, vec3 color, float 
 	addDebugDrawLine( max, vec2( min.x, max.y ), color, zDepth, zDepth );
 	addDebugDrawLine( max, vec2( max.x, min.y ), color, zDepth, zDepth );
 
-	return debugLineDrawNumLines;
+	return debugLineDrawNumLines; // you can figure out from this, but it's not ideal
 }
 
 void PrometheusInstance::lightManagerMaintenance () {

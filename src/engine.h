@@ -219,7 +219,7 @@ public:
 	float raymarchUnderstep = 0.99f;
 	float raymarchMaxDistance = 100.0f;
 	float epsilon = 0.001f;
-	bool screenshotRequested = false;
+	int screenshotRequested = 0;
 
 	// RT state
 	TLASRecord mainTLAS;
@@ -270,6 +270,7 @@ public:
 
 	// text rendering, with pixel location + select from the list of available font LUTs (tinyfont, fatfont, code page 437)
 	int addDebugString ( vec2 position, std::string displayText, vec3 color, int fontSelect, float zDepth = debugDrawMidDepth );
+	void updateString ( int index, vec2 position, std::string displayText, vec3 color, int fontSelect, float zDepth = debugDrawMidDepth );
 
 	// 2D line segment
 	int addDebugDrawLine ( vec2 a, vec2 b, vec3 color, float zDepthA = debugDrawMidDepth, float zDepthB = debugDrawMidDepth );
