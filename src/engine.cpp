@@ -293,43 +293,21 @@ void PrometheusInstance::MainLoop () {
 				showMenu = !showMenu;
 			}
 
-			/*
-			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_N ) {
-				lightManager.MouseLightToUserLight();
+		// RESOLUTION SCALING
+			// "P" for "Print"
+			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_P ) {
 				globalData.reset = 1;
+				renderScale = 1.0f;
 			}
 
-			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_EQUALS ) {
-				globalData.brightnessScalar *= 1.0f + shift ? 0.01f : 0.1f;
-			}
-
-			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_MINUS ) {
-				globalData.brightnessScalar /= 1.0f + shift ? 0.01f : 0.1f;
-			}
-
-			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_K ) {
-				lightManager.clearList();
+			// "O" for "Observe"
+			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_O ) {
 				globalData.reset = 1;
+				renderScale = 0.3f;
 			}
-			*/
 
-
-			// if ( kb[ SDL_SCANCODE_RIGHT ] || kb[ SDL_SCANCODE_D ] ) {
-				// globalData.rotation = glm::rotate( globalData.rotation, amount, glm::vec3( 0.0f, 1.0f, 0.0f ) );
-				// globalData.reset = 1;
-			// }
 			if ( kb[ SDL_SCANCODE_R ] ) {
 				globalData.reset = true;
-			}
-
-			if ( kb[ SDL_SCANCODE_D ] ) {
-				globalData.reset = true;
-				lightManager.MouseLight->parameters.rotation -= shift ? 0.01f : 0.1f;
-			}
-
-			if ( kb[ SDL_SCANCODE_A ] ) {
-				globalData.reset = true;
-				lightManager.MouseLight->parameters.rotation += shift ? 0.01f : 0.1f;
 			}
 
 			if ( kb[ SDL_SCANCODE_T ] && shift ) {
@@ -1015,6 +993,8 @@ void PrometheusInstance::initResources () {
 	// addDebugString();
 	// addDebugDrawLine();
 	// addDebugDrawBox();
+
+	// initializing the renderstate
 
 	/*
 	// float sizeRamp = 1.5f;
@@ -2423,6 +2403,8 @@ void PrometheusInstance::initDefaultData () {
 
 	uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0 ) );
 	blackImage = createImage( ( void * ) &black, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT );
+
+	// the sRGB to spectral LUT (Jakob 2019)
 
 // SAMPLER OBJECTS
 	VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
