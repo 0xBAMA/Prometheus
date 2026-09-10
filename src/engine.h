@@ -372,7 +372,7 @@ public:
 
 	// some helper functions for allocating textures
 	AllocatedImage createImage ( VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false ); // storage image type
-	AllocatedImage createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false ); // loaded from disk
+	AllocatedImage createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, int bytesPerPixel = 4, bool mipmapped = false ); // loaded from disk
 	void updateImage ( AllocatedImage& image, void* data, int bytesPerTexel );
 	void screenshot (); // save the contents of the framebuffer
 	void destroyImage ( const AllocatedImage& img );
@@ -381,6 +381,7 @@ public:
 	AllocatedImage whiteImage;
 	AllocatedImage blackImage;
 	AllocatedImage greyImage;
+	AllocatedImage jakobLUTImage;
 
 	// and default sampler types
 	VkSampler defaultSamplerLinear;

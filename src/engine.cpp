@@ -2257,7 +2257,7 @@ AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat forma
 	}
 
 	// build a image-view for the image
-	VkImageViewCreateInfo view_info = vkinit::imageview_create_info( format, newImage.image, aspectFlag );
+	VkImageViewCreateInfo view_info = vkinit::imageview_create_info( format, newImage.image, aspectFlag, ( size.depth != 1 ) );
 	view_info.subresourceRange.levelCount = img_info.mipLevels;
 
 	VK_CHECK( vkCreateImageView( device, &view_info, nullptr, &newImage.imageView ) );
@@ -2265,8 +2265,8 @@ AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat forma
 	return newImage;
 }
 
-AllocatedImage PrometheusInstance::createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped ) {
-	size_t dataSize = size.depth * size.width * size.height * 4;
+AllocatedImage PrometheusInstance::createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, int bytesPerPixel, bool mipmapped ) {
+	size_t dataSize = size.depth * size.width * size.height * bytesPerPixel;
 	AllocatedBuffer uploadbuffer = createBuffer( dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
 
 	// data from the void pointer, copied to the upload buffer
@@ -2404,7 +2404,32 @@ void PrometheusInstance::initDefaultData () {
 	uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0 ) );
 	blackImage = createImage( ( void * ) &black, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT );
 
-	// the sRGB to spectral LUT (Jakob 2019)
+	{
+		// unscopedTimer timer( "JAKOB", true );
+		// timer.tick();
+		// the sRGB to spectral LUT ( Jakob 2019 ) https://rgl.epfl.ch/publications/Jakob2019Spectral
+		// creating a texture now with half precision floats, so that I can use
+		RGB2Spec *model = rgb2spec_load( "../src/third_party/Jakob2019Spectral/supplement/tables/srgb.coeff" );
+
+		uint32_t *jakobLUT; // one element per possible value in the sRGB space... 4x 16-bit becomes 2x uint32's per texel
+		jakobLUT = ( uint32_t * ) malloc( 256 * 256 * 256 * sizeof( uint32_t ) * 2 );
+
+		for ( size_t i = 0; i < 256 * 256 * 256; i++ ) {
+			uint32_t r = i % 256;
+			uint32_t g = ( i / 256 ) % 256;
+			uint32_t b = ( i / ( 256 * 256 ) ) % 256;
+
+			float rgb[ 3 ] = { r / 255.0f, g / 255.0f, b / 255.0f }, coeff[ 3 ];
+			rgb2spec_fetch( model, rgb, coeff );
+
+			jakobLUT[ 2 * i + 0 ] = glm::packHalf2x16( vec2( coeff[ 0 ], coeff[ 1 ] ) );
+			jakobLUT[ 2 * i + 1 ] = glm::packHalf2x16( vec2( coeff[ 2 ], 0.0f ) );
+		}
+		jakobLUTImage = createImage( ( void * ) jakobLUT, VkExtent3D{ 256, 256, 256 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT, 8 );
+		free( jakobLUT );
+		// timer.tock();
+		// fmt::print( "Jakob LUT loaded in {}ms", std::chrono::duration_cast<std::chrono::microseconds>(  timer.c.tStop - timer.c.tStart ).count() / 1000.0f );
+	}
 
 // SAMPLER OBJECTS
 	VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };

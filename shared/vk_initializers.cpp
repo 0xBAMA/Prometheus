@@ -267,7 +267,7 @@ VkImageCreateInfo vkinit::image_create_info(VkFormat format, VkImageUsageFlags u
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     info.pNext = nullptr;
 
-    info.imageType = VK_IMAGE_TYPE_2D;
+    info.imageType = ( extent.depth != 1 ) ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D;
 
     info.format = format;
     info.extent = extent;
@@ -285,14 +285,14 @@ VkImageCreateInfo vkinit::image_create_info(VkFormat format, VkImageUsageFlags u
     return info;
 }
 
-VkImageViewCreateInfo vkinit::imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags)
+VkImageViewCreateInfo vkinit::imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags, bool threeD )
 {
     // build a image-view for the depth image to use for rendering
     VkImageViewCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     info.pNext = nullptr;
 
-    info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    info.viewType = threeD ? VK_IMAGE_VIEW_TYPE_3D : VK_IMAGE_VIEW_TYPE_2D;
     info.image = image;
     info.format = format;
     info.subresourceRange.baseMipLevel = 0;
