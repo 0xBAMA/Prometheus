@@ -562,7 +562,9 @@ void main () {
 	// uniformly sampling wavelength, to start...
 		// this should be based on the film sensitivity curves
 	// wavelength = mix( 380.0f, 830.0f, rFloat() );
-	wavelength = mix( 400.0f, 700.0f, rFloat() );
+	// wavelength = mix( 400.0f, 700.0f, rFloat() );
+	int pickedLight = int( floor( rFloat() * ( GlobalData.numLights ) ) );
+	wavelength = texture( lightiCDF, vec2( rFloat(), ( pickedLight + 0.5f ) / textureSize( lightPDF, 0 ).y ) ).r;
 
 //	ray.origin = GlobalData.FoV * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + GlobalData.viewerPosition;
 //	ray.direction = -1.0f * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + vec3( GlobalData.basisZ );
@@ -598,16 +600,15 @@ void main () {
 		// checking occlusion...
 		ray_t shadowRay;
 		shadowRay.origin = ray.origin;
-#define POINTLIGHT
-#ifdef POINTLIGHT
-		vec3 pLight = vec3( 1000.0f, 1.0f * CircleOffset() );
-		shadowRay.direction = normalize( pLight - shadowRay.origin );
-#else
-		shadowRay.direction = vec3( 1.0f, 0.0f, 0.0f );
-#endif
+
+		// picking one of the lights
+		int pickedLight = int( floor( rFloat() * ( GlobalData.numLights ) ) );
+		LightEmitterParameters l = EmitterParameters.params[ pickedLight ];
+
+		shadowRay.direction = -l.direction;
 		intersection_t lightOcclusion = getSceneIntersection( shadowRay );
 		if ( lightOcclusion.dTravel >= GlobalData.raymarchMaxDistance )
-			accumulatedRadiance += transmission * 10.0f;
+			accumulatedRadiance += transmission * 3.0f * texture( lightPDF, vec2( ( wavelength - 380.0f ) / 450.0f, ( pickedLight + 0.5f ) / textureSize( lightPDF, 0 ).y ) ).r;
 
 		switch ( sceneIntersection.materialID ) {
 			// ESCAPE

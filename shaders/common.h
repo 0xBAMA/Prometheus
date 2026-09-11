@@ -47,6 +47,7 @@ layout( set = 0, binding = 0, scalar ) uniform globalData {
 	float raymarchUnderstep;
 	float raymarchMaxDistance;
 	float epsilon;
+	int numLights;
 } GlobalData;
 //=========================================================
 
