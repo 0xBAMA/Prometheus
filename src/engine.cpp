@@ -142,6 +142,7 @@ void PrometheusInstance::Draw () {
 	globalData.raymarchUnderstep = raymarchUnderstep;
 	globalData.raymarchMaxDistance = raymarchMaxDistance;
 	globalData.epsilon = epsilon;
+	globalData.numLights = lightManager.numLights;
 
 	// write directly from the memory on the PrometheusInstance
 	GlobalData* uniformData = ( GlobalData * ) GlobalUBO.allocation->GetMappedData();
@@ -2155,10 +2156,11 @@ void PrometheusInstance::lightManagerMaintenance () {
 	static bool firstTime = true;
 
 	static int lastSeenNumLights = 0;
-	uint8_t numLights = lightManager.lights.size() + 1;
+	uint8_t numLights = lightManager.lights.size();
 
 	// if we see a change in the light list, we need to rebuild
 	if ( lastSeenNumLights != numLights ) {
+		vkDeviceWaitIdle( device );
 		if ( !firstTime ) {
 			// delete the existing textures
 			destroyImage( PreviewAtlas );
@@ -2244,7 +2246,7 @@ void PrometheusInstance::destroyBuffer ( const AllocatedBuffer& buffer ) {
 	vmaDestroyBuffer( allocator, buffer.buffer, buffer.allocation );
 }
 
-AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped ) {
+AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat format, VkImageUsageFlags usage, string label, bool mipmapped ) {
 	AllocatedImage newImage;
 	newImage.imageFormat = format;
 	newImage.imageExtent = size;
@@ -2274,10 +2276,15 @@ AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat forma
 
 	VK_CHECK( vkCreateImageView( device, &view_info, nullptr, &newImage.imageView ) );
 
+	if ( label != "" ) {
+		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) newImage.image, label.c_str() );
+		SetDebugName( VK_OBJECT_TYPE_IMAGE_VIEW, ( uint64_t ) newImage.imageView, label.c_str() );
+	}
+
 	return newImage;
 }
 
-AllocatedImage PrometheusInstance::createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, int bytesPerPixel, bool mipmapped ) {
+AllocatedImage PrometheusInstance::createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, int bytesPerPixel, string label, bool mipmapped ) {
 	size_t dataSize = size.depth * size.width * size.height * bytesPerPixel;
 	AllocatedBuffer uploadbuffer = createBuffer( dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
 
@@ -2285,7 +2292,7 @@ AllocatedImage PrometheusInstance::createImage ( void* data, VkExtent3D size, Vk
 	memcpy( uploadbuffer.info.pMappedData, data, dataSize );
 
 	// call to the read/write styled image creation function
-	AllocatedImage new_image = createImage( size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped );
+	AllocatedImage new_image = createImage( size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, label, mipmapped );
 
 	// immediate mode submission, to copy the upload buffer to the allocated image
 	immediateSubmit( [ & ] ( VkCommandBuffer cmd ) {

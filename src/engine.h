@@ -373,8 +373,8 @@ public:
 	float renderScale = 1.0f;
 
 	// some helper functions for allocating textures
-	AllocatedImage createImage ( VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false ); // storage image type
-	AllocatedImage createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, int bytesPerPixel = 4, bool mipmapped = false ); // loaded from disk
+	AllocatedImage createImage ( VkExtent3D size, VkFormat format, VkImageUsageFlags usage, string label = "", bool mipmapped = false ); // storage image type
+	AllocatedImage createImage ( void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, int bytesPerPixel = 4, string label = "", bool mipmapped = false ); // loaded from disk
 	void updateImage ( AllocatedImage& image, void* data, int bytesPerTexel );
 	void screenshot (); // save the contents of the framebuffer
 	void destroyImage ( const AllocatedImage& img );
