@@ -200,7 +200,7 @@ public:
 		// emitter parameters
 		ImGui::Separator();
 		ImGui::Text("Emitter Parameters:" );
-		ImGui::SliderFloat3( ( "Location" + lString ).c_str(), ( float* ) &parameters.position, -2000.0f, 2000.0f, "%.1f" );
+		ImGui::SliderFloat3( ( "Location" + lString ).c_str(), ( float* ) &parameters.position, -100.0f, 100.0f, "%.1f" );
 		ImGui::SliderFloat3( ( "Direction" + lString ).c_str(), ( float* ) &parameters.direction, -2.0f, 2.0f, "%.3f" );
 		parameters.direction = glm::normalize( parameters.direction ); // should work
 		ImGui::SliderFloat( ( "Radius" + lString ).c_str(), &parameters.radius, 0.0f, 100.0f, "%.1f", ImGuiSliderFlags_Logarithmic );

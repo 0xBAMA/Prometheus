@@ -440,7 +440,8 @@ void PrometheusInstance::MainLoop () {
 					profilerWindow.Render(); // GPU graph is presented on top, CPU on bottom
 				}
 
-				if ( ImGui::Begin( "Edit" ) ) {
+				static bool open = true;
+				if ( ImGui::Begin( "Edit", &open, ImGuiWindowFlags_NoNavInputs ) ) {
 
 					ImGui::SliderFloat( "Brightness Scale", &globalData.brightnessScalar, 0.3f, 5.0f, "%.5f", ImGuiSliderFlags_Logarithmic ); // this should also apply to the raster step + accumulate step
 					ImGui::SliderFloat( "Resolution Scale", &renderScale, 0.05f, 1.0f ); // this should also apply to the raster step + accumulate step
