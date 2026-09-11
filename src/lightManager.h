@@ -212,24 +212,21 @@ public:
 	}
 
 	void Update () {
-		// compute the current PDF (temporary, not stored outside of this function):
-		std::vector< float > PDFScratch;
-
 	// start with the selected light PDF LUT, then apply as many gel filters as there are to apply
 
 	// Starting from the selected source PDF, with no filters applied.
 		// We need a curve out of this process representing the filtered light.
 
 		auto LoadPDF = [&] ( int idx ) {
-			PDFScratch.clear();
+			PDF.clear();
 			for ( int i = 0; i < 450; i++ ) {
-				PDFScratch.emplace_back( sourcePDFs[ idx ][ i ] );
+				PDF.emplace_back( sourcePDFs[ idx ][ i ] );
 			}
 		};
 
 		auto ApplyFilter = [&] ( int idx ) {
 			for ( int i = 0; i < 450; i++ ) {
-				PDFScratch[ i ] *= gelFilters[ idx ][ i ];
+				PDF[ i ] *= gelFilters[ idx ][ i ];
 			}
 		};
 
@@ -237,11 +234,11 @@ public:
 			float max = 0.0f;
 			for ( int i = 0; i < 450; i++ ) {
 				// first pass, determine the maximum
-				max = std::max( max, PDFScratch[ i ] );
+				max = std::max( max, PDF[ i ] );
 			}
 			for ( int i = 0; i < 450; i++ ) {
 				// second pass we perform the normalization by the observed maximum
-				PDFScratch[ i ] /= max;
+				PDF[ i ] /= max;
 			}
 		};
 
@@ -261,16 +258,16 @@ public:
 		// we have the final PDF, now let's get CDF and iCDF
 		std::vector< float > cdf;
 		float cumSum = 0.0f;
-		for ( int x = 0; x < PDFScratch.size(); x++ ) {
+		for ( int x = 0; x < PDF.size(); x++ ) {
 			float sum = 0.0f;
 			// increment cumulative sum and CDF
-			cumSum += PDFScratch[ x ];
+			cumSum += PDF[ x ];
 			cdf.push_back( cumSum );
 		}
 
 		// normalize the CDF values by the final value during CDF sweep
 		std::vector< glm::vec2 > CDFpoints;
-		for ( int x = 0; x < PDFScratch.size(); x++ ) {
+		for ( int x = 0; x < PDF.size(); x++ ) {
 			// compute the inverse CDF with the aid of a series of 2d points along the curve
 			// adjust baseline for our desired range -> 380nm to 830nm, we have 450nm of data
 			CDFpoints.emplace_back( x + 380, cdf[ x ] / cumSum );
@@ -302,7 +299,7 @@ public:
 		// at the start here, you have the updated light PDF...
 			// let's go ahead and compute the preview...
 		int xOffset = 0;
-		for ( auto& freqBand : PDFScratch ) {
+		for ( auto& freqBand : PDF ) {
 			// we know the PDF value at this location...
 			for ( size_t y = 0; y < previewImageSize.height; y++ ) {
 				float fractionalPosition = 1.0f - float( y ) / float( previewImageSize.height );
@@ -331,7 +328,7 @@ public:
 			// we need to iterate over wavelengths and get an average color value under this illuminant
 			for ( int y = 0; y < 450; y++ ) {
 				// color[ chip ] += ( wavelengthColorLinear( 380 + y ) * light.PDFScratch[ y ] ) / 450.0f;
-				color[ chip ] += 3.5f * glm::clamp( wavelengthColorLinear( 380.0f + y ) * xRiteReflectances[ chip ][ y ] * PDFScratch[ y ], vec3( 0.0f ), vec3( 1.0f ) ) / 450.0f;
+				color[ chip ] += 3.5f * glm::clamp( wavelengthColorLinear( 380.0f + y ) * xRiteReflectances[ chip ][ y ] * PDF[ y ], vec3( 0.0f ), vec3( 1.0f ) ) / 450.0f;
 			}
 		}
 
@@ -371,7 +368,8 @@ public:
 	int PDFPick{ 12 };
 	std::vector< int > filterStack;
 
-	// the solved iCDF, needed by the light manager
+	// the solved PDF + iCDF, needed by the light manager
+	std::vector< float > PDF;
 	std::vector< float > iCDF;
 
 	// unitless, relative brightness
@@ -419,9 +417,6 @@ public:
 		// load the data for the sRGB reflectances
 		PrecomputesRGBReflectances();
 
-		// need to call this to prepare
-		MouseLight = std::make_unique<Light>();
-
 		// and add one placeholder user light
 		// lights.emplace_back();
 	}
@@ -431,24 +426,12 @@ public:
 		lights.clear();
 	}
 
-	// you always have a mouse light
-	glm::vec2 MouseLocation { 0.0f };
-	std::unique_ptr<Light> MouseLight = nullptr;
 	std::deque< Light > lights;
 
 	// staging memory for the light emitter parameter buffer
 	LightEmitterParameters lightEmitterParameters[ maxLights ];
 
 	void ImGuiDrawLightList () {
-		// configuration for the mouse light
-		ImGui::Separator();
-		ImGui::Text( "Mouse Light" );
-		ImGui::Separator();
-		static bool mouseLightVisible = true;
-		if ( ImGui::CollapsingHeader( "Show/Hide", &mouseLightVisible, ImGuiTreeNodeFlags_DefaultOpen ) ) {
-			MouseLight->ImGuiDrawLightInfo( true );
-		}
-
 		// something to make it stand out from the user light list:
 		ImGui::Separator();
 		ImGui::Text( "User Lights (max 255)" );
@@ -456,7 +439,7 @@ public:
 
 		// and then for a growable list of lights after that
 		for ( auto & light : lights ) {
-			if ( ImGui::CollapsingHeader( ( "Show/Hide##" + std::to_string( light.myUniqueID ) ).c_str() ) ) {
+			if ( ImGui::CollapsingHeader( ( "Show/Hide##" + std::to_string( light.myUniqueID ) ).c_str(), ImGuiTreeNodeFlags_DefaultOpen ) ) {
 				light.ImGuiDrawLightInfo();
 			}
 		}
@@ -474,11 +457,6 @@ public:
 				needsUpdate = true;
 			}
 		}
-		// same for the mouse light
-		if ( MouseLight->dirtyFlag ) {
-			MouseLight->Update();
-			needsUpdate = true;
-		}
 
 		// delete any that shouldn't exist anymore
 		lights.erase( std::remove_if( lights.begin(), lights.end(),
@@ -494,7 +472,7 @@ public:
 
 	void AddLight ( float brightness = 1.0f ) {
 		// calculate the brightness increment needed to keep constant...
-		float prevSumPower{ MouseLight->brightness };
+		float prevSumPower{ 0.0f };
 		for ( auto & light : lights ) {
 			prevSumPower += light.brightness;
 		}
@@ -503,35 +481,14 @@ public:
 		needsUpdate = true;
 
 		// should keep subjective brightness constant (light initialized with brightess = 1)
-		*brightnessScalar = *brightnessScalar * ( ( prevSumPower + brightness ) / prevSumPower );
-	}
-
-	void MouseLightToUserLight () {
-
-		// add a new light, at the mouse brightness
-		AddLight( MouseLight->brightness );
-
-		// other parameters come from the mouse parameters
-		lights.back().parameters = MouseLight->parameters;
-
-		// position is the mouse position
-		static float mouseX, mouseY;
-		SDL_GetMouseState( &mouseX, &mouseY );
-		lights.back().parameters.position.x = mouseX;
-		lights.back().parameters.position.y = mouseY;
-
-		// light distribution comes from the mouse distribution
-		lights.back().PDFPick = MouseLight->PDFPick;
-		for ( auto & filter : MouseLight->filterStack ) {
-			lights.back().filterStack.emplace_back( filter );
-		}
-
-		lights.back().Update();
+		if ( prevSumPower != 0.0f )
+			*brightnessScalar = *brightnessScalar * ( ( prevSumPower + brightness ) / prevSumPower );
 	}
 
 // we have two different importance sampling structures...
 	// first is a list of the light spectral iCDFs, in a texture
 	std::vector< float > iCDFTexture; // 1024 floats defines one iCDF
+	std::vector< float > PDFTexture; // 450 floats defines one PDF
 
 	// second is for preferentially picking the lights by brightness
 	std::vector< uint8_t > pickTexture;
@@ -543,26 +500,26 @@ public:
 
 	// this will need to happen any time we have an edit
 	void Update () {
-		numLights = lights.size() + 1; // user lights + mouse light
+		numLights = lights.size(); // user lights
 
 		// construct the light spectral sampling texture from light iCDFs
 			// data comes from each light, the data should be available by the time this runs
 		iCDFTexture.resize( numLights * 1024 );
-		for ( size_t i = 0; i < 1024; i++ ) {
-			iCDFTexture[ i ] = MouseLight->iCDF[ i ];
-		}
+		PDFTexture.resize( numLights * 450 );
 
 		// the user lights do the same
-		for ( size_t j = 1; j < numLights; j++ ) {
+		for ( size_t j = 0; j < numLights; j++ ) {
 			for ( size_t i = 0; i < 1024; i++ ) {
-				iCDFTexture[ j * 1024 + i ] = lights[ j - 1 ].iCDF[ i ];
+				iCDFTexture[ j * 1024 + i ] = lights[ j ].iCDF[ i ];
+			}
+			for ( size_t i = 0; i < 450; i++ ) {
+				PDFTexture[ j * 450 + i ] = lights[ j ].PDF[ i ];
 			}
 		}
 
 		// construct the light pick texture from the light brightnesses
 			// need to refer to individual light brightnesses relative to the sum of all brightnesses in the list
 		std::vector< float > brightnesses;
-		brightnesses.emplace_back( MouseLight->brightness );
 		for ( auto & light : lights ) {
 			brightnesses.emplace_back( light.brightness );
 		}
@@ -588,29 +545,23 @@ public:
 		// next we need to make sure that the atlas is constructed
 		int numValuesPerPreview = 554 * 64 * 4;
 		concatenatedPreviews.resize( numValuesPerPreview * numLights );
-		for ( int i = 0; i < numValuesPerPreview; i++ ) {
-			concatenatedPreviews[ i ] = MouseLight->textureScratch[ i ];
-		}
-		for ( int light = 0; light < numLights - 1; light++ ) {
+		for ( int light = 0; light < numLights; light++ ) {
 			for ( int i = 0; i < numValuesPerPreview; i++ ) {
-				concatenatedPreviews[ ( light + 1 ) * numValuesPerPreview + i ] = lights[ light ].textureScratch[ i ];
+				concatenatedPreviews[ light * numValuesPerPreview + i ] = lights[ light ].textureScratch[ i ];
 			}
 		}
 
 		// updating atlas positions
-		MouseLight->minUV = ImVec2( 0.0f, 0.0f );
-		MouseLight->maxUV = ImVec2( 1.0f, 1.0f / numLights );
-		for ( int light = 0; light < numLights - 1; light++ ) {
-			lights[ light ].minUV = ImVec2( 0.0f, ( light + 1 ) * 1.0f / numLights );
-			lights[ light ].maxUV = ImVec2( 1.0f, ( light + 2 ) * 1.0f / numLights );
+		for ( int light = 0; light < numLights; light++ ) {
+			lights[ light ].minUV = ImVec2( 0.0f, ( light + 0 ) * 1.0f / numLights );
+			lights[ light ].maxUV = ImVec2( 1.0f, ( light + 1 ) * 1.0f / numLights );
 		}
 
 		// construct the buffer for the light parameters
 		int idx = 0;
-		lightEmitterParameters[ idx ] = MouseLight->parameters;
-		while ( ( idx + 1 ) < lights.size() ) {
-			idx++;
+		while ( ( idx ) < lights.size() ) {
 			lightEmitterParameters[ idx ] = lights[ idx ].parameters;
+			idx++;
 		}
 
 		// update complete
