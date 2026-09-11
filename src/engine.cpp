@@ -1581,6 +1581,15 @@ void PrometheusInstance::initComputePasses () {
 
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
+
+			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256 * sizeof( LightEmitterParameters ) + 4, 0,
+				[ & ] () { return Resource( LightParametersBuffer.buffer ); } },
+
+			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () {return Resource( SpectrumPDFImage.imageView ); } },
+
+			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () {return Resource( SpectrumISImage.imageView ); } },
 		};
 
 		config.shaderPath = "../shaders/test.comp.glsl.spv";
@@ -2165,6 +2174,7 @@ void PrometheusInstance::lightManagerMaintenance () {
 			// delete the existing textures
 			destroyImage( PreviewAtlas );
 			destroyImage( SpectrumISImage );
+			destroyImage( SpectrumPDFImage );
 			destroyImage( PickISImage );
 		}
 		// create the new textures at current sizes
@@ -2210,10 +2220,11 @@ void PrometheusInstance::lightManagerMaintenance () {
 
 	// and then we need to update the parameters buffer for the emitters
 	LightEmitterParameters* emitterParams = ( LightEmitterParameters * ) LightParametersBuffer.allocation->GetMappedData();
-	emitterParams[ 0 ] = lightManager.MouseLight->parameters;
 	for ( int i = 0; i < lightManager.lights.size(); i++ ) {
-		emitterParams[ i + 1 ] = lightManager.lights[ i ].parameters;
+		emitterParams[ i ] = lightManager.lights[ i ].parameters;
 	}
+	// int32_t * emitterParamsCount = ( int32_t * ) ( LightParametersBuffer.allocation->GetMappedData() + 256 * sizeof( LightEmitterParameters ) );
+	// *( ( int32_t * ) ( &emitterParams[ 256 ] ) ) = lightManager.lights.size();
 }
 
 AllocatedBuffer PrometheusInstance::createBuffer ( size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, string label ) {
@@ -2549,6 +2560,7 @@ void PrometheusInstance::initImgui () {
 void PrometheusInstance::initLights () {
 	// setting up some of the global resources used by the lights
 	lightManager.Initialize();
+	lightManager.AddLight( 1.0f ); // placeholder, since the mouse light is gone
 	lightManager.brightnessScalar = &globalData.brightnessScalar;
 
 	// AllocatedImage previewImage = createImage( { 450 + 104, 64, 1 }, VK_FORMAT_R8G8B8A8_SNORM, VK_IMAGE_USAGE_SAMPLED_BIT );
