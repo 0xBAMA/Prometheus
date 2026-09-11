@@ -562,9 +562,10 @@ void main () {
 	// uniformly sampling wavelength, to start...
 		// this should be based on the film sensitivity curves
 	// wavelength = mix( 380.0f, 830.0f, rFloat() );
-	// wavelength = mix( 400.0f, 700.0f, rFloat() );
-	int pickedLight = int( floor( rFloat() * ( GlobalData.numLights ) ) );
-	wavelength = texture( lightiCDF, vec2( rFloat(), ( pickedLight + 0.5f ) / textureSize( lightPDF, 0 ).y ) ).r;
+	 wavelength = mix( 400.0f, 700.0f, rFloat() );
+	// int pickedLight = int( rFloat() * ( GlobalData.numLights ) );
+//	int pickedLight = GlobalData.frameNumber % GlobalData.numLights;
+//	wavelength = texture( lightiCDF, vec2( rFloat(), ( pickedLight + 0.5f ) / textureSize( lightPDF, 0 ).y ) ).r;
 
 //	ray.origin = GlobalData.FoV * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + GlobalData.viewerPosition;
 //	ray.direction = -1.0f * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + vec3( GlobalData.basisZ );
@@ -592,8 +593,6 @@ void main () {
 		// epsilon bump for surfaces... returning a 0 vector for the normal on the volume stuff makes this work for both cases
 		ray.origin = ray.origin + ray.direction * sceneIntersection.dTravel + 3.0f * GlobalData.epsilon * sceneIntersection.normal;
 
-		if ( sceneIntersection.materialID != EMISSIVE ) transmission *= sceneIntersection.albedo;
-
 	// direct lighting contribution
 		// generate a point on the light
 
@@ -603,17 +602,28 @@ void main () {
 
 		// picking one of the lights
 		int pickedLight = int( floor( rFloat() * ( GlobalData.numLights ) ) );
+//		int pickedLight = GlobalData.frameNumber % GlobalData.numLights;
 		LightEmitterParameters l = EmitterParameters.params[ pickedLight ];
 
-		shadowRay.direction = -l.direction;
-		intersection_t lightOcclusion = getSceneIntersection( shadowRay );
-		if ( lightOcclusion.dTravel >= GlobalData.raymarchMaxDistance )
-			accumulatedRadiance += transmission * 3.0f * texture( lightPDF, vec2( ( wavelength - 380.0f ) / 450.0f, ( pickedLight + 0.5f ) / textureSize( lightPDF, 0 ).y ) ).r;
+		vec2 diskOffset = CircleOffset();
+		vec3 up = ( l.direction == vec3( 1.0f, 0.0f, 0.0f ) ) ? vec3( 0.0f, 1.0f, 0.0f ) : vec3( 1.0f, 0.0f, 0.0f );
+		vec3 diskBasisX = cross( up, l.direction );
+		vec3 diskBasisY = cross( diskBasisX, l.direction );
+		vec3 pLight = l.position + l.radius * ( diskOffset.x * diskBasisX + diskOffset.y * diskBasisY );
+		shadowRay.direction = normalize( pLight - shadowRay.origin );
+
+		if ( dot( l.direction, -shadowRay.direction ) > l.angleThresh ) {
+			intersection_t lightOcclusion = getSceneIntersection( shadowRay );
+			if ( lightOcclusion.dTravel >= distance( pLight, shadowRay.origin ) ) {
+				accumulatedRadiance += transmission
+					* texture( lightPDF, vec2( ( wavelength - 380.0f ) / 450.0f, ( pickedLight + 0.5f ) / textureSize( lightPDF, 0 ).y ) ).r;
+			}
+		}
 
 		switch ( sceneIntersection.materialID ) {
 			// ESCAPE
 			case NOHIT:
-			// this ray has escaped the scene to the sky, so we take a sky sample + kill it
+			// this ray has escaped the scene to the sky, so we take a sky sample (optionally) + kill it
 			// accumulatedRadiance += transmission * max( 3.0f * dot( ray.direction, vec3( 0.0f, 0.0f, 1.0f ) ), 0.0f );
 			// accumulatedRadiance += transmission * 13.0f * step( 0.8f, dot( ray.direction, vec3( 0.0f, 0.0f, -1.0f ) ) );
 			bounce = GlobalData.bounces;
@@ -621,28 +631,34 @@ void main () {
 
 			// SURFACES
 			case EMISSIVE:
+//			transmission *= sceneIntersection.albedo;
 			accumulatedRadiance += transmission * sceneIntersection.albedo;
 			ray.direction = cosWeightedRandomHemisphereDirection( sceneIntersection.normal );
 			break;
 
 			case DIFFUSE:
+			transmission *= sceneIntersection.albedo;
 			ray.direction = cosWeightedRandomHemisphereDirection( sceneIntersection.normal );
 			break;
 
 			case METALLIC:
+			transmission *= sceneIntersection.albedo;
 			ray.direction = normalize( ( 1.0f + GlobalData.epsilon ) * sceneIntersection.normal + mix( reflect( ray.direction, sceneIntersection.normal ), RandomUnitVector(), sceneIntersection.roughness ) );
 			break;
 
 			case MIRROR:
+			transmission *= sceneIntersection.albedo;
 			ray.direction = reflect( ray.direction, sceneIntersection.normal );
 			break;
 
 			// VOLUMES
 			case VOLUME_DENSE:
+			transmission *= sceneIntersection.albedo;
 			ray.direction = sampleApproxMieDirection( ray.direction, 15, rFloat(), rFloat(), rFloat() );
 			break;
 
 			case VOLUME_SPARSE:
+			transmission *= sceneIntersection.albedo;
 			ray.direction = sampleApproxMieDirection( ray.direction, 5, rFloat(), rFloat(), rFloat() );
 			break;
 
