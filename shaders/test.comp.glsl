@@ -26,6 +26,15 @@ float sRGBtoReflectance ( vec3 sRGBColor, float lambda ) {
 	return fma( 0.5f * x, y, 0.5f);
 }
 //=============================================================================================================================
+struct LightEmitterParameters {
+	vec3 position;
+	vec3 direction;
+	float radius;
+	float angleThresh;
+};
+layout( set = 0, binding = 3 ) uniform emitterParameters {
+	LightEmitterParameters params[ 256 ];
+} EmitterParameters;
 struct ray_t {
 	vec3 origin;
 	vec3 direction;

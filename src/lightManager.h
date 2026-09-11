@@ -91,17 +91,12 @@ static ImTextureID textureID;
 //======================================================================================================================
 struct LightEmitterParameters {
 	// base emitter
-	vec2 position = vec2( 0.0f, 0.0f );
-	float rotation = 0.0f;
+	vec3 position = vec3( 1.0f );
+	vec3 direction = vec3( 1.0f, 0.0f, 0.0f );
+	float radius = 1.0f;
 
 	// angular distribution
-	float angleScalar = 0.0f;
-	float cauchyMix = 0.0001f;
-
-	// array modifier
-	int32_t repeats = 1;
-	float emitterSpacing = 0.0f;
-	float width = 10.0f;
+	float angleThresh = 0.0f;
 };
 //======================================================================================================================
 // light class -> configuration for a single light
@@ -202,39 +197,16 @@ public:
 
 		// option to remove -> set deleteFlag
 		ImGui::PushID( uniqueID );
-		if ( !mouseLight ) {
-			// emitter parameters
-			ImGui::Separator();
-			ImGui::Text("Emitter Parameters:" );
-			ImGui::SliderFloat2( ( "Location" + lString ).c_str(), ( float* ) &parameters.position, 0.0f, 2000.0f, "%.1f" );
-			ImGui::SliderFloat( ( "Rotation" + lString ).c_str(), &parameters.rotation, 0.0f, 2.0f * 3.141592f, "%.3f" );
-			ImGui::SliderFloat( ( "Width" + lString ).c_str(), &parameters.width, 0.0f, 1800.0f, "%.1f", ImGuiSliderFlags_Logarithmic );
-
-			ImGui::Text( "Angular Distribution:" );
-			ImGui::SliderFloat( ( "Angle" + lString ).c_str(), &parameters.angleScalar, 0.0f, 2.0f * 3.141592f, "%.3f", ImGuiSliderFlags_Logarithmic );
-			ImGui::SliderFloat( ( "Cauchy Mix" + lString ).c_str(), &parameters.cauchyMix, 0.0f, 1.0f, "%.6f", ImGuiSliderFlags_Logarithmic );
-
-			ImGui::Text( "Array Mod:" );
-			ImGui::SliderInt( ( "Repeats" + lString ).c_str(), &parameters.repeats, 1, 10 );
-			if ( parameters.repeats != 1 )
-				ImGui::SliderFloat( ( "Spacing" + lString ).c_str(), &parameters.emitterSpacing, 0.0f, 500.0f, "%.3f", ImGuiSliderFlags_Logarithmic );
-
-			if ( ImGui::Button( ( "Remove Light" + lString ).c_str() ) ) {
-				deleteFlag = true;
-			}
-		} else {
-			ImGui::Text("Emitter Parameters:" );
-			ImGui::SliderFloat( ( "Rotation" + lString ).c_str(), &parameters.rotation, 0.0f, 2.0f * 3.141592f, "%.3f" );
-			ImGui::SliderFloat( ( "Width" + lString ).c_str(), &parameters.width, 0.0f, 1800.0f, "%.1f", ImGuiSliderFlags_Logarithmic );
-
-			ImGui::Text( "Angular Distribution:" );
-			ImGui::SliderFloat( ( "Angle" + lString ).c_str(), &parameters.angleScalar, 0.0f, 2.0f * 3.141592f, "%.3f", ImGuiSliderFlags_Logarithmic );
-			ImGui::SliderFloat( ( "Cauchy Mix" + lString ).c_str(), &parameters.cauchyMix, 0.0f, 1.0f, "%.6f", ImGuiSliderFlags_Logarithmic );
-
-			ImGui::Text( "Array Mod:" );
-			ImGui::SliderInt( ( "Repeats" + lString ).c_str(), &parameters.repeats, 1, 10 );
-			if ( parameters.repeats != 1 )
-				ImGui::SliderFloat( ( "Spacing" + lString ).c_str(), &parameters.emitterSpacing, 0.0f, 500.0f, "%.3f", ImGuiSliderFlags_Logarithmic );
+		// emitter parameters
+		ImGui::Separator();
+		ImGui::Text("Emitter Parameters:" );
+		ImGui::SliderFloat3( ( "Location" + lString ).c_str(), ( float* ) &parameters.position, -2000.0f, 2000.0f, "%.1f" );
+		ImGui::SliderFloat3( ( "Direction" + lString ).c_str(), ( float* ) &parameters.direction, -2.0f, 2.0f, "%.3f" );
+		parameters.direction = glm::normalize( parameters.direction ); // should work
+		ImGui::SliderFloat( ( "Radius" + lString ).c_str(), &parameters.radius, 0.0f, 100.0f, "%.1f", ImGuiSliderFlags_Logarithmic );
+		ImGui::SliderFloat( ( "Angle Thresh" + lString ).c_str(), &parameters.angleThresh, -1.0f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic );
+		if ( ImGui::Button( ( "Remove Light" + lString ).c_str() ) ) {
+			deleteFlag = true;
 		}
 		ImGui::PopID();
 	}
