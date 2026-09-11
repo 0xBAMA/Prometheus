@@ -32,7 +32,7 @@ struct LightEmitterParameters {
 	float radius;
 	float angleThresh;
 };
-layout( set = 0, binding = 3 ) uniform emitterParameters {
+layout( set = 0, binding = 3, scalar ) uniform emitterParameters {
 	LightEmitterParameters params[ 256 ];
 } EmitterParameters;
 //=============================================================================================================================
