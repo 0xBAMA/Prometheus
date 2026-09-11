@@ -159,6 +159,7 @@ struct GlobalData {
 	float raymarchUnderstep;
 	float raymarchMaxDistance;
 	float epsilon;
+	int32_t numLights;
 };
 
 // smallest scope CPU->GPU passing of information
@@ -335,6 +336,7 @@ public:
 	// Textures for the light scheme
 	AllocatedImage PreviewAtlas;	// keeps all the spectrum + xrite chip previews, imgui::Image can specify min and max UVs to show
 	AllocatedImage SpectrumISImage;	// keeps the iCDFs of the light emission spectra - this is indexed the same as the emitters, max 256
+	AllocatedImage SpectrumPDFImage;// keeps corresponding PDFs, if you just need the brightness
 	AllocatedImage PickISImage;		// keeps the uint8 indices of the lights. Normalized random sampling, nearest filter, to pick - presence is weighted by brightness
 		// 0 is mouse, 1-255 are custom user lights as configured in the menu -> this is a nice limit, for what we're doing here
 

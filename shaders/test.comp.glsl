@@ -35,6 +35,10 @@ struct LightEmitterParameters {
 layout( set = 0, binding = 3 ) uniform emitterParameters {
 	LightEmitterParameters params[ 256 ];
 } EmitterParameters;
+//=============================================================================================================================
+layout ( set = 0, binding = 4 ) uniform sampler2D lightPDF; // Light PDFs, spectral power distribution
+layout ( set = 0, binding = 5 ) uniform sampler2D lightiCDF; // Light iCDFs, for importance sampling
+//=============================================================================================================================
 struct ray_t {
 	vec3 origin;
 	vec3 direction;

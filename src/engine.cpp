@@ -179,6 +179,8 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, PreviewAtlas.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, PickISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, SpectrumISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, SpectrumPDFImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, jakobLUTImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 	{
 		scopedTimer start( "Test 1" );
@@ -444,6 +446,7 @@ void PrometheusInstance::MainLoop () {
 					ImGui::Separator();
 					ImGui::Separator();
 					static bool lsVisible = true;
+					/*
 					if ( ImGui::CollapsingHeader( "Show/Hide Load/Save Dialog", &lsVisible ) ) {
 						static std::chrono::time_point< std::chrono::system_clock > tLastFileListUpdate = std::chrono::system_clock::now();
 
@@ -550,6 +553,7 @@ void PrometheusInstance::MainLoop () {
 							savesList.clear(); // triggers rebuild of list
 						}
 					}
+					*/
 
 					/*
 					static ImTextureID myTextureID = ( ImTextureID ) ImGui_ImplVulkan_AddTexture(
@@ -1044,6 +1048,7 @@ void PrometheusInstance::initResources () {
 		destroyImage( lineColorAttachment );
 		destroyImage( PreviewAtlas );
 		destroyImage( SpectrumISImage );
+		destroyImage( SpectrumPDFImage );
 		destroyImage( PickISImage );
 		destroyImage( font_codepage437 );
 		destroyImage( font_fatfont );
@@ -2167,6 +2172,9 @@ void PrometheusInstance::lightManagerMaintenance () {
 		SpectrumISImage = createImage( { 1024, numLights, 1 }, VK_FORMAT_R32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT );
 		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) SpectrumISImage.image, "Spectral IS Texture" );
 
+		SpectrumPDFImage = createImage( { 450, numLights, 1 }, VK_FORMAT_R32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT );
+		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) SpectrumPDFImage.image, "Spectral PDF Texture" );
+
 		PickISImage = createImage( { 256, 256, 1 }, VK_FORMAT_R8_UINT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT );
 		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) PickISImage.image, "Pick IS Texture" );
 
@@ -2184,6 +2192,7 @@ void PrometheusInstance::lightManagerMaintenance () {
 		// and send this prepared texture data to the GPU
 		updateImage( PreviewAtlas, lightManager.concatenatedPreviews.data(), 4 );	// data comes in as R8B8G8A8 (4 bytes)
 		updateImage( SpectrumISImage, lightManager.iCDFTexture.data(), 4 );			// data comes in as R32 (4 bytes)
+		updateImage( SpectrumPDFImage, lightManager.PDFTexture.data(), 4 );			// data comes in as R32 (4 bytes)
 		updateImage( PickISImage, lightManager.pickTexture.data(), 1 );				// data comes in as R8 (1 byte)
 
 		// setup for ImGui to draw texture on the menus
