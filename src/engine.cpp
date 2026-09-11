@@ -1582,7 +1582,7 @@ void PrometheusInstance::initComputePasses () {
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
 
-			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256 * sizeof( LightEmitterParameters ) + 4, 0,
+			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( LightParametersBuffer.buffer ); } },
 
 			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
@@ -2223,8 +2223,6 @@ void PrometheusInstance::lightManagerMaintenance () {
 	for ( int i = 0; i < lightManager.lights.size(); i++ ) {
 		emitterParams[ i ] = lightManager.lights[ i ].parameters;
 	}
-	// int32_t * emitterParamsCount = ( int32_t * ) ( LightParametersBuffer.allocation->GetMappedData() + 256 * sizeof( LightEmitterParameters ) );
-	// *( ( int32_t * ) ( &emitterParams[ 256 ] ) ) = lightManager.lights.size();
 }
 
 AllocatedBuffer PrometheusInstance::createBuffer ( size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, string label ) {
