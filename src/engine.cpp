@@ -1591,6 +1591,10 @@ void PrometheusInstance::initComputePasses () {
 
 			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
 				[ & ] () {return Resource( SpectrumISImage.imageView ); } },
+
+			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+				[ & ] () {return Resource( PickISImage.imageView ); } },
+
 		};
 
 		config.shaderPath = "../shaders/test.comp.glsl.spv";

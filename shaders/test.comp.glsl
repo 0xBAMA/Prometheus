@@ -38,6 +38,7 @@ layout( set = 0, binding = 3, scalar ) uniform emitterParameters {
 //=============================================================================================================================
 layout ( set = 0, binding = 4 ) uniform sampler2D lightPDF; // Light PDFs, spectral power distribution
 layout ( set = 0, binding = 5 ) uniform sampler2D lightiCDF; // Light iCDFs, for importance sampling
+layout ( set = 0, binding = 6 ) uniform usampler2D lightPick; // For picking a light, for importance sampling by brightness
 //=============================================================================================================================
 struct ray_t {
 	vec3 origin;
@@ -110,6 +111,61 @@ float deTemple(vec3 p) {
 		s *= scale;
 	}
 	return length(p)/s;
+}
+
+vec3 pmin ( vec3 a, vec3 b, vec3 k ) {
+	vec3 h = clamp( 0.5 + 0.5 * ( b - a ) / k, 0.0, 1.0 );
+	return mix( b, a, h ) - k * h * ( 1.0 - h );
+}
+void sphere_fold ( inout vec3 z, inout float dz ) {
+	const float fixed_radius2 = 1.9;
+	const float min_radius2 = 0.5;
+	float r2 = dot( z, z );
+	if ( r2 < min_radius2 ) {
+		float temp = ( fixed_radius2 / min_radius2 );
+		z *= temp;
+		dz *= temp;
+	} else if ( r2 < fixed_radius2 ) {
+		float temp = ( fixed_radius2 / r2 );
+		z *= temp;
+		dz *= temp;
+	}
+}
+void box_fold(float k, inout vec3 z, inout float dz) {
+	vec3 zz = sign( z ) * pmin( abs( z ), vec3( 1.0 ), vec3( k ) );
+	z = zz * 2.0 - z;
+}
+float sphere ( vec3 p, float t ) {
+	return length( p ) - t;
+}
+float boxf ( vec3 p, vec3 b, float e ) {
+	p = abs( p ) - b;
+	vec3 q = abs( p + e ) - e;
+	return min( min(
+	length( max( vec3( p.x, q.y, q.z ), 0.0 ) ) + min( max( p.x, max( q.y, q.z ) ), 0.0 ),
+	length( max( vec3( q.x, p.y, q.z ), 0.0 ) ) + min( max( q.x, max( p.y, q.z ) ), 0.0 ) ),
+	length( max( vec3( q.x, q.y, p.z ), 0.0 ) ) + min( max( q.x, max( q.y, p.z ) ), 0.0 ) );
+}
+float deMenger ( vec3 z ) {
+	const float scale = -2.8;
+	vec3 offset = z;
+	float dr = 1.0;
+	float fd = 0.0;
+	const float k = 0.05;
+	for ( int n = 0; n < 5; ++n ) {
+		box_fold( k / dr, z, dr );
+		sphere_fold( z, dr );
+		z = scale * z + offset;
+		dr = dr * abs( scale ) + 1.0;
+		float r1 = sphere( z, 5.0 );
+		float r2 = boxf( z, vec3( 5.0 ), 0.5 );
+		float r = n < 4 ? r2 : r1;
+		float dd = r / abs( dr );
+		if ( n < 3 || dd < fd ) {
+			fd = dd;
+		}
+	}
+	return fd;
 }
 
 float deCage ( vec3 p ) {
@@ -362,16 +418,17 @@ float de( vec3 p ){
 //	}
 
 	{
-		float scalar = 20.0f;
-		float d = deTemple( p.zyx / scalar ) * scalar;
+		float scalar = 30.0f;
+		float d = deTemple( p / scalar ) * scalar;
 		sceneDist = min( max( d, dBounds ), sceneDist );
 		if ( sceneDist == d && d < GlobalData.epsilon ) {
-			// hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
+//			 hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
 			hitSurfaceType = DIFFUSE;
 //			hitRoughness = 0.01f;
 			// hitColor = ( hitSurfaceType == MIRROR ) ? vec3( 0.99f ) : iron;
-			// hitColor = vec3( 0.99f );
-			hitColor = sRGBtoReflectance( gold, wavelength );
+//			 hitColor = ( 0.99f );
+			hitColor = sRGBtoReflectance( iron, wavelength );
+//			hitColor = ( hitSurfaceType == MIRROR ) ? 0.99f : sRGBtoReflectance( titanium, wavelength );
 //			mix( tire, gold, noiseFBM( 0.1f * p + vec3( noise( 0.1f * p + vec3( 15.0f, 0.4f, 2.3f ) ), noise( 0.1f * p ), noise( 0.1f * p + vec3( 3.2f, 15.4f, 0.3f ) ) ) ) );
 		}
 	}
@@ -478,7 +535,7 @@ intersection_t deltaTrackSparse( ray_t ray ) {
 	intersection_t result = DefaultIntersection();
 	vec3 hitPos = ray.origin;
 	float tTotal = 0.0f;
-	float maxDensity = 0.15f;
+	float maxDensity = 0.25f;
 	float sd = -1.0f;
 
 	for ( int i = 0; i < 100; i++ ) {
@@ -547,16 +604,16 @@ void main () {
 //=============================================================================================================================
 	// spherical camera logic, this will be replaced
 	const float aspectRatio = float( imageSize( image ).x ) / float( imageSize( image ).y );
-//	uv *= 0.4f;
-//	uv.y /= aspectRatio;
-//	uv.x -= 0.05f;
-//	uv = vec2( atan( uv.y, uv.x ) + 0.5f, ( length( uv ) + 0.5f ) * acos( -1.0f ) );
-//	vec3 baseVec = normalize( vec3( cos( uv.y ) * cos( uv.x ), sin( uv.y ), cos( uv.y ) * sin( uv.x ) ) );
-//	baseVec = Rotate3D( pi / 2.0f, vec3( 2.5f, 0.4f, 1.0f ) ) * baseVec; // this is to match the other camera
+	uv *= 0.4f;
+	uv.y /= aspectRatio;
+	uv.x -= 0.05f;
+	uv = vec2( atan( uv.y, uv.x ) + 0.5f, ( length( uv ) + 0.5f ) * acos( -1.0f ) );
+	vec3 baseVec = normalize( vec3( cos( uv.y ) * cos( uv.x ), sin( uv.y ), cos( uv.y ) * sin( uv.x ) ) );
+	baseVec = Rotate3D( pi / 2.0f, vec3( 2.5f, 0.4f, 1.0f ) ) * baseVec; // this is to match the other camera
 
 	ray_t ray;
-//	ray.direction = normalize( -baseVec.x * GlobalData.basisX + baseVec.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * baseVec.z * GlobalData.basisZ );
-	ray.direction = normalize( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * GlobalData.basisZ );
+	ray.direction = normalize( -baseVec.x * GlobalData.basisX + baseVec.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * baseVec.z * GlobalData.basisZ );
+//	ray.direction = normalize( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * GlobalData.basisZ );
 	ray.origin = GlobalData.viewerPosition;
 
 	// uniformly sampling wavelength, to start...
@@ -601,8 +658,9 @@ void main () {
 		shadowRay.origin = ray.origin;
 
 		// picking one of the lights
-		int pickedLight = int( floor( rFloat() * ( GlobalData.numLights ) ) );
+//		int pickedLight = int( floor( rFloat() * ( GlobalData.numLights ) ) );
 //		int pickedLight = GlobalData.frameNumber % GlobalData.numLights;
+		uint pickedLight = texture( lightPick, rFloat2() ).r;
 		LightEmitterParameters l = EmitterParameters.params[ pickedLight ];
 
 		vec2 diskOffset = CircleOffset();
