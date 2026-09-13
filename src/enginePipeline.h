@@ -122,6 +122,33 @@ struct ComputeConfig {
 
 };
 
+struct RasterConfig {
+
+	std::string name;
+	std::vector<descriptorItem> descriptorSetLayout;
+
+	std::string shaderPathVert;
+	std::string shaderPathFrag;
+
+	std::function< VkDescriptorSet( VkDescriptorSetLayout dsl ) > allocateDescriptorSet;
+	std::function< void( VkCommandBuffer cmd ) > dispatch;
+	std::function< void( VkCommandBuffer cmd ) > updatePushConstants;
+
+	// rasterizer config
+	bool enableDepthTest = true;
+	VkCompareOp depthOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+
+	// what you're drawing...
+	// input topology
+	// polygon mode
+	// cull mode
+	// multisampling mode... not critical right now
+
+	AllocatedImage *depthImage;
+	AllocatedImage *drawImage;
+
+};
+
 struct ComputeEffect {
 	// pipeline is the thing we use to invoke this shader pass
 	VkPipeline pipeline;
@@ -147,7 +174,81 @@ struct ComputeEffect {
 
 	VkDevice* devicePtr;
 
-	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue,  const ComputeConfig config ) {
+	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue, const RasterConfig config ) {
+		{ // the first thing this needs is the descriptor layout
+			DescriptorLayoutBuilder builder;
+
+			for ( auto& d : config.descriptorSetLayout )
+				builder.add_binding( d.index, d.type ),
+				descriptors.push_back( d );
+
+			descriptorSetLayout = builder.build( *device, VK_SHADER_STAGE_COMPUTE_BIT );
+			SetDebugName( VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, ( uint64_t ) descriptorSetLayout, ( config.name + " Descriptor Set Layout" ).c_str() );
+		}
+		{ // pipeline layout + compute pipeline
+			VkPushConstantRange pushConstant{};
+			pushConstant.offset = 0;
+			pushConstant.size = sizeof( PushConstants );
+			pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+
+			VkPipelineLayoutCreateInfo computeLayout{};
+			computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			computeLayout.pNext = nullptr;
+			computeLayout.pSetLayouts = &descriptorSetLayout;
+			computeLayout.setLayoutCount = 1;
+			computeLayout.pPushConstantRanges = &pushConstant;
+			computeLayout.pushConstantRangeCount = 1;
+
+			VK_CHECK( vkCreatePipelineLayout( *device, &computeLayout, nullptr, &pipelineLayout ) );
+			SetDebugName( VK_OBJECT_TYPE_PIPELINE_LAYOUT, ( uint64_t ) pipelineLayout, ( config.name + " Pipeline Layout" ).c_str() );
+
+			VkShaderModule fragShader;
+			if ( !vkutil::load_shader_module( config.shaderPathFrag.c_str(), *device, &fragShader ) ) {
+				fmt::print( "Error when building the {} Fragment shader module\n", config.name.c_str() );
+			}
+			SetDebugName( VK_OBJECT_TYPE_SHADER_MODULE, ( uint64_t ) fragShader, ( config.name + " Fragment Shader Module" ).c_str() );
+
+			VkShaderModule vertexShader;
+			if ( !vkutil::load_shader_module( config.shaderPathVert.c_str(), *device, &vertexShader ) ) {
+				fmt::print( "Error when building the {} Vertex shader module\n", config.name.c_str() );
+			}
+			SetDebugName( VK_OBJECT_TYPE_SHADER_MODULE, ( uint64_t ) vertexShader, ( config.name + " Vertex Shader Module" ).c_str() );
+
+			PipelineBuilder pipelineBuilder;
+			pipelineBuilder._pipelineLayout = pipelineLayout;
+			pipelineBuilder.set_shaders( vertexShader, fragShader );
+			pipelineBuilder.set_input_topology( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
+			pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL );
+			pipelineBuilder.set_cull_mode( VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE );
+			pipelineBuilder.set_multisampling_none();
+			pipelineBuilder.disable_blending();
+			pipelineBuilder.set_color_attachment_format( config.drawImage->imageFormat );
+			pipelineBuilder.enable_depthtest( config.enableDepthTest, config.depthOp );
+			if ( config.enableDepthTest)
+				pipelineBuilder.set_depth_format( config.depthImage->imageFormat );
+			pipeline = pipelineBuilder.build_pipeline( *device );
+			SetDebugName( VK_OBJECT_TYPE_PIPELINE, ( uint64_t ) pipeline, ( config.name + " Raster Pipeline" ).c_str() );
+
+			// cleanup
+			vkDestroyShaderModule( *device, fragShader, nullptr );
+			vkDestroyShaderModule( *device, vertexShader, nullptr );
+
+			// deletors for the pipeline layout + pipeline
+			mainDeletionQueue->push_function( [ & ] () {
+				vkDestroyDescriptorSetLayout( *device, descriptorSetLayout, nullptr );
+				vkDestroyPipelineLayout( *device, pipelineLayout, nullptr );
+				vkDestroyPipeline( *device, pipeline, nullptr );
+			});
+		}
+
+		allocateDescriptorSet = config.allocateDescriptorSet;
+		dispatch = config.dispatch;
+		updatePushConstants = config.updatePushConstants;
+
+		devicePtr = device;
+	}
+
+	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue, const ComputeConfig config ) {
 		{ // the first thing this needs is the descriptor layout
 			DescriptorLayoutBuilder builder;
 
