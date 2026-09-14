@@ -377,6 +377,17 @@ struct ComputeEffect {
 		VkRect2D scissor = { .offset = { 0, 0 } };
 		scissor.extent = extent;
 		vkCmdSetScissor( cmd, 0, 1, &scissor );
+
+		// clear bg if desired
+		// const VkClearDepthStencilValue depthClearValue = { 0.0f, 0 };
+		// const VkImageSubresourceRange range = {
+		// 	.aspectMask =  VK_IMAGE_ASPECT_DEPTH_BIT,
+		// 	.baseMipLevel = 0,
+		// 	.levelCount = 1,
+		// 	.baseArrayLayer = 0,
+		// 	.layerCount = 1,
+		// };
+		// vkCmdClearDepthStencilImage( cmd, depthImage.image, VK_IMAGE_LAYOUT_GENERAL, &depthClearValue, 1, &range );
 	}
 
 	void endRendering( VkCommandBuffer cmd ) {
