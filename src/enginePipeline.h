@@ -137,9 +137,9 @@ struct RasterConfig {
 	// rasterizer config
 	bool enableDepthTest = true;
 	VkCompareOp depthOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+	float lineWidth = 1.0f;
 
 	// what you're drawing...
-	// input topology
 	// polygon mode
 	// cull mode
 	// multisampling mode... not critical right now
@@ -147,6 +147,7 @@ struct RasterConfig {
 	AllocatedImage *depthImage;
 	AllocatedImage *drawImage;
 
+	VkPrimitiveTopology inputTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 };
 
 struct ComputeEffect {
@@ -217,14 +218,15 @@ struct ComputeEffect {
 			PipelineBuilder pipelineBuilder;
 			pipelineBuilder._pipelineLayout = pipelineLayout;
 			pipelineBuilder.set_shaders( vertexShader, fragShader );
-			pipelineBuilder.set_input_topology( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
+			pipelineBuilder.set_input_topology( config.inputTopology );
 			pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL );
 			pipelineBuilder.set_cull_mode( VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE );
-			pipelineBuilder.set_multisampling_none();
+			pipelineBuilder.set_multisampling_none(); // tbd, not core functionality for now
 			pipelineBuilder.disable_blending();
+			pipelineBuilder.set_line_width( config.lineWidth );
 			pipelineBuilder.set_color_attachment_format( config.drawImage->imageFormat );
 			pipelineBuilder.enable_depthtest( config.enableDepthTest, config.depthOp );
-			if ( config.enableDepthTest)
+			if ( config.enableDepthTest )
 				pipelineBuilder.set_depth_format( config.depthImage->imageFormat );
 			pipeline = pipelineBuilder.build_pipeline( *device );
 			SetDebugName( VK_OBJECT_TYPE_PIPELINE, ( uint64_t ) pipeline, ( config.name + " Raster Pipeline" ).c_str() );
