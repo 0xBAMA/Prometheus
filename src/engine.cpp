@@ -167,7 +167,7 @@ void PrometheusInstance::Draw () {
 	timerManager->reset();
 
 	// put the core images into a general format
-	vkutil::transition_image( cmd, XYZImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_imageD( cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, depthImageCache.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
@@ -903,8 +903,8 @@ void PrometheusInstance::initResources () {
 	// create the accumulator texture
 	{
 		VkExtent3D bufferExtent = { ImageBufferResolution.width, ImageBufferResolution.height, 1 };
-		XYZImage = createImage( bufferExtent, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT );
-		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) XYZImage.image, "Accumulator" );
+		Accumulator = createImage( bufferExtent, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT );
+		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) Accumulator.image, "Accumulator" );
 	}
 
 	// create the raster attachments
@@ -1046,7 +1046,7 @@ void PrometheusInstance::initResources () {
 
 
 		// destroying images
-		destroyImage( XYZImage );
+		destroyImage( Accumulator );
 		destroyImage( lineColorAttachment );
 		destroyImage( PreviewAtlas );
 		destroyImage( SpectrumISImage );
@@ -1569,32 +1569,32 @@ void PrometheusInstance::initComputePasses () {
 
 	renderScale = 0.6f;
 
-	{
+	{ // RAYTRACE UBERSHADER
 		ComputeConfig config;
-
 		config.name = "Test 1";
 		config.descriptorSetLayout = {
 			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
+			// ACCUMULATOR IMAGE
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
-				[ & ] () { return Resource( XYZImage.imageView ); } },
+				[ & ] () { return Resource( Accumulator.imageView ); } },
 
+			// sRGB -> REFLECTANCE LUT
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
 
+			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
 			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( LightParametersBuffer.buffer ); } },
 
+			// IMPORTANCE SAMPLING + WEIGHTING TEXTURES FOR THE LIGHTS
 			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
 				[ & ] () {return Resource( SpectrumPDFImage.imageView ); } },
-
 			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
 				[ & ] () {return Resource( SpectrumISImage.imageView ); } },
-
 			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( PickISImage.imageView ); } },
-
 		};
 
 		config.shaderPath = "../shaders/test.comp.glsl.spv";
@@ -1930,7 +1930,7 @@ void PrometheusInstance::initComputePasses () {
 				[ & ] () { return Resource( drawImage.imageView ); } },
 
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () { return Resource( XYZImage.imageView ); } }
+				[ & ] () { return Resource( Accumulator.imageView ); } }
 		};
 		config.shaderPath = "../shaders/bufferPresent.comp.glsl.spv";
 		BufferPresent.init( &device, &mainDeletionQueue, config );

@@ -248,12 +248,9 @@ public:
 	AllocatedBuffer GlobalUBO;
 	GlobalData globalData; // goes into the UBO
 
-	// the simulation buffer resolution
+	// main image that will be presented to the user, each frame
 	VkExtent2D ImageBufferResolution;
-	AllocatedImage XYZImage;
-
-	// ray state
-	AllocatedBuffer rayBuffer;
+	AllocatedImage Accumulator;
 
 	// debug line state
 	AllocatedBuffer debugLineDrawBuffer;
