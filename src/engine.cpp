@@ -154,10 +154,6 @@ void PrometheusInstance::Draw () {
 		globalData.framesSinceReset = 0;
 	}
 
-	// if ( geometryListDirty ) {
-		// bufferRebuildGPU();
-	// }
-
 	// start the command buffer recording
 	VK_CHECK( vkBeginCommandBuffer( cmd, &cmdBeginInfo ) );
 
@@ -913,31 +909,6 @@ void PrometheusInstance::initResources () {
 		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) lineColorAttachment.image, "Line Color Attachment" );
 	}
 
-	// buffer to hold geometry data + buffers for the grid precompute
-	{
-		// constant size allocations for Geo + BBoxes -> based on set maximum number of primtives
-		GeometryBuffer = createBuffer( globalData.maxPrimitives * sizeof( geometryStruct ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) GeometryBuffer.buffer, "BVH Geometry Buffer" );
-		BBoxBuffer = createBuffer( globalData.maxPrimitives * 4 * sizeof( float ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) BBoxBuffer.buffer, "BBox Buffer" );
-
-		// this buffer is based on the current screen resolution
-		// grid scaling + resize logic
-		globalData.gridDims = glm::ivec2(
-			( std::floor( ImageBufferResolution.width / globalData.gridScalar ) + 1 ),
-			( std::floor( ImageBufferResolution.height / globalData.gridScalar ) + 1 ) );
-
-		size_t uncompactedBufferSize = globalData.gridDims.x * globalData.gridDims.y * 16 * sizeof( int32_t );
-		UncompactedGridBuffer = createBuffer( uncompactedBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) UncompactedGridBuffer.buffer, "Uncompacted Grid Buffer" );
-	}
-
-	// buffer for the rays
-	{
-		rayBuffer = createBuffer( globalData.numBounces * globalData.numRays * sizeof( raySegment ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) rayBuffer.buffer, "Ray Segment Buffer" );
-	}
-
 	{
 		LightParametersBuffer = createBuffer( 256 * sizeof( LightEmitterParameters ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
 		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) LightParametersBuffer.buffer, "Light Parameter UBO" );
@@ -979,71 +950,13 @@ void PrometheusInstance::initResources () {
 		stbi_image_free( data );
 	}
 
-	// placeholder init
-	std::mt19937 seedRNG( [] {
-		std::random_device rd;
-		std::seed_seq seq{  rd(), rd(), rd(), rd(), rd(), rd(), rd(), rd() };
-		return std::mt19937( seq );
-	} () );
-
-	// it would be great to be able to add a line + text renderer
-		// with state, so I can call reset when I want (or never)
-
-	// in particular here, I want to draw boxes around the grids here, and randomize them
-		// including the labels for the different diameters and the range of theta covered
-
-	// it would also be nice to have a Z component, because then I've got a way to order things
-		// this is something that could be shared between the two passes (text + lines) and would
-		// actually enable full 3D rendering of lines if you really wanted to do that... neat
-
-	// addDebugString();
-	// addDebugDrawLine();
-	// addDebugDrawBox();
-
-	// initializing the renderstate
-
-	/*
-	// float sizeRamp = 1.5f;
-	for ( int xB = 300; xB < ImageBufferResolution.width - 300; xB += 400 ) {
-		for ( int yB = 300; yB < ImageBufferResolution.height - 300; yB += 300 ) {
-
-			const float sizeRamp = std::uniform_real_distribution< float >( 5.0f, 150.0f )( seedRNG );
-			vec2 basePoint = vec2( xB, yB );
-			for ( float xO = 0.0f; xO < 2.0f * 168.0f; xO += sizeRamp ) {
-				for ( float yO = 0.0f; yO < 200.0f; yO += sizeRamp ) {
-					vec2 offset = vec2( xO, yO );
-
-					const int m = std::uniform_int_distribution< int >( 12, 14 )( seedRNG );
-					// addArc( basePoint + offset, sizeRamp * 0.45, pi / 2.0f,  pi + pi / 2.0f, m );
-					addArc( basePoint + offset, sizeRamp * 0.45, 0.0f,  pi * 2.0f, 12 );
-				}
-			}
-
-			addDebugDrawBox( vec2( xB, yB ), vec2( xB + 2.0f * 168.0f, yB + 200.0f ), vec3( 1.0f ), 0.5f );
-			addDebugString( vec2( xB + 168.0f, yB + 100.0f ), "Arc Test R=" + std::to_string( sizeRamp ), vec3( 0.618f ), 0 );
-
-			// sizeRamp *= 1.2f;
-		}
-		// if ( sizeRamp > 100.0f ) break;
-	}
-
-	fmt::print( "Created {} primitives\n", globalData.numPrimitives );
-	*/
-
 	// make sure to clean up at the end
 	mainDeletionQueue.push_function([ & ] () {
 		// destroying buffers
 		destroyBuffer( GlobalUBO );
-		destroyBuffer( rayBuffer );
 		destroyBuffer( LightParametersBuffer );
 		destroyBuffer( debugLineDrawBuffer );
 		destroyBuffer( debugStringConfigBuffer );
-		destroyBuffer( GeometryBuffer );
-		destroyBuffer( PrefixBuffer );
-		destroyBuffer( GridBuffer );
-		destroyBuffer( BBoxBuffer );
-		destroyBuffer( UncompactedGridBuffer );
-
 
 		// destroying images
 		destroyImage( Accumulator );
@@ -1615,6 +1528,30 @@ void PrometheusInstance::initComputePasses () {
 		testPipe.init( &device, &mainDeletionQueue, config );
 	}
 
+	{
+		RasterConfig config;
+		config.name = "Debug String Draw";
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// STRINGS
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( debugStringConfigBuffer.buffer ); } },
+
+			// FONT LUTS
+			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+				[ & ] () {return Resource(  font_codepage437.imageView ); } },
+			{ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+				[ & ] () {return Resource(  font_fatfont.imageView ); } },
+			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+				[ & ] () {return Resource(  font_tinyfont.imageView ); } },
+		};
+
+
+		DebugStringDraw.init( &device, &mainDeletionQueue, config );
+	}
+
 	{ // Debug Text Draw
 		{ // descriptor layout
 			DescriptorLayoutBuilder builder;
@@ -1663,7 +1600,7 @@ void PrometheusInstance::initComputePasses () {
 			pipelineBuilder._pipelineLayout = DebugStringDraw.pipelineLayout;
 			pipelineBuilder.set_shaders( stringVertexShader, stringFragShader );
 			pipelineBuilder.set_input_topology( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
-			pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL );
+			pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL ); // VK_POLYGON_MODE_LINE for wireframe, I think
 			pipelineBuilder.set_cull_mode( VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE );
 			pipelineBuilder.set_multisampling_none();
 			pipelineBuilder.disable_blending();
@@ -1833,7 +1770,7 @@ void PrometheusInstance::initComputePasses () {
 				// show a glyph for each light, at the light position, indicating direction, width, angle...
 				// ...
 
-			{ // mouse position crosshair
+			{ // mouse position crosshair, in a reserved location at the beginning of the buffer
 				const int sO = 7;
 				const int bO = 15;
 				linePointData[ 0 ].position = vec4( globalData.mouseLoc.x + bO, globalData.mouseLoc.y, 0.5f, 1.0f );
@@ -1904,9 +1841,9 @@ void PrometheusInstance::initComputePasses () {
 			vkCmdDraw( cmd, ( 1 << 16 ), 1, 0, 0 );
 			vkCmdEndRendering( cmd );
 
-			VkImageMemoryBarrier2 barrierC[] = {
-				makeImageBarrier( drawImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
-				makeImageBarrierD( depthImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT )
+			VkImageMemoryBarrier2 barrierC[] = { // make sure that the writes from the rasterization finish before a compute shader reads them
+				makeImageBarrier( drawImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
+				makeImageBarrierD( depthImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT )
 			};
 
 			VkDependencyInfo barrierDependency {
@@ -1958,149 +1895,6 @@ void PrometheusInstance::initComputePasses () {
 
 			// need to then insert any required barriers
 		};
-	}
-}
-
-void PrometheusInstance::bufferRebuildGPU () {
-	// and two pipelines which exist only for this
-	static bool initialized = false;
-
-	unscopedTimer t ( "timer", true );
-
-	// the geometry list now lives on the GPU, so we are able to skip the initial upload step
-
-	{ // 1: immediate submit for GPU precompute
-		t.tick();
-
-		immediateSubmit( [ & ] ( VkCommandBuffer cmd ) {
-			// dispatch bbox precompute for each primitive
-			BBoxPrecompute.invoke( cmd );
-
-			// dispatch grid eval for each grid cell
-			UncompactedGridPrecompute.invoke( cmd );
-		});
-
-		t.tock();
-		fmt::print( "precompute stage took {}ms\n", std::chrono::duration_cast< std::chrono::microseconds >( t.c.tStop - t.c.tStart ).count() / 1000.0f );
-	}
-
-// all this might be able to be skipped... it would mean using an uncompacted buffer during traversal, and I need to figure out if that's good or bad for perf
-
-	std::vector < uint32_t > prefixValues;
-	std::vector < uint32_t > gridValues;
-
-	// allocating sufficient memory to store the
-	const int numCells = globalData.gridDims.x * globalData.gridDims.y;
-	prefixValues.resize( numCells * 2, 0 );
-	gridValues.resize( numCells * 16, 0 );
-
-	int gidx = 0;
-
-	{ // 2: stepping through the mapped buffer by 16's (we only support up to 16 primitives per grid cell)
-		t.tick();
-
-		// UncompactedGridBuffer has the data, as prepared by the prior stage
-			// stepping through by grid cells... 16 floats per
-		int32_t * gridBuff = ( int32_t * ) UncompactedGridBuffer.allocation->GetMappedData();
-		for ( int i = 0; i < numCells; ++i ) {
-			int cellCount = gridBuff[ i * 16 ];
-
-			// if ( cellCount != 0 )
-				// fmt::print( "cell {} contains {} primitives", i, cellCount );
-
-			// copy cell contents to the compacted buffer
-			for ( int j = 0; j < cellCount; j++ ) {
-				gridValues[ gidx ] = gridBuff[ i * 16 + j + 1 ];
-				gidx++;
-			}
-
-			prefixValues[ 2 * i + 0 ] = gidx; // index
-			prefixValues[ 2 * i + 1 ] = cellCount; // count
-		}
-
-		t.tock();
-		fmt::print( "buffer process stage took {}ms\n", std::chrono::duration_cast< std::chrono::microseconds >( t.c.tStop - t.c.tStart ).count() / 1000.0f );
-	}
-
-	{ // 3: upload the buffers used by the runtime traversal
-		t.tick();
-
-		// create the buffers, with the current contents...
-		size_t gbSize = gidx * sizeof( int32_t );
-		GridBuffer		= createBuffer( gbSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) GridBuffer.buffer, "BVH Grid Buffer" );
-
-		size_t pbSize = numCells * 2 * sizeof( int32_t );
-		PrefixBuffer	= createBuffer( pbSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) PrefixBuffer.buffer, "BVH Prefix Buffer" );
-
-		// transferring prepped data to the new buffers
-		memcpy( GridBuffer.info.pMappedData, gridValues.data(), gbSize );
-		memcpy( PrefixBuffer.info.pMappedData, prefixValues.data(), pbSize );
-
-		t.tock();
-		fmt::print( "final buffer upload stage took {}ms\n", std::chrono::duration_cast< std::chrono::microseconds >( t.c.tStop - t.c.tStart ).count() / 1000.0f );
-	}
-
-	// and we have latest data on the GPU
-	geometryListDirty = false;
-}
-
-// adding primitives to the geometry list
-void PrometheusInstance::addSegment ( vec2 a, vec2 b, int material, bool invert ) {
-// segment mapping:
-	// 0: a.x
-	// 1: a.y
-	// 2: b.x
-	// 3: b.y
-	// 4-12: unused
-	// 13: material ID
-	// 14: invert flag
-	// 15: 0 -> line segment
-
-	geometryStruct * geoData = ( geometryStruct * ) GeometryBuffer.allocation->GetMappedData();
-	if ( globalData.numPrimitives < globalData.maxPrimitives ) {
-		geoData[ globalData.numPrimitives ].values[ 0 ] = a.x;
-		geoData[ globalData.numPrimitives ].values[ 1 ] = a.y;
-		geoData[ globalData.numPrimitives ].values[ 2 ] = b.x;
-		geoData[ globalData.numPrimitives ].values[ 3 ] = b.y;
-
-		geoData[ globalData.numPrimitives ].values[ 13 ] = material;
-		geoData[ globalData.numPrimitives ].values[ 14 ] = invert ? 1.0f : 0.0f;
-		geoData[ globalData.numPrimitives ].values[ 15 ] = 0; // line segment identifier
-
-		globalData.numPrimitives++;
-	}
-}
-
-void PrometheusInstance::addArc ( vec2 center, float radius, float thetaStart, float thetaEnd, int material, bool invert ) {
-// arc mapping:
-	// 0: center.x
-	// 1: center.y
-	// 2: radius
-	// 3: thetaMin
-	// 4: thetaMax
-	// 5-12: unused
-	// 13: material ID
-	// 14: invert flag
-	// 15: 1 -> circular arc
-
-	geometryStruct * geoData = ( geometryStruct * ) GeometryBuffer.allocation->GetMappedData();
-	if ( globalData.numPrimitives < globalData.maxPrimitives ) {
-		geoData[ globalData.numPrimitives ].values[ 0 ] = center.x;
-		geoData[ globalData.numPrimitives ].values[ 1 ] = center.y;
-		geoData[ globalData.numPrimitives ].values[ 2 ] = radius;
-
-		float thetaMin = std::clamp( std::min( thetaStart, thetaEnd ), 0.0f, pi * 2.0f );
-		float thetaMax = std::clamp( std::max( thetaStart, thetaEnd ), 0.0f, pi * 2.0f );
-		geoData[ globalData.numPrimitives ].values[ 3 ] = thetaMin;
-		geoData[ globalData.numPrimitives ].values[ 4 ] = thetaMax;
-
-		geoData[ globalData.numPrimitives ].values[ 13 ] = material;
-		geoData[ globalData.numPrimitives ].values[ 14 ] = invert ? 1.0f : 0.0f;
-		geoData[ globalData.numPrimitives ].values[ 15 ] = 1; // ARC identifier
-
-		globalData.numPrimitives++;
 	}
 }
 

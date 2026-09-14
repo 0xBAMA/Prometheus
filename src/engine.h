@@ -284,33 +284,15 @@ public:
 	// testing
 	ComputeEffect testPipe;
 
-	// for precomputing the grid acceleration structure on the GPU
-	ComputeEffect BBoxPrecompute;
-	ComputeEffect UncompactedGridPrecompute;
-
 	// there are three buffers used for the grid AS at runtime ( prefix, grid, geometry )
 		// and two that are used for precomputation ( bbox, grid precompute )
 	bool geometryListDirty = true;		// triggering the rebuild of GPU structures
-
-	AllocatedBuffer PrefixBuffer;		// containing the prefix sums + counts for indexing the grid buffer
-	AllocatedBuffer GridBuffer;			// containing a packed list of each cell's contents (requires prefix buffer to operate)
-	AllocatedBuffer GeometryBuffer;		// containing the 16-float representations of the geometry
-	AllocatedBuffer BBoxBuffer;			// containing the scratch memory for the primitives' bounding boxes
-	AllocatedBuffer UncompactedGridBuffer; // scratch memory for GPU precomputation of grid
 
 	// font LUT textures
 	AllocatedImage font_codepage437;
 	AllocatedImage font_fatfont;
 	AllocatedImage font_tinyfont;
 	AllocatedImage depthImageCache; // the raster depth is copied here for the text to use
-
-	// eventually these also need a material
-	void addSegment ( vec2 a, vec2 b, int material, bool invert = false );
-	void addArc ( vec2 center, float radius, float thetaStart, float thetaEnd, int material, bool invert = false );
-	// void addParabola ( vec2 center, );
-
-	// there is really only one function associated with this, which manages the buffer rebuild
-	void bufferRebuildGPU (); // gotta go fast
 
 	// as far as editing features, this will require:
 		// mode select between geometry and lights
