@@ -28,8 +28,7 @@ layout( set = 0, binding = 0, scalar ) uniform globalData {
 	float brightnessScalar;
 	float resolutionScalar;
 
-	float gridScalar;
-	ivec2 gridDims;
+	vec3 sceneExtents;
 
 	// for mapping into the geometry buffer
 	uint numPrimitives;

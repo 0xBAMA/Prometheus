@@ -85,7 +85,7 @@ float noiseFBM( in vec3 pos ) {
 int bounce = 0;
 //=============================================================================================================================
 float dBBox( vec3 p ) {
-	return fBox( p, vec3( 100.0f ) );
+	return fBox( p, vec3( GlobalData.sceneExtents ) );
 }
 //=============================================================================================================================
 #define fold45(p)(p.y>p.x)?p.yx:p
@@ -730,7 +730,8 @@ void main () {
 		// if ( rFloat() > maxChannel ) break;
 		// transmission *= 1.0f / maxChannel; // compensation term
 
-		if ( rFloat() > transmission ) break;
+		// single throughput term does not have as much information to work with
+		if ( rFloat() > transmission ) break; // but the operation is the same
 		transmission *= 1.0f / transmission; // compensation term
 	}
 

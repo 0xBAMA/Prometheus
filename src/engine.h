@@ -141,9 +141,8 @@ struct GlobalData {
 	float brightnessScalar{ 1.0f };
 	float resolutionScalar{ 1.0f };
 
-	// for the BVH
-	float gridScalar = 1.0f; // how big to make the grid?
-	glm::ivec2 gridDims;
+	// sizing the extents of the scene, also used for the map
+	glm::vec3 sceneExtents{ 100 };
 
 	// for mapping into the geometry buffer
 	uint32_t numPrimitives{ 0 };		// setting where the pointer into the primitive buffer is
