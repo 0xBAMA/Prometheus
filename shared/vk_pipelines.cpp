@@ -127,6 +127,10 @@ void PipelineBuilder::set_polygon_mode(VkPolygonMode mode)
 }
 //< set_poly
 
+void PipelineBuilder::set_line_width( float	width ) {
+	_rasterizer.lineWidth = width;
+}
+
 //> set_cull
 void PipelineBuilder::set_cull_mode(VkCullModeFlags cullMode, VkFrontFace frontFace)
 {
