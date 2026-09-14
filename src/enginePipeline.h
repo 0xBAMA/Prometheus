@@ -46,6 +46,11 @@ struct Resource {
 	};
 };
 
+enum pipelineType {
+	COMPUTE,
+	GRAPHICS,
+};
+
 struct descriptorItem {
 
 	// the descriptor index in the descriptor set
@@ -120,6 +125,9 @@ struct ComputeConfig {
 	std::function< void( VkCommandBuffer cmd ) > dispatch;
 	std::function< void( VkCommandBuffer cmd ) > updatePushConstants;
 
+	std::vector< VkImageMemoryBarrier2 > imageBarriers;
+	std::vector< VkBufferMemoryBarrier2 > memoryBarriers;
+
 };
 
 struct RasterConfig {
@@ -133,6 +141,10 @@ struct RasterConfig {
 	std::function< VkDescriptorSet( VkDescriptorSetLayout dsl ) > allocateDescriptorSet;
 	std::function< void( VkCommandBuffer cmd ) > dispatch;
 	std::function< void( VkCommandBuffer cmd ) > updatePushConstants;
+	std::function< VkExtent2D() > getRenderResolution;
+
+	std::vector< VkImageMemoryBarrier2 > imageBarriers;
+	std::vector< VkBufferMemoryBarrier2 > memoryBarriers;
 
 	// rasterizer config
 	bool enableDepthTest = true;
@@ -140,9 +152,11 @@ struct RasterConfig {
 	float lineWidth = 1.0f;
 
 	// what you're drawing...
-	// polygon mode
+	// polygon mode, default to VK_POLYGON_MODE_FILL
 	// cull mode
 	// multisampling mode... not critical right now
+
+	// will need to add some things to configure blending
 
 	AllocatedImage *depthImage;
 	AllocatedImage *drawImage;
@@ -153,6 +167,7 @@ struct RasterConfig {
 struct ComputeEffect {
 	// pipeline is the thing we use to invoke this shader pass
 	VkPipeline pipeline;
+	pipelineType type;
 
 	// pipeline layout gives us what we need for sending push constants and buffer attachments
 	VkPipelineLayout pipelineLayout;
@@ -167,15 +182,38 @@ struct ComputeEffect {
 	// copied from the input config struct
 	std::vector<descriptorItem> descriptors;
 
+	// barriers needed for this pass
+	std::vector< VkImageMemoryBarrier2 > imageBarriers;
+	std::vector< VkBufferMemoryBarrier2 > memoryBarriers;
+
+	// used for raster only
+	AllocatedImage *depthImage;
+	AllocatedImage *drawImage;
+
 	// so we can have the main loop code local to the declaration
 	std::function< void( VkCommandBuffer cmd ) > invoke;
 	std::function< VkDescriptorSet( VkDescriptorSetLayout dsl ) > allocateDescriptorSet;
 	std::function< void( VkCommandBuffer cmd ) > dispatch;
 	std::function< void( VkCommandBuffer cmd ) > updatePushConstants;
+	std::function< VkExtent2D() > getRenderResolution;
 
 	VkDevice* devicePtr;
 
 	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue, const RasterConfig config ) {
+		type = GRAPHICS;
+
+		getRenderResolution = config.getRenderResolution;
+		drawImage = config.drawImage;
+		depthImage = config.depthImage;
+		imageBarriers = config.imageBarriers;
+		memoryBarriers = config.memoryBarriers;
+
+		allocateDescriptorSet = config.allocateDescriptorSet;
+		dispatch = config.dispatch;
+		updatePushConstants = config.updatePushConstants;
+
+		devicePtr = device;
+
 		{ // the first thing this needs is the descriptor layout
 			DescriptorLayoutBuilder builder;
 
@@ -183,7 +221,7 @@ struct ComputeEffect {
 				builder.add_binding( d.index, d.type ),
 				descriptors.push_back( d );
 
-			descriptorSetLayout = builder.build( *device, VK_SHADER_STAGE_COMPUTE_BIT );
+			descriptorSetLayout = builder.build( *device, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT );
 			SetDebugName( VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, ( uint64_t ) descriptorSetLayout, ( config.name + " Descriptor Set Layout" ).c_str() );
 		}
 		{ // pipeline layout + compute pipeline
@@ -192,16 +230,16 @@ struct ComputeEffect {
 			pushConstant.size = sizeof( PushConstants );
 			pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 
-			VkPipelineLayoutCreateInfo computeLayout{};
-			computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-			computeLayout.pNext = nullptr;
-			computeLayout.pSetLayouts = &descriptorSetLayout;
-			computeLayout.setLayoutCount = 1;
-			computeLayout.pPushConstantRanges = &pushConstant;
-			computeLayout.pushConstantRangeCount = 1;
+			VkPipelineLayoutCreateInfo rasterLayout{};
+			rasterLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			rasterLayout.pNext = nullptr;
+			rasterLayout.pSetLayouts = &descriptorSetLayout;
+			rasterLayout.setLayoutCount = 1;
+			rasterLayout.pPushConstantRanges = &pushConstant;
+			rasterLayout.pushConstantRangeCount = 1;
 
-			VK_CHECK( vkCreatePipelineLayout( *device, &computeLayout, nullptr, &pipelineLayout ) );
-			SetDebugName( VK_OBJECT_TYPE_PIPELINE_LAYOUT, ( uint64_t ) pipelineLayout, ( config.name + " Pipeline Layout" ).c_str() );
+			VK_CHECK( vkCreatePipelineLayout( *device, &rasterLayout, nullptr, &pipelineLayout ) );
+			SetDebugName( VK_OBJECT_TYPE_PIPELINE_LAYOUT, ( uint64_t ) pipelineLayout, ( config.name + " Raster Pipeline Layout" ).c_str() );
 
 			VkShaderModule fragShader;
 			if ( !vkutil::load_shader_module( config.shaderPathFrag.c_str(), *device, &fragShader ) ) {
@@ -242,15 +280,15 @@ struct ComputeEffect {
 				vkDestroyPipeline( *device, pipeline, nullptr );
 			});
 		}
+	}
 
+	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue, const ComputeConfig config ) {
+		type = COMPUTE;
 		allocateDescriptorSet = config.allocateDescriptorSet;
 		dispatch = config.dispatch;
 		updatePushConstants = config.updatePushConstants;
 
 		devicePtr = device;
-	}
-
-	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue, const ComputeConfig config ) {
 		{ // the first thing this needs is the descriptor layout
 			DescriptorLayoutBuilder builder;
 
@@ -309,17 +347,52 @@ struct ComputeEffect {
 				vkDestroyPipeline( *device, pipeline, nullptr );
 			});
 		}
-
-		allocateDescriptorSet = config.allocateDescriptorSet;
-		dispatch = config.dispatch;
-		updatePushConstants = config.updatePushConstants;
-
-		devicePtr = device;
 	}
 
-	void bindPipelineAndDescriptorSets( VkCommandBuffer cmd ) {
+	void bindPipelineAndDescriptorSetsCompute( VkCommandBuffer cmd ) {
 		vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline );
 		vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr );
+	}
+
+	void bindPipelineAndDescriptorSetsGraphics( VkCommandBuffer cmd ) {
+		vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline );
+		vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr );
+	}
+
+	void beginRendering( VkCommandBuffer cmd ) {
+		VkExtent2D extent = getRenderResolution();
+		VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info( drawImage->imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL );
+		VkRenderingAttachmentInfo depthAttachment = vkinit::attachment_info( depthImage->imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL );
+		VkRenderingInfo renderInfo = vkinit::rendering_info( extent, &colorAttachment, &depthAttachment );
+
+		// start up the rasterizer
+		vkCmdBeginRendering( cmd, &renderInfo );
+
+		// set dynamic viewport and scissor
+		VkViewport viewport = { .x = 0, .y = 0, .minDepth = 0.0f, .maxDepth = 1.0f };
+		viewport.width = extent.width;
+		viewport.height = extent.height;
+		vkCmdSetViewport( cmd, 0, 1, &viewport );
+
+		VkRect2D scissor = { .offset = { 0, 0 } };
+		scissor.extent = extent;
+		vkCmdSetScissor( cmd, 0, 1, &scissor );
+	}
+
+	void endRendering( VkCommandBuffer cmd ) {
+		vkCmdEndRendering( cmd );
+	}
+
+	void barriers ( VkCommandBuffer cmd ) {
+		VkDependencyInfo barrierDependency {
+			.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+			.bufferMemoryBarrierCount = uint32_t( memoryBarriers.size() ),
+			.pBufferMemoryBarriers = memoryBarriers.data(),
+			.imageMemoryBarrierCount = uint32_t( imageBarriers.size() ),
+			.pImageMemoryBarriers = imageBarriers.data(),
+		};
+
+		vkCmdPipelineBarrier2( cmd, &barrierDependency );
 	}
 
 	void invoke2( VkCommandBuffer cmd ) {
@@ -332,11 +405,21 @@ struct ComputeEffect {
 		}
 
 		// setup for buffers etc
-		bindPipelineAndDescriptorSets( cmd );
+		if ( type == COMPUTE ) {
+			bindPipelineAndDescriptorSetsCompute( cmd );
+		} else if ( type == GRAPHICS ) {
+			bindPipelineAndDescriptorSetsGraphics( cmd );
+			beginRendering( cmd );
+		}
 		updatePushConstants( cmd );
 
-		// invoke the actual pass
+		// invoke the actual pass + barriers
 		dispatch( cmd );
+
+		if ( type == GRAPHICS ) {
+			endRendering( cmd );
+		}
+		barriers( cmd );
 	}
 
 };

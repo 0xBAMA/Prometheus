@@ -79,6 +79,8 @@ void PrometheusInstance::Init () {
 	initComputePasses();
 	initLights();
 
+	addDebugString( vec2( 16 ), "HELLO THIS IS A DEBUG STRING", vec3( 1.0f ), 0 );
+
 	// everything went fine
 	isInitialized = true;
 }
@@ -200,7 +202,7 @@ void PrometheusInstance::Draw () {
 
 		{ // do the debug string draw
 			scopedTimer start( "Debug String Draw" );
-			DebugStringDraw.invoke( cmd );
+			DebugStringDraw.invoke2( cmd );
 		}
 	}
 
@@ -1509,8 +1511,6 @@ void PrometheusInstance::initComputePasses () {
 			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( PickISImage.imageView ); } },
 		};
-
-		config.shaderPath = "../shaders/test.comp.glsl.spv";
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
 		};
@@ -1520,6 +1520,7 @@ void PrometheusInstance::initComputePasses () {
 			vkCmdPushConstants( cmd, testPipe.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &testPipe.pushConstants );
 		};
 
+		config.shaderPath = "../shaders/test.comp.glsl.spv";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdDispatch( cmd, ( ( drawExtent.width ) + 15 ) / 16, ( ( drawExtent.height ) + 15 ) / 16, 1 );
 		};
@@ -1547,154 +1548,48 @@ void PrometheusInstance::initComputePasses () {
 			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource(  font_tinyfont.imageView ); } },
 		};
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
 
+		// SHADERS
+		config.shaderPathFrag = "../shaders/debugStringDraw.frag.glsl.spv";
+		config.shaderPathVert = "../shaders/debugStringDraw.vert.glsl.spv";
 
-		DebugStringDraw.init( &device, &mainDeletionQueue, config );
-	}
+		// FBO CONFIG
+		config.drawImage = &drawImage;
+		config.depthImage = &depthImage;
+		config.getRenderResolution = [&]() {
+			return VkExtent2D {
+				uint32_t( ImageBufferResolution.width * renderScale ),
+				uint32_t( ImageBufferResolution.height * renderScale ),
+			};
+		};
 
-	{ // Debug Text Draw
-		{ // descriptor layout
-			DescriptorLayoutBuilder builder;
-			builder.add_binding( 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ); // global config UBO
-			builder.add_binding( 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER ); // string config UBO
+		// BARRIERS (post-draw)
+		config.imageBarriers = {
+			// raster result made available ( color + depth )
+			makeImageBarrier( drawImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
+			makeImageBarrierD( depthImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT )
+		};
 
-			// font LUTs
-			builder.add_binding( 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ); // code page 437
-			builder.add_binding( 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ); // fatfont
-			builder.add_binding( 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ); // tinyfont
-
-			DebugStringDraw.descriptorSetLayout = builder.build( device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT );
-			SetDebugName( VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, ( uint64_t ) DebugStringDraw.descriptorSetLayout, "Debug String Draw Descriptor Set Layout" );
-		}
-
-		{ // pipeline layout + compute pipeline
-			VkPushConstantRange pushConstant{};
-			pushConstant.offset = 0;
-			pushConstant.size = sizeof( PushConstants );
-			pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
-
-			VkPipelineLayoutCreateInfo computeLayout{};
-			computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-			computeLayout.pNext = nullptr;
-			computeLayout.pSetLayouts = &DebugStringDraw.descriptorSetLayout;
-			computeLayout.setLayoutCount = 1;
-			computeLayout.pPushConstantRanges = &pushConstant;
-			computeLayout.pushConstantRangeCount = 1;
-
-			VK_CHECK( vkCreatePipelineLayout( device, &computeLayout, nullptr, &DebugStringDraw.pipelineLayout ) );
-			SetDebugName( VK_OBJECT_TYPE_PIPELINE_LAYOUT, ( uint64_t ) DebugStringDraw.pipelineLayout, "Debug String Draw Pipeline Layout" );
-
-			VkShaderModule stringFragShader;
-			if ( !vkutil::load_shader_module( "../shaders/debugStringDraw.frag.glsl.spv", device, &stringFragShader ) ) {
-				fmt::print( "Error when building the Debug String Draw Fragment shader module\n" );
-			}
-			SetDebugName( VK_OBJECT_TYPE_SHADER_MODULE, ( uint64_t ) stringFragShader, "Debug String Fragment Shader Module" );
-
-			VkShaderModule stringVertexShader;
-			if ( !vkutil::load_shader_module( "../shaders/debugStringDraw.vert.glsl.spv", device, &stringVertexShader ) ) {
-				fmt::print( "Error when building the Debug String Draw Vertex shader module\n" );
-			}
-			SetDebugName( VK_OBJECT_TYPE_SHADER_MODULE, ( uint64_t ) stringVertexShader, "Debug String Vertex Shader Module" );
-
-			PipelineBuilder pipelineBuilder;
-			pipelineBuilder._pipelineLayout = DebugStringDraw.pipelineLayout;
-			pipelineBuilder.set_shaders( stringVertexShader, stringFragShader );
-			pipelineBuilder.set_input_topology( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
-			pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL ); // VK_POLYGON_MODE_LINE for wireframe, I think
-			pipelineBuilder.set_cull_mode( VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE );
-			pipelineBuilder.set_multisampling_none();
-			pipelineBuilder.disable_blending();
-			pipelineBuilder.enable_depthtest( true, VK_COMPARE_OP_GREATER_OR_EQUAL );
-			pipelineBuilder.set_color_attachment_format( drawImage.imageFormat );
-			pipelineBuilder.set_depth_format( depthImage.imageFormat );
-			DebugStringDraw.pipeline = pipelineBuilder.build_pipeline( device );
-			SetDebugName( VK_OBJECT_TYPE_PIPELINE, ( uint64_t ) DebugStringDraw.pipeline, "Debug String Raster Pipeline" );
-
-			// cleanup
-			vkDestroyShaderModule( device, stringFragShader, nullptr );
-			vkDestroyShaderModule( device, stringVertexShader, nullptr );
-
-			// deletors for the pipeline layout + pipeline
-			mainDeletionQueue.push_function( [ & ] () {
-				vkDestroyDescriptorSetLayout( device, DebugStringDraw.descriptorSetLayout, nullptr );
-				vkDestroyPipelineLayout( device, DebugStringDraw.pipelineLayout, nullptr );
-				vkDestroyPipeline( device, DebugStringDraw.pipeline, nullptr );
-			});
-		}
-
-		// invoke() lambda
-		DebugStringDraw.invoke = [ & ] ( VkCommandBuffer cmd ) {
-			// skip if there are no strings to draw
+		// DRAW
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			DebugStringDraw.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, DebugStringDraw.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &DebugStringDraw.pushConstants );
+		};
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			if ( debugStrings.size() != 0 ) {
-				// dynamic descriptor allocation, to bind a texture
-				DebugStringDraw.descriptorSet = getCurrentFrame().frameDescriptors.allocate( device, DebugStringDraw.descriptorSetLayout );
-				{
-					DescriptorWriter writer;
-					writer.write_buffer( 0, GlobalUBO.buffer, sizeof( GlobalData ), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER );
 
-					// the config UBO
-					writer.write_buffer( 1, debugStringConfigBuffer.buffer, 1024 * sizeof( debugStringConfig ), 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER );
+				// copy latest strings to the GPU
+				memcpy( debugStringConfigBuffer.allocation->GetMappedData(), &debugStrings[ 0 ], debugStrings.size() * sizeof( debugStringConfig ) );
 
-					// the font LUTs
-					writer.write_image( 2, font_codepage437.imageView, defaultSamplerNearest, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
-					writer.write_image( 3, font_fatfont.imageView, defaultSamplerNearest, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
-					writer.write_image( 4, font_tinyfont.imageView, defaultSamplerNearest, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER );
-
-					writer.update_set( device, DebugStringDraw.descriptorSet );
-				}
-
-				VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info( drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL );
-				VkRenderingAttachmentInfo depthAttachment = vkinit::attachment_info( depthImage.imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL );
-				VkRenderingInfo renderInfo = vkinit::rendering_info( ImageBufferResolution, &colorAttachment, &depthAttachment );
-
-				vkCmdBeginRendering( cmd, &renderInfo );
-				vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, DebugStringDraw.pipeline );
-
-				//set dynamic viewport and scissor
-				VkViewport viewport = {};
-				viewport.x = 0;
-				viewport.y = 0;
-				viewport.width = float( ImageBufferResolution.width * renderScale );
-				viewport.height = float( ImageBufferResolution.height * renderScale );
-				viewport.minDepth = 0.0f;
-				viewport.maxDepth = 1.0f;
-				vkCmdSetViewport( cmd, 0, 1, &viewport );
-
-				VkRect2D scissor = {};
-				scissor.offset.x = 0;
-				scissor.offset.y = 0;
-				scissor.extent.width = ImageBufferResolution.width;
-				scissor.extent.height = ImageBufferResolution.height;
-				vkCmdSetScissor( cmd, 0, 1, &scissor );
-
-				// copy the string configs into the buffer
-				debugStringConfig * debugStringConfigGPU = ( debugStringConfig * ) debugStringConfigBuffer.allocation->GetMappedData();
-
-				// copy the data for the strings to the GPU
-				memcpy( debugStringConfigGPU, &debugStrings[ 0 ], debugStrings.size() * sizeof( debugStringConfig ) );
-
-				// draw line segments
-				vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,  DebugStringDraw.pipelineLayout, 0, 1, &DebugStringDraw.descriptorSet, 0, nullptr );
-				vkCmdPushConstants( cmd, DebugStringDraw.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &DebugStringDraw.pushConstants );
-
-				// launch a draw command to do the fullscreen triangle
+				// 2 triangles per string
 				vkCmdDraw( cmd, debugStrings.size() * 6, 1, 0, 0 );
-				vkCmdEndRendering( cmd );
-
-				VkImageMemoryBarrier2 barrierC[] = {
-					makeImageBarrier( drawImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
-					makeImageBarrierD( depthImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT )
-				};
-
-				VkDependencyInfo barrierDependency {
-					.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-					.imageMemoryBarrierCount = 2,
-					.pImageMemoryBarriers = barrierC
-				};
-
-				vkCmdPipelineBarrier2( cmd, &barrierDependency );
 			}
 		};
+
+		DebugStringDraw.init( &device, &mainDeletionQueue, config );
 	}
 
 	{ //debug line drawing layer, need to be able to draw boxes for debugging and for user geometry manipulation widgets

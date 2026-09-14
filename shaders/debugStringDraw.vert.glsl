@@ -62,7 +62,7 @@ void main () {
 	+ points[ vert ] * ivec2( StringConfig.debugStrings[ stringIDX ].debugStringLength, 1 ) * ( ivec2( 1 ) + glyphSize );
 
 	// positioning in NDC
-	p.x = remap( floor( p.x ), 0.0f, GlobalData.floatBufferResolution.x, -1.0f, 1.0f );
-	p.y = remap( floor( p.y ), 0.0f, GlobalData.floatBufferResolution.y, -1.0f, 1.0f );
+	p.x = remap( floor( p.x ), 0.0f, GlobalData.presentBufferResolution.x, -1.0f, 1.0f );
+	p.y = remap( floor( p.y ), 0.0f, GlobalData.presentBufferResolution.y, -1.0f, 1.0f );
 	gl_Position = vec4( p.xy, StringConfig.debugStrings[ stringIDX ].debugStringDepth, 1.0f );
 }
