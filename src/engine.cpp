@@ -132,7 +132,7 @@ void PrometheusInstance::Draw () {
 	globalData.framesSinceReset++;
 	globalData.resolutionScalar = renderScale;
 
-	// little imgui thing? tbd
+	// this will also be used to draw the map overlay
 	globalData.basisX = basisX;
 	globalData.basisY = basisY;
 	globalData.basisZ = basisZ;
@@ -760,50 +760,32 @@ void PrometheusInstance::initDescriptors  () {
 void PrometheusInstance::initResources () {
 
 	// API resource allocation:
-	{ // create the buffer for the UBO
-		GlobalUBO = createBuffer( sizeof( GlobalData ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) GlobalUBO.buffer, "Global Data UBO" );
-	}
+	GlobalUBO = createBuffer( sizeof( GlobalData ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Global Data UBO" );
+	Accumulator = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Accumulator" );
+	LightParametersBuffer = createBuffer( 256 * sizeof( LightEmitterParameters ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Light Parameter UBO" );
 
-	{ // create the accumulator texture
-		VkExtent3D bufferExtent = { ImageBufferResolution.width, ImageBufferResolution.height, 1 };
-		Accumulator = createImage( bufferExtent, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT );
-		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) Accumulator.image, "Accumulator" );
-	}
-
-	{
-		LightParametersBuffer = createBuffer( 256 * sizeof( LightEmitterParameters ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) LightParametersBuffer.buffer, "Light Parameter UBO" );
-	}
-
-	{ // buffer for debug line drawing
-		debugLineDrawBuffer = createBuffer( ( 1 << 16 ) * sizeof( debugLinePoint ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) debugLineDrawBuffer.buffer, "Debug Line SSBO" );
-	}
-
-	{ // SSBO for the text renderer
-		debugStringConfigBuffer = createBuffer( 1024 * sizeof( debugStringConfig ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO );
-		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) debugStringConfigBuffer.buffer, "Debug Text SSBO" );
-	}
+	// data storage for the debug layers
+	debugLineDrawBuffer = createBuffer( ( 1 << 16 ) * sizeof( debugLinePoint ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Debug Line SSBO" );
+	debugStringConfigBuffer = createBuffer( 1024 * sizeof( debugStringConfig ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Debug Text SSBO" );
 
 	{ // Load font LUTs from disk...
 		// code page 437
 		int w, h, channels;
 		unsigned char * data = stbi_load( "../fontLUTs/codepage437.png", &w, &h, &channels, 0 );
 		VkExtent3D extent = { uint32_t( w ), uint32_t( h ), 1 };
-		font_codepage437 = createImage( data, extent, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT );
+		font_codepage437 = createImage( data, extent, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, 4, "Codepage 437 LUT" );
 		stbi_image_free( data );
 
 		// fatfont
 		data = stbi_load( "../fontLUTs/fatFont.png", &w, &h, &channels, 0 );
 		extent = { uint32_t( w ), uint32_t( h ), 1 };
-		font_fatfont = createImage( data, extent, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT );
+		font_fatfont = createImage( data, extent, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, 4, "Fatfont LUT" );
 		stbi_image_free( data );
 
 		// tinyfont
 		data = stbi_load( "../fontLUTs/tinyFont.png", &w, &h, &channels, 0 );
 		extent = { uint32_t( w ), uint32_t( h ), 1 };
-		font_tinyfont = createImage( data, extent, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT );
+		font_tinyfont = createImage( data, extent, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, 4, "TinyFont LUT" );
 		stbi_image_free( data );
 	}
 
@@ -1072,7 +1054,6 @@ void PrometheusInstance::initComputePasses () {
 
 		DebugLineDraw.init( &device, &mainDeletionQueue, config );
 	}
-
 
 	{
 		ComputeConfig config;
