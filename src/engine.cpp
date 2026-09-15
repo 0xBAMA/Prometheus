@@ -144,6 +144,7 @@ void PrometheusInstance::Draw () {
 	globalData.raymarchMaxDistance = raymarchMaxDistance;
 	globalData.epsilon = epsilon;
 	globalData.numLights = lightManager.numLights;
+	globalData.mapMode = mapConfig.mapActive ? 1 : 0; // tbd if we use this to send more data
 
 	// write directly from the memory on the PrometheusInstance
 	GlobalData* uniformData = ( GlobalData * ) GlobalUBO.allocation->GetMappedData();
@@ -178,7 +179,12 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, SpectrumPDFImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, jakobLUTImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
-	{
+	if ( mapConfig.mapActive ) {
+		// drawing the map
+		scopedTimer start( "Map Draw" );
+
+	} else {
+		// running the pathtracer
 		scopedTimer start( "Test 1" );
 		testPipe.invoke2( cmd );
 	}
@@ -311,6 +317,10 @@ void PrometheusInstance::MainLoop () {
 			if ( kb[ SDL_SCANCODE_T ] && shift ) {
 				// screenshot();
 				screenshotRequested = FRAME_OVERLAP;
+			}
+
+			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_SPACE ) {
+				mapConfig.mapActive = !mapConfig.mapActive;
 			}
 
 			{ // placeholder interactive camera from Daedalus
@@ -763,6 +773,7 @@ void PrometheusInstance::initResources () {
 	GlobalUBO = createBuffer( sizeof( GlobalData ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Global Data UBO" );
 	Accumulator = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Accumulator" );
 	LightParametersBuffer = createBuffer( 256 * sizeof( LightEmitterParameters ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Light Parameter UBO" );
+	mapImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Map Image" );
 
 	// data storage for the debug layers
 	debugLineDrawBuffer = createBuffer( ( 1 << 16 ) * sizeof( debugLinePoint ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Debug Line SSBO" );
@@ -868,7 +879,7 @@ static VkBufferMemoryBarrier2 makeBufferBarrier ( VkBuffer buf, VkPipelineStageF
 
 void PrometheusInstance::initComputePasses () {
 
-	renderScale = 0.6f;
+	renderScale = 0.3f;
 
 	{ // RAYTRACE UBERSHADER
 		ComputeConfig config;

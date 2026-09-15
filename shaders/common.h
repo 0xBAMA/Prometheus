@@ -47,6 +47,8 @@ layout( set = 0, binding = 0, scalar ) uniform globalData {
 	float raymarchMaxDistance;
 	float epsilon;
 	int numLights;
+
+	int mapMode;
 } GlobalData;
 //=========================================================
 

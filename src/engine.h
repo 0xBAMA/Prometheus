@@ -106,6 +106,7 @@ struct GlobalData {
 	float raymarchMaxDistance;
 	float epsilon;
 	int32_t numLights;
+	int32_t mapMode;
 };
 
 // smallest scope CPU->GPU passing of information
@@ -153,6 +154,17 @@ inline uint32_t genWangSeed () {
 	return std::uniform_int_distribution< uint32_t >{}( seedRNG );
 }
 
+struct mapConfig_t {
+	// space toggling whether or not this is drawn
+	bool mapActive = false;
+
+	// the map buffer is a defined resolution
+	vec2 mapRes = { 720.0f, 480.0f };
+
+	// click-and-drag orientation control
+	glm::mat4 orientation = glm::mat4( 1.0f );
+};
+
 class PrometheusInstance {
 public:
 	// simplified state for the interactive camera + scene
@@ -172,6 +184,9 @@ public:
 	timerManager_t timer;
 	int timestampPeriod;
 	bool showMenu = true;
+
+	mapConfig_t mapConfig;
+	AllocatedImage mapImage;
 
 // data/storage resources
 	AllocatedBuffer GlobalUBO;
