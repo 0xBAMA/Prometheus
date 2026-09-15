@@ -173,17 +173,11 @@ public:
 	int timestampPeriod;
 	bool showMenu = true;
 
-	// for saving scene configs
-	char currentExportFilename[ 256 ]{ "filename" };
-
-	uint32_t lastPreset;
-	std::vector< uint32_t > presets;
-
 // data/storage resources
 	AllocatedBuffer GlobalUBO;
 	GlobalData globalData; // goes into the UBO
 
-	// main image that will be presented to the user, each frame
+	// main image that will be tonemapped and presented to the user, each frame
 	VkExtent2D ImageBufferResolution;
 	AllocatedImage Accumulator;
 
@@ -210,13 +204,11 @@ public:
 	// 2D bounding box helper, draws 4 lines
 	int addDebugDrawBox ( vec2 min, vec2 max, vec3 color, float zDepth = debugDrawMidDepth );
 
-	// main compute shaders
-	ComputeEffect Raytrace;
-	ComputeEffect Accumulate;
+	// engine compute shaders
 	ComputeEffect DebugLineDraw;
 	ComputeEffect DebugStringDraw;
 
-	// testing
+	// little raytracer for testing
 	ComputeEffect testPipe;
 
 	// there are three buffers used for the grid AS at runtime ( prefix, grid, geometry )
@@ -227,7 +219,6 @@ public:
 	AllocatedImage font_codepage437;
 	AllocatedImage font_fatfont;
 	AllocatedImage font_tinyfont;
-	AllocatedImage depthImageCache; // the raster depth is copied here for the text to use
 
 	// as far as editing features, this will require:
 		// mode select between geometry and lights
@@ -238,10 +229,6 @@ public:
 
 	// putting the image on the screen
 	ComputeEffect BufferPresent;
-
-	// abusing the ComputeEffect struct for a raster pipeline
-	AllocatedImage lineColorAttachment;
-	ComputeEffect lineRaster;
 
 	// light manager
 	LightManager lightManager;

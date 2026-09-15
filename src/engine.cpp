@@ -167,8 +167,6 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_imageD( cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, depthImageCache.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, lineColorAttachment.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 	vkutil::transition_image( cmd, font_codepage437.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, font_fatfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
@@ -445,138 +443,6 @@ void PrometheusInstance::MainLoop () {
 					ImGui::Separator();
 					ImGui::Separator();
 					static bool lsVisible = true;
-					/*
-					if ( ImGui::CollapsingHeader( "Show/Hide Load/Save Dialog", &lsVisible ) ) {
-						static std::chrono::time_point< std::chrono::system_clock > tLastFileListUpdate = std::chrono::system_clock::now();
-
-						static std::vector< std::string > savesList;
-						if ( savesList.size() == 0 ) { // get the list
-							struct pathLeafString {
-								std::string operator()( const std::filesystem::directory_entry &entry ) const {
-									return entry.path().string();
-								}
-							};
-							std::filesystem::path p( "../lightingConfigs/" );
-							std::filesystem::directory_iterator start( p );
-							std::filesystem::directory_iterator end;
-							std::transform( start, end, std::back_inserter( savesList ), pathLeafString() );
-							std::sort( savesList.begin(), savesList.end() ); // sort these alphabetic
-							tLastFileListUpdate = std::chrono::system_clock::now();
-						}
-
-						#define LISTBOX_SIZE_MAX 256
-						const char *listboxItems[ LISTBOX_SIZE_MAX ];
-						uint32_t i;
-						for ( i = 0; i < LISTBOX_SIZE_MAX && i < savesList.size(); ++i ) {
-							listboxItems[ i ] = savesList[ i ].c_str();
-						}
-
-						ImGui::Text( "Files In /lightingConfigs/" );
-						static int listboxSelected = 0;
-						ImGui::ListBox( " ", &listboxSelected, listboxItems, i, 24 );
-
-						if ( ImGui::Button( " Load " ) ) {
-							// LoadLightConfig( savesList[ listboxSelected ] );
-							YAML::Node root = YAML::LoadFile( "../lightingConfigs/" + savesList[ listboxSelected ] );
-
-							if ( root[ "globalBrightness" ] ) {
-								globalData.brightnessScalar = root[ "globalBrightness" ].as< float >();
-							}
-
-							// clear the light list
-							lightManager.clearList();
-
-							// load the config specified
-							YAML::Node lightsNode = root[ "lights" ];
-							if ( lightsNode && lightsNode.IsSequence() ) {
-								// list of lights in the file
-								for ( const auto& node : lightsNode ) {
-									Light l;
-
-									l.parameters.position.x = node[ "positionX" ].as<float>();
-									l.parameters.position.y = node[ "positionY" ].as<float>();
-									l.parameters.rotation = node[ "rotation" ].as<float>();
-									l.parameters.angleScalar = node[ "angleScalar" ].as<float>();
-									l.parameters.cauchyMix = node[ "cauchyMix" ].as<float>();
-									l.parameters.repeats = node[ "repeats" ].as<int>();
-									l.parameters.emitterSpacing = node[ "emitterSpacing" ].as<float>();
-									l.parameters.width = node[ "width" ].as<float>();
-
-									// light source
-									l.PDFPick = node[ "lightSource" ].as<int>();
-
-									// gels / filter stack
-									if ( node[ "gels" ] ) {
-										l.filterStack = node[ "gels" ].as<std::vector<int>>();
-									}
-
-									l.dirtyFlag = true;
-									lightManager.lights.push_back( l );
-								}
-							}
-							globalData.reset = 1;
-						}
-
-						// triggering the thing every 10 seconds
-						if ( ( tLastFileListUpdate - std::chrono::system_clock::now() ) > 10s ) {
-							savesList.clear();
-						}
-
-						ImGui::SameLine();
-						ImGui::InputText( "##SaveFile", currentExportFilename, IM_ARRAYSIZE( currentExportFilename ) );
-						ImGui::SameLine();
-						if ( ImGui::Button( " Save " ) ) {
-
-							// output the light list
-							YAML::Node outputNode;
-							outputNode[ "globalBrightness" ] = globalData.brightnessScalar;
-							for ( auto& l : lightManager.lights ) {
-								YAML::Node node;
-								node[ "positionX" ] = l.parameters.position.x;
-								node[ "positionY" ] = l.parameters.position.y;
-								node[ "rotation" ] = l.parameters.rotation;
-								node[ "angleScalar" ] = l.parameters.angleScalar;
-								node[ "cauchyMix" ] = l.parameters.cauchyMix;
-								node[ "repeats" ] = l.parameters.repeats;
-								node[ "emitterSpacing" ] = l.parameters.emitterSpacing;
-								node[ "width" ] = l.parameters.width;
-
-								node[ "lightSource" ] = l.PDFPick;
-								node[ "gels" ] = l.filterStack;
-
-								outputNode[ "lights" ].push_back( node );
-							}
-							std::ofstream fout( "../lightingConfigs/" + std::string( currentExportFilename ) + ".yaml" );
-							fout << outputNode;
-
-							savesList.clear(); // triggers rebuild of list
-						}
-					}
-					*/
-
-					/*
-					static ImTextureID myTextureID = ( ImTextureID ) ImGui_ImplVulkan_AddTexture(
-						defaultSamplerLinear,
-						lineColorAttachment.imageView,
-						VK_IMAGE_LAYOUT_GENERAL
-					);
-					ImGui::Image( myTextureID, ImVec2( 386, 256 ) );
-					*/
-
-					/*
-					if ( ImGui::Button( "Add Preset" ) ) {
-						// add the new one
-						presets.push_back( lastPreset );
-
-						// overwrite the file
-						YAML::Node outputNode;
-						for ( auto& p: presets ) {
-							outputNode.push_back( p );
-						}
-						std::ofstream fout( "../src/presets.yaml" );
-						fout << outputNode;
-					}
-					*/
 
 					lightManager.ImGuiDrawLightList();
 				}
@@ -695,14 +561,17 @@ void PrometheusInstance::initVulkan () {
 		.set_required_features_12( features12 )
 
 		.add_required_extension( "VK_KHR_maintenance9" ) // for VK_QUERY_POOL_CREATE_RESET_BIT_KHR
-		.add_required_extension( "VK_KHR_acceleration_structure" )
-		.add_required_extension_features( accelFeatures )
 
-		.add_required_extension( "VK_KHR_ray_query" )
-		.add_required_extension_features( rayQueryFeatures )
+	// a lot of these were for the hardware RT stuff
+		// .add_required_extension( "VK_KHR_acceleration_structure" )
+		// .add_required_extension_features( accelFeatures )
 
-		.add_required_extension( "VK_KHR_deferred_host_operations" )
-		.add_required_extension( "VK_KHR_ray_tracing_position_fetch" )
+		// .add_required_extension( "VK_KHR_ray_query" )
+		// .add_required_extension_features( rayQueryFeatures )
+
+		// .add_required_extension( "VK_KHR_deferred_host_operations" )
+		// .add_required_extension( "VK_KHR_ray_tracing_position_fetch" )
+
 		.set_surface( surface )
 		.select()
 		.value();
@@ -859,7 +728,7 @@ void PrometheusInstance::initDescriptors  () {
 		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6 },
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 6 },
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6 },
-		{ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 6 },
+		// { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 6 },
 	};
 
 	globalDescriptorAllocator.init( device, 10, sizes );
@@ -876,7 +745,7 @@ void PrometheusInstance::initDescriptors  () {
 			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
 			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 },
 			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 },
-			{ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 4 },
+			// { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 4 },
 		};
 
 		frameData[ i ].frameDescriptors = DescriptorAllocatorGrowable{};
@@ -891,23 +760,15 @@ void PrometheusInstance::initDescriptors  () {
 void PrometheusInstance::initResources () {
 
 	// API resource allocation:
-	// create the buffer for the UBO
-	{
+	{ // create the buffer for the UBO
 		GlobalUBO = createBuffer( sizeof( GlobalData ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
 		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) GlobalUBO.buffer, "Global Data UBO" );
 	}
 
-	// create the accumulator texture
-	{
+	{ // create the accumulator texture
 		VkExtent3D bufferExtent = { ImageBufferResolution.width, ImageBufferResolution.height, 1 };
 		Accumulator = createImage( bufferExtent, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT );
 		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) Accumulator.image, "Accumulator" );
-	}
-
-	// create the raster attachments
-	{
-		lineColorAttachment = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT );
-		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) lineColorAttachment.image, "Line Color Attachment" );
 	}
 
 	{
@@ -923,11 +784,6 @@ void PrometheusInstance::initResources () {
 	{ // SSBO for the text renderer
 		debugStringConfigBuffer = createBuffer( 1024 * sizeof( debugStringConfig ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO );
 		SetDebugName( VK_OBJECT_TYPE_BUFFER, ( uint64_t ) debugStringConfigBuffer.buffer, "Debug Text SSBO" );
-	}
-
-	{ // actually need to blit depth to another target, unfortunately
-		depthImageCache = createImage( depthImage.imageExtent, VK_FORMAT_R32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT );
-		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) depthImageCache.image, "Debug Text Depth" );
 	}
 
 	{ // Load font LUTs from disk...
@@ -961,7 +817,6 @@ void PrometheusInstance::initResources () {
 
 		// destroying images
 		destroyImage( Accumulator );
-		destroyImage( lineColorAttachment );
 		destroyImage( PreviewAtlas );
 		destroyImage( SpectrumISImage );
 		destroyImage( SpectrumPDFImage );
@@ -969,7 +824,6 @@ void PrometheusInstance::initResources () {
 		destroyImage( font_codepage437 );
 		destroyImage( font_fatfont );
 		destroyImage( font_tinyfont );
-		destroyImage( depthImageCache );
 	});
 }
 
@@ -1566,12 +1420,6 @@ void PrometheusInstance::destroyImage ( const AllocatedImage& img ) {
 }
 
 void PrometheusInstance::initDefaultData () {
-
-	YAML::Node config = YAML::LoadFile( "../src/presets.yaml" );
-	size_t numEntries = config.size();
-	for ( size_t i = 0; i < numEntries; i++ ) {
-		presets.push_back( config[ i ].as< uint32_t >() );
-	}
 
 // TEXTURES
 	// 3 default textures, white, grey, black. 1 pixel each
