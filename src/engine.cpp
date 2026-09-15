@@ -78,7 +78,7 @@ void PrometheusInstance::Init () {
 	initComputePasses();
 	initLights();
 
-	addDebugString( vec2( 16 ), "HELLO THIS IS A DEBUG STRING", vec3( 1.0f ), 0 );
+	// addDebugString( vec2( 16 ), "HELLO THIS IS A DEBUG STRING", vec3( 1.0f ), 0 );
 
 	// everything went fine
 	isInitialized = true;
@@ -1003,7 +1003,7 @@ void PrometheusInstance::initComputePasses () {
 			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
-			// STRINGS
+			// LINE DATA
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( debugLineDrawBuffer.buffer ); } },
 		};
@@ -1035,7 +1035,7 @@ void PrometheusInstance::initComputePasses () {
 		// DRAW
 		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			DebugStringDraw.pushConstants.wangSeed = genWangSeed();
+			DebugLineDraw.pushConstants.wangSeed = genWangSeed();
 			vkCmdPushConstants( cmd, DebugLineDraw.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &DebugLineDraw.pushConstants );
 		};
 		config.dispatch = [&]( VkCommandBuffer cmd ) {

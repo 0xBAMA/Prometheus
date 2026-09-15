@@ -56,7 +56,7 @@ void main () {
 		default: break;
 	}
 
-	// scaling the quad -> placement is in units of pixels
+	// scaling the quad -> placement is in units of pixels, it is tied 1:1 with the resolution scaling
 		// adding 1px padding for spacing between glyphs
 	vec2 p = StringConfig.debugStrings[ stringIDX ].debugStringWriteLocation
 	+ points[ vert ] * ivec2( StringConfig.debugStrings[ stringIDX ].debugStringLength, 1 ) * ( ivec2( 1 ) + glyphSize );

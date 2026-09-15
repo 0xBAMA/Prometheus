@@ -19,6 +19,9 @@ layout ( location = 0 ) out flat vec3 colorRGB;
 void main () {
 	int idx = gl_VertexIndex;
 
+	// this one uses the unscaled resolution (*not* presentBufferResolution) because otherwise it is offset from the top
+		// left corner by the inverse this is because the mouse location is specified in pixels... when the resolution
+		// scaling happens, this will diverge from system reported mouse location...
 	gl_Position = vec4( remap( points[ idx ].position.x, 0.0f, GlobalData.floatBufferResolution.x, -1.0f, 1.0f ),
 						remap( points[ idx ].position.y, 0.0f, GlobalData.floatBufferResolution.y, -1.0f, 1.0f ),
 						points[ idx ].position.z, 1.0f );

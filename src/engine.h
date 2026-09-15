@@ -181,6 +181,12 @@ public:
 	VkExtent2D ImageBufferResolution;
 	AllocatedImage Accumulator;
 
+	// an image to draw into and eventually pass to the swapchain
+	AllocatedImage drawImage;
+	AllocatedImage depthImage;
+	VkExtent2D drawExtent;
+	float renderScale = 1.0f;
+
 	// debug line state
 	AllocatedBuffer debugLineDrawBuffer;
 	int debugLineDrawNumLines{ 8 }; // start with scratch for mouse crosshair
@@ -263,12 +269,6 @@ public:
 	VkPhysicalDevice physicalDevice;			// GPU handle for the physical device in use
 	VkDevice device;							// the abstract device that we interact with
 	VkSurfaceKHR surface;						// the Vulkan window surface
-
-	// an image to draw into and eventually pass to the swapchain
-	AllocatedImage drawImage;
-	AllocatedImage depthImage;
-	VkExtent2D drawExtent;
-	float renderScale = 1.0f;
 
 	// some helper functions for allocating textures
 	AllocatedImage createImage ( VkExtent3D size, VkFormat format, VkImageUsageFlags usage, string label = "", bool mipmapped = false ); // storage image type
