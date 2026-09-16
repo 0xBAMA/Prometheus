@@ -97,6 +97,9 @@ struct LightEmitterParameters {
 
 	// angular distribution
 	float angleThresh = 0.0f;
+
+	// for the map
+	vec3 previewColor = vec3( 1.0f );
 };
 //======================================================================================================================
 // light class -> configuration for a single light
@@ -194,6 +197,9 @@ public:
 			filterStack.emplace_back(  std::uniform_int_distribution< int >( 0, numGelFilters - 1 )( seedRNG ) );
 			dirtyFlag = true;
 		}
+
+		// I'd like a better way to show this, it'll also be included for the map
+		// ImGui::ColorEdit3( ( "preview" + lString ).c_str(), ( float* ) &parameters.previewColor[ 0 ] );
 
 		// option to remove -> set deleteFlag
 		ImGui::PushID( uniqueID );
@@ -329,6 +335,11 @@ public:
 			for ( int y = 0; y < 450; y++ ) {
 				// color[ chip ] += ( wavelengthColorLinear( 380 + y ) * light.PDFScratch[ y ] ) / 450.0f;
 				color[ chip ] += 3.5f * glm::clamp( wavelengthColorLinear( 380.0f + y ) * xRiteReflectances[ chip ][ y ] * PDF[ y ], vec3( 0.0f ), vec3( 1.0f ) ) / 450.0f;
+			}
+
+			if ( chip == 18 ) {
+				// this is the white chip, I'm going to store it for the preview color
+				parameters.previewColor = color[ chip ];
 			}
 		}
 

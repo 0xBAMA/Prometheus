@@ -31,6 +31,7 @@ struct LightEmitterParameters {
 	vec3 direction;
 	float radius;
 	float angleThresh;
+	vec3 previewColor;
 };
 layout( set = 0, binding = 3, scalar ) uniform emitterParameters {
 	LightEmitterParameters params[ 256 ];
