@@ -89,7 +89,7 @@ struct GlobalData {
 	float resolutionScalar{ 1.0f };
 
 	// sizing the extents of the scene, also used for the map
-	glm::vec3 sceneExtents{ 30, 20, 16 };
+	glm::vec3 sceneExtents{  40.0f };
 
 	// for mapping into the geometry buffer
 	uint32_t numPrimitives{ 0 };		// setting where the pointer into the primitive buffer is
@@ -162,7 +162,7 @@ struct mapConfig_t {
 	bool mapActive = false;
 
 	// the map buffer is a defined resolution
-	vec2 mapRes = { 1280.0f, 720.0f };
+	vec2 mapRes = { 4096.0f, 2048.0f };
 
 	// click-and-drag orientation control
 	glm::mat4 orientation = glm::mat4( 1.0f );
@@ -194,6 +194,7 @@ public:
 	AllocatedImage mapDepthImage;
 	ComputeEffect mapOpaque;
 	ComputeEffect mapTransparent;
+	ComputeEffect mapCopy;
 
 // data/storage resources
 	AllocatedBuffer GlobalUBO;
