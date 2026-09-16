@@ -147,9 +147,10 @@ struct RasterConfig {
 	std::vector< VkBufferMemoryBarrier2 > memoryBarriers;
 
 	// rasterizer config
-	bool enableDepthTest = true;
 	VkCompareOp depthOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 	float lineWidth = 1.0f;
+	bool depthTestEnable = true;
+	bool depthWriteEnable = true;
 
 	// what you're drawing...
 	// polygon mode, default to VK_POLYGON_MODE_FILL
@@ -263,8 +264,8 @@ struct ComputeEffect {
 			pipelineBuilder.disable_blending();
 			pipelineBuilder.set_line_width( config.lineWidth );
 			pipelineBuilder.set_color_attachment_format( config.drawImage->imageFormat );
-			pipelineBuilder.enable_depthtest( config.enableDepthTest, config.depthOp );
-			if ( config.enableDepthTest )
+			pipelineBuilder.enable_depthtest( config.depthWriteEnable, config.depthTestEnable, config.depthOp );
+			if ( config.depthWriteEnable || config.depthTestEnable )
 				pipelineBuilder.set_depth_format( config.depthImage->imageFormat );
 			pipeline = pipelineBuilder.build_pipeline( *device );
 			SetDebugName( VK_OBJECT_TYPE_PIPELINE, ( uint64_t ) pipeline, ( config.name + " Raster Pipeline" ).c_str() );
