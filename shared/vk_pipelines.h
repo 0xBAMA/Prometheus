@@ -35,7 +35,7 @@ public:
     void set_color_attachment_format(VkFormat format);
 	void set_depth_format(VkFormat format);
 	void disable_depthtest();
-    void enable_depthtest(bool depthWriteEnable, bool depthTestEnable, VkCompareOp op);
+    void enable_depthtest(bool depthWriteEnable, bool depthTestEnable, VkCompareOp op, float minDepth = 0.0f, float maxDepth = 1.0f);
 };
 
 namespace vkutil {

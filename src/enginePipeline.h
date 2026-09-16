@@ -151,6 +151,11 @@ struct RasterConfig {
 	float lineWidth = 1.0f;
 	bool depthTestEnable = true;
 	bool depthWriteEnable = true;
+	float minDepth = 0.0f;
+	float maxDepth = 1.0f;
+
+	bool clearColor = false;
+	bool clearDepth = false;
 
 	// what you're drawing...
 	// polygon mode, default to VK_POLYGON_MODE_FILL
@@ -190,6 +195,10 @@ struct ComputeEffect {
 	// used for raster only
 	AllocatedImage *depthImage;
 	AllocatedImage *drawImage;
+	bool clearColor = false;
+	bool clearDepth = false;
+	float minDepth = 0.0f;
+	float maxDepth = 1.0f;
 
 	// so we can have the main loop code local to the declaration
 	std::function< void( VkCommandBuffer cmd ) > invoke;
@@ -206,6 +215,10 @@ struct ComputeEffect {
 		getRenderResolution = config.getRenderResolution;
 		drawImage = config.drawImage;
 		depthImage = config.depthImage;
+		clearColor = config.clearColor;
+		clearDepth = config.clearDepth;
+		minDepth = config.minDepth;
+		maxDepth = config.maxDepth;
 		imageBarriers = config.imageBarriers;
 		memoryBarriers = config.memoryBarriers;
 
@@ -264,7 +277,7 @@ struct ComputeEffect {
 			pipelineBuilder.disable_blending();
 			pipelineBuilder.set_line_width( config.lineWidth );
 			pipelineBuilder.set_color_attachment_format( config.drawImage->imageFormat );
-			pipelineBuilder.enable_depthtest( config.depthWriteEnable, config.depthTestEnable, config.depthOp );
+			pipelineBuilder.enable_depthtest( config.depthWriteEnable, config.depthTestEnable, config.depthOp, config.minDepth, config.maxDepth );
 			if ( config.depthWriteEnable || config.depthTestEnable )
 				pipelineBuilder.set_depth_format( config.depthImage->imageFormat );
 			pipeline = pipelineBuilder.build_pipeline( *device );
@@ -366,11 +379,23 @@ struct ComputeEffect {
 		VkRenderingAttachmentInfo depthAttachment = vkinit::attachment_info( depthImage->imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL );
 		VkRenderingInfo renderInfo = vkinit::rendering_info( extent, &colorAttachment, &depthAttachment );
 
+		if ( clearColor ) { // todo: pass in values for clear color
+			const VkClearColorValue colorClearValue = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+			const VkImageSubresourceRange rangeC = { .aspectMask =  VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1 };
+			vkCmdClearColorImage( cmd, drawImage->image, VK_IMAGE_LAYOUT_GENERAL, &colorClearValue, 1, &rangeC );
+		}
+
+		if ( clearDepth ) {
+			const VkClearDepthStencilValue depthClearValueD = { minDepth, 0 };
+			const VkImageSubresourceRange rangeD = { .aspectMask =  VK_IMAGE_ASPECT_DEPTH_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1 };
+			vkCmdClearDepthStencilImage( cmd, depthImage->image, VK_IMAGE_LAYOUT_GENERAL, &depthClearValueD, 1, &rangeD );
+		}
+
 		// start up the rasterizer
 		vkCmdBeginRendering( cmd, &renderInfo );
 
 		// set dynamic viewport and scissor
-		VkViewport viewport = { .x = 0, .y = 0, .minDepth = 0.0f, .maxDepth = 1.0f };
+		VkViewport viewport = { .x = 0, .y = 0, .minDepth = minDepth, .maxDepth = maxDepth };
 		viewport.width = extent.width;
 		viewport.height = extent.height;
 		vkCmdSetViewport( cmd, 0, 1, &viewport );
@@ -378,17 +403,6 @@ struct ComputeEffect {
 		VkRect2D scissor = { .offset = { 0, 0 } };
 		scissor.extent = extent;
 		vkCmdSetScissor( cmd, 0, 1, &scissor );
-
-		// clear bg if desired
-		// const VkClearDepthStencilValue depthClearValue = { 0.0f, 0 };
-		// const VkImageSubresourceRange range = {
-		// 	.aspectMask =  VK_IMAGE_ASPECT_DEPTH_BIT,
-		// 	.baseMipLevel = 0,
-		// 	.levelCount = 1,
-		// 	.baseArrayLayer = 0,
-		// 	.layerCount = 1,
-		// };
-		// vkCmdClearDepthStencilImage( cmd, depthImage.image, VK_IMAGE_LAYOUT_GENERAL, &depthClearValue, 1, &range );
 	}
 
 	void endRendering( VkCommandBuffer cmd ) {
