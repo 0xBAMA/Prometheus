@@ -41,7 +41,7 @@ void main () {
 		switch ( axis ) {
 			case 0: posInWorldspace += vert * GlobalData.basisX; colorRGB = vec3( 1.0f, 0.0f, 0.0f ); break;
 			case 1: posInWorldspace += vert * GlobalData.basisY; colorRGB = vec3( 0.0f, 1.0f, 0.0f ); break;
-			case 2: posInWorldspace += vert * GlobalData.basisZ; colorRGB = vec3( 0.0f, 0.0f, 1.0f ); break;
+			case 2: posInWorldspace += vert * GlobalData.basisZ; colorRGB = vec3( 0.0f, 0.25f, 1.0f ); break;
 			default: break;
 		}
 
