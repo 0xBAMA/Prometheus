@@ -89,7 +89,7 @@ struct GlobalData {
 	float resolutionScalar{ 1.0f };
 
 	// sizing the extents of the scene, also used for the map
-	glm::vec3 sceneExtents{ 100 };
+	glm::vec3 sceneExtents{ 30, 20, 16 };
 
 	// for mapping into the geometry buffer
 	uint32_t numPrimitives{ 0 };		// setting where the pointer into the primitive buffer is
@@ -106,7 +106,10 @@ struct GlobalData {
 	float raymarchMaxDistance;
 	float epsilon;
 	int32_t numLights;
+
+	// controlling map display
 	int32_t mapMode;
+	glm::mat4 mapMatrix;
 };
 
 // smallest scope CPU->GPU passing of information
@@ -159,7 +162,7 @@ struct mapConfig_t {
 	bool mapActive = false;
 
 	// the map buffer is a defined resolution
-	vec2 mapRes = { 720.0f, 480.0f };
+	vec2 mapRes = { 1280.0f, 720.0f };
 
 	// click-and-drag orientation control
 	glm::mat4 orientation = glm::mat4( 1.0f );
@@ -185,8 +188,12 @@ public:
 	int timestampPeriod;
 	bool showMenu = true;
 
+	// for drawing the user interactive map
 	mapConfig_t mapConfig;
-	AllocatedImage mapImage;
+	AllocatedImage mapDrawImage;
+	AllocatedImage mapDepthImage;
+	ComputeEffect mapOpaque;
+	ComputeEffect mapTransparent;
 
 // data/storage resources
 	AllocatedBuffer GlobalUBO;

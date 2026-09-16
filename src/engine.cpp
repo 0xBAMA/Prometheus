@@ -145,6 +145,7 @@ void PrometheusInstance::Draw () {
 	globalData.epsilon = epsilon;
 	globalData.numLights = lightManager.numLights;
 	globalData.mapMode = mapConfig.mapActive ? 1 : 0; // tbd if we use this to send more data
+	globalData.mapMatrix = mapConfig.orientation;
 
 	// write directly from the memory on the PrometheusInstance
 	GlobalData* uniformData = ( GlobalData * ) GlobalUBO.allocation->GetMappedData();
@@ -168,6 +169,8 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_imageD( cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_imageD( cmd, mapDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 	vkutil::transition_image( cmd, font_codepage437.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, font_fatfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
@@ -180,13 +183,24 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, jakobLUTImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 	if ( mapConfig.mapActive ) {
+
 		// drawing the map
 		scopedTimer start( "Map Draw" );
+		mapOpaque.invoke2( cmd );
+
+		// copying raster result to the framebuffer
+		vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+		vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
+		vkutil::copy_image_to_image( cmd, mapDrawImage.image, Accumulator.image, { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ) }, { uint32_t( ImageBufferResolution.width * renderScale ), uint32_t( ImageBufferResolution.height * renderScale ) });
+		vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, mapDrawImage.image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL );
 
 	} else {
+
 		// running the pathtracer
 		scopedTimer start( "Test 1" );
 		testPipe.invoke2( cmd );
+
 	}
 
 	{ // compute shader to accumulate the raster result + put the resolved final image into the drawImage...
@@ -586,6 +600,7 @@ void PrometheusInstance::initVulkan () {
 		.set_required_features_12( features12 )
 
 		.add_required_extension( "VK_KHR_maintenance9" ) // for VK_QUERY_POOL_CREATE_RESET_BIT_KHR
+		// .add_required_extension( "VK_EXT_depth_range_unrestricted" )
 
 	// a lot of these were for the hardware RT stuff
 		// .add_required_extension( "VK_KHR_acceleration_structure" )
@@ -786,9 +801,10 @@ void PrometheusInstance::initResources () {
 
 	// API resource allocation:
 	GlobalUBO = createBuffer( sizeof( GlobalData ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Global Data UBO" );
-	Accumulator = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Accumulator" );
+	Accumulator = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Accumulator" );
 	LightParametersBuffer = createBuffer( 256 * sizeof( LightEmitterParameters ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Light Parameter UBO" );
-	mapImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Map Image" );
+	mapDrawImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Color Image" );
+	mapDepthImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Depth Image" );
 
 	// data storage for the debug layers
 	debugLineDrawBuffer = createBuffer( ( 1 << 16 ) * sizeof( debugLinePoint ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Debug Line SSBO" );
@@ -939,6 +955,65 @@ void PrometheusInstance::initComputePasses () {
 
 		// creating the actual API resources
 		testPipe.init( &device, &mainDeletionQueue, config );
+	}
+
+	{
+		RasterConfig config;
+		config.name = "Map Opaque Draw";
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
+			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( LightParametersBuffer.buffer ); } },
+		};
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		// SHADERS
+		config.shaderPathFrag = "../shaders/mapOpaque.frag.glsl.spv";
+		config.shaderPathVert = "../shaders/mapOpaque.vert.glsl.spv";
+
+		// FBO CONFIG
+		config.drawImage = &mapDrawImage;
+		config.depthImage = &mapDepthImage;
+		config.clearColor = true;
+		config.clearDepth = true;
+		config.getRenderResolution = [&]() {
+			return VkExtent2D {
+				uint32_t( mapConfig.mapRes.x ),
+				uint32_t( mapConfig.mapRes.y ),
+			};
+		};
+
+		// BARRIERS (post-draw)
+		// config.imageBarriers = {
+			// raster result made available ( color + depth )
+			// makeImageBarrier( mapDrawImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
+			// makeImageBarrierD( mapDepthImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT )
+		// };
+
+		// DRAW
+		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			mapOpaque.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, mapOpaque.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &mapOpaque.pushConstants );
+		};
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			if ( mapConfig.mapActive ) {
+				// using some placeholder values
+				// 18 verts for the bounding box and lines through the origin
+				// 3 basis vectors -> each consists of ? verts
+				// N lights -> each consists of ? verts
+
+				int count = 30 + 3 * 2 + lightManager.lights.size() * 0; // tbd how many vertices per light
+				vkCmdDraw( cmd, count, 1, 0, 0 );
+			}
+		};
+
+		mapOpaque.init( &device, &mainDeletionQueue, config );
 	}
 
 	{
