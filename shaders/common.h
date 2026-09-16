@@ -49,6 +49,7 @@ layout( set = 0, binding = 0, scalar ) uniform globalData {
 	int numLights;
 
 	int mapMode;
+	mat4 mapMatrix;
 } GlobalData;
 //=========================================================
 
