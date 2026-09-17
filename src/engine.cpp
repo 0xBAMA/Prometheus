@@ -336,7 +336,7 @@ void PrometheusInstance::MainLoop () {
 			}
 			float baseScalar = 1.0f / ( length( globalData.sceneExtents ) );
 			mapConfig.orientation = glm::translate( glm::mat4( 1.0f ), vec3( 0.0f, 0.0f, 0.5f ) )
-				* glm::scale( glm::mat4( 1.0f ), vec3( baseScalar * ( mapConfig.mapRes.y / mapConfig.mapRes.x ), baseScalar, 0.1f * baseScalar ) )
+				* glm::scale( glm::mat4( 1.0f ), vec3( baseScalar * ( mapConfig.mapRes.y / mapConfig.mapRes.x ), baseScalar, 0.45f * baseScalar ) )
 				* mapOrientation;
 
 			if ( kb[ SDL_SCANCODE_R ] ) {

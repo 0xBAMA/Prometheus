@@ -6,9 +6,10 @@
 #include "common.h"
 //=============================================================================================================================
 layout ( location = 0 ) in flat vec3 colorRGB;
+layout ( location = 1 ) in float zPos;
 layout ( location = 0 ) out vec4 outFragColor;
 //=============================================================================================================================
 void main () {
 	// want to add a bit of depth coloring
-	outFragColor = vec4( colorRGB, 1.0f );
+	outFragColor = vec4( colorRGB * ( 0.8f * zPos + 0.2f ), 1.0f );
 }
