@@ -325,20 +325,19 @@ void PrometheusInstance::MainLoop () {
 				renderScale = 0.3f;
 			}
 
+			// managing the map orientation
+			static glm::mat4 mapOrientation = glm::mat4( 1.0f );
 			if ( e.type == SDL_EVENT_MOUSE_MOTION && mapConfig.mapActive && ( e.motion.state & SDL_BUTTON_LEFT ) ) {
-				static glm::mat4 mapOrientation = glm::mat4( 1.0f );
-
 				// this should do to manage the orientation via click and drag
 				if ( !ImGui::GetIO().WantCaptureMouse ) {
 					mapOrientation = glm::rotate( mapOrientation, e.motion.xrel * 0.001f, glm::mat3( glm::inverse( mapOrientation ) ) * vec3( 0.0f, 1.0f, 0.0f ) );
 					mapOrientation = glm::rotate( mapOrientation, -e.motion.yrel * 0.001f, glm::mat3( glm::inverse( mapOrientation ) ) * vec3( 1.0f, 0.0f, 0.0f ) );
 				}
-
-				float baseScalar = 1.0f / ( length( globalData.sceneExtents ) );
-				mapConfig.orientation = glm::translate( glm::mat4( 1.0f ), vec3( 0.0f, 0.0f, 0.5f ) )
-					* glm::scale( glm::mat4( 1.0f ), vec3( baseScalar * ( mapConfig.mapRes.y / mapConfig.mapRes.x ), baseScalar, 0.1f * baseScalar ) )
-					* mapOrientation;
 			}
+			float baseScalar = 1.0f / ( length( globalData.sceneExtents ) );
+			mapConfig.orientation = glm::translate( glm::mat4( 1.0f ), vec3( 0.0f, 0.0f, 0.5f ) )
+				* glm::scale( glm::mat4( 1.0f ), vec3( baseScalar * ( mapConfig.mapRes.y / mapConfig.mapRes.x ), baseScalar, 0.1f * baseScalar ) )
+				* mapOrientation;
 
 			if ( kb[ SDL_SCANCODE_R ] ) {
 				globalData.reset = true;
