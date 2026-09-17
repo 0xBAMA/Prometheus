@@ -332,6 +332,7 @@ void PrometheusInstance::MainLoop () {
 				if ( !ImGui::GetIO().WantCaptureMouse ) {
 					mapOrientation = glm::rotate( mapOrientation, e.motion.xrel * 0.001f, glm::mat3( glm::inverse( mapOrientation ) ) * vec3( 0.0f, 1.0f, 0.0f ) );
 					mapOrientation = glm::rotate( mapOrientation, -e.motion.yrel * 0.001f, glm::mat3( glm::inverse( mapOrientation ) ) * vec3( 1.0f, 0.0f, 0.0f ) );
+					globalData.reset = true;
 				}
 			}
 			float baseScalar = 1.0f / ( length( globalData.sceneExtents ) );
@@ -350,6 +351,10 @@ void PrometheusInstance::MainLoop () {
 
 			if ( e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_SPACE ) {
 				mapConfig.mapActive = !mapConfig.mapActive;
+				if ( mapConfig.mapActive ) {
+					// clear the accumulator
+					globalData.reset = true;
+				}
 			}
 
 			{ // placeholder interactive camera from Daedalus
