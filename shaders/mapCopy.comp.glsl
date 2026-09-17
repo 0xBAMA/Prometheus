@@ -19,13 +19,28 @@ void main () {
 //=============================================================================================================================
 	// pixel value will be sampled out of the buffer containing the raster results for the map
 	vec2 uv = ( pixel + vec2( 0.5f ) ) / ( GlobalData.presentBufferResolution );
-	int numSamples = 100;
+	int numSamples = 64;
 	vec3 accum = vec3( 0.0f );
+//	const float aspectRatio = float( imageSize( image ).y ) / float( imageSize( image ).x );
+	const float aspectRatio = 1.0f;
 	for ( int i = 0; i < numSamples; i++ ) {
-		vec2 offset = 0.003f * rnd_disc_cauchy();
+		vec2 offset = 0.03f * rnd_disc_cauchy() * vec2( aspectRatio, 1.0f );
 		vec2 samplePosition = uv + offset;
-		accum += texture( rasterBuffer, samplePosition ).xyz * ( 0.02f / max( length( offset ), 0.001f ) );
+		accum += texture( rasterBuffer, samplePosition ).xyz * ( 0.05f / max( length( offset ), 0.001f ) );
 	}
 //=============================================================================================================================
-	imageStore( image, pixel, vec4( accum / numSamples, 1.0f ) );
+//	imageStore( image, pixel, vec4( accum / numSamples, 1.0f ) );
+
+	//=============================================================================================================================
+	// load the previous color, mix the new and old values based on the current sampleCount
+	vec3 color = accum / numSamples;
+	const vec4 previousColor = imageLoad( image, pixel );
+	const float sampleCount = previousColor.a + 1.0f;
+	const float mixFactor = 1.0f / sampleCount;
+	const vec4 mixedColor = vec4( ( any( isnan( color.rgb ) ) ) ?
+	vec3( 0.0f ) : mix( previousColor.rgb, color.rgb, mixFactor ), sampleCount );
+
+	//=============================================================================================================================
+	// and store it back
+	imageStore( image, pixel, ( GlobalData.reset != 0 ) ? vec4( color, 1.0f ) : mixedColor );
 }

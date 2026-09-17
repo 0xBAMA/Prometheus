@@ -162,7 +162,7 @@ struct mapConfig_t {
 	bool mapActive = false;
 
 	// the map buffer is a defined resolution
-	vec2 mapRes = { 4096.0f, 2048.0f };
+	vec2 mapRes = { 1920.0f * 2, 1080.0f * 2 };
 
 	// click-and-drag orientation control
 	glm::mat4 orientation = glm::mat4( 1.0f );

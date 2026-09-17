@@ -997,7 +997,7 @@ void PrometheusInstance::initComputePasses () {
 		config.depthImage = &mapDepthImage;
 		config.clearColor = true;
 		config.clearDepth = true;
-		config.lineWidth = 2.0f;
+		// config.lineWidth = 4.618f;
 		config.getRenderResolution = [&]() {
 			return VkExtent2D {
 				uint32_t( mapConfig.mapRes.x ),
@@ -1026,7 +1026,7 @@ void PrometheusInstance::initComputePasses () {
 				// N lights -> each consists of ? verts
 
 				int count = 30 + 3 * 2 + lightManager.lights.size() * 0; // tbd how many vertices per light
-				vkCmdSetLineWidth( cmd, 2.0f );
+				vkCmdSetLineWidth( cmd, 5.0f );
 				vkCmdDraw( cmd, count, 1, 0, 0 );
 			}
 		};
