@@ -992,7 +992,7 @@ void PrometheusInstance::initComputePasses () {
 		config.depthImage = &mapDepthImage;
 		config.clearColor = true;
 		config.clearDepth = true;
-		config.lineWidth = 1.0f;
+		config.lineWidth = 2.0f;
 		config.getRenderResolution = [&]() {
 			return VkExtent2D {
 				uint32_t( mapConfig.mapRes.x ),
@@ -1492,7 +1492,7 @@ void PrometheusInstance::updateImage( AllocatedImage& image, void* data, int byt
 
 // this is a pretty specialized screenshot function, because it operates on the half floats stored in the draw image
 void PrometheusInstance::screenshot() {
-	std::string filenameS = std::string( timeDateString() + ".png" );
+	std::string filenameS = std::string( "Phoenix-" + timeDateString() + ".png" );
 	const char* filename = filenameS.c_str();
 	AllocatedImage& image = drawImage;
 	VkExtent3D size{ drawExtent.width, drawExtent.height, 1 };
