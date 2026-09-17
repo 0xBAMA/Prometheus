@@ -22,9 +22,9 @@ void main () {
 	int numSamples = 100;
 	vec3 accum = vec3( 0.0f );
 	for ( int i = 0; i < numSamples; i++ ) {
-		vec2 offset = 0.01f * rnd_disc_cauchy();
+		vec2 offset = 0.003f * rnd_disc_cauchy();
 		vec2 samplePosition = uv + offset;
-		accum += texture( rasterBuffer, samplePosition ).xyz * ( 0.06f / max( length( offset ), 0.001f ) );
+		accum += texture( rasterBuffer, samplePosition ).xyz * ( 0.02f / max( length( offset ), 0.001f ) );
 	}
 //=============================================================================================================================
 	imageStore( image, pixel, vec4( accum / numSamples, 1.0f ) );
