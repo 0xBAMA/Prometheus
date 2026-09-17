@@ -75,11 +75,11 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device)
 
     //< build_pipeline_2
     //> build_pipeline_3
-    VkDynamicState state[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkDynamicState state[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_LINE_WIDTH };
 
     VkPipelineDynamicStateCreateInfo dynamicInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
     dynamicInfo.pDynamicStates = &state[0];
-    dynamicInfo.dynamicStateCount = 2;
+    dynamicInfo.dynamicStateCount = 3;
 
     pipelineInfo.pDynamicState = &dynamicInfo;
     //< build_pipeline_3

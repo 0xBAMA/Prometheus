@@ -582,6 +582,10 @@ void PrometheusInstance::initVulkan () {
 	features12.scalarBlockLayout = true;
 	features12.uniformAndStorageBuffer8BitAccess = true;
 
+	//vulkan 1.0 features
+	VkPhysicalDeviceFeatures features{};
+	features.wideLines = true;
+
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures{
 		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR
 	};
@@ -598,6 +602,7 @@ void PrometheusInstance::initVulkan () {
 		.set_minimum_version( 1, 3 )
 		.set_required_features_13( features13 )
 		.set_required_features_12( features12 )
+		.set_required_features( features )
 
 		.add_required_extension( "VK_KHR_maintenance9" ) // for VK_QUERY_POOL_CREATE_RESET_BIT_KHR
 		// .add_required_extension( "VK_EXT_depth_range_unrestricted" )
@@ -654,6 +659,12 @@ void PrometheusInstance::initVulkan () {
 		fmt::print( "Max Image Dimension(2D): {}\n", temp.limits.maxImageDimension2D );
 		fmt::print( "Max Image Dimension(3D): {}\n", temp.limits.maxImageDimension3D );
 		fmt::print( "Timestamp Period: {}\n", temp.limits.timestampPeriod );
+
+		// line raster stuff
+		VkPhysicalDeviceFeatures feat;
+		vkGetPhysicalDeviceFeatures( physicalDeviceSelect , &feat );
+		fmt::print( "Value of widelines is {}\n", feat.wideLines );
+		fmt::print( "Line Width Granularity is {} and range is {} to {}", temp.limits.lineWidthGranularity, temp.limits.lineWidthRange[ 0 ], temp.limits.lineWidthRange[ 1 ] );
 		fmt::print( "\n\n" );
 	}
 
@@ -981,7 +992,7 @@ void PrometheusInstance::initComputePasses () {
 		config.depthImage = &mapDepthImage;
 		config.clearColor = true;
 		config.clearDepth = true;
-		config.lineWidth = 2.0f;
+		config.lineWidth = 1.0f;
 		config.getRenderResolution = [&]() {
 			return VkExtent2D {
 				uint32_t( mapConfig.mapRes.x ),
@@ -1005,11 +1016,12 @@ void PrometheusInstance::initComputePasses () {
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			if ( mapConfig.mapActive ) {
 				// using some placeholder values
-				// 18 verts for the bounding box and lines through the origin
-				// 3 basis vectors -> each consists of ? verts
+				// 30 verts for the bounding box and lines through the origin
+				// 3 basis vectors -> each consists of 2? verts
 				// N lights -> each consists of ? verts
 
 				int count = 30 + 3 * 2 + lightManager.lights.size() * 0; // tbd how many vertices per light
+				vkCmdSetLineWidth( cmd, 2.0f );
 				vkCmdDraw( cmd, count, 1, 0, 0 );
 			}
 		};
@@ -1181,6 +1193,7 @@ void PrometheusInstance::initComputePasses () {
 			}
 
 			// and then draw
+			vkCmdSetLineWidth( cmd, 1.0f );
 			vkCmdDraw( cmd, ( 1 << 16 ), 1, 0, 0 );
 		};
 
