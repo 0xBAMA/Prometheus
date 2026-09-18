@@ -354,6 +354,7 @@ void PrometheusInstance::MainLoop () {
 				if ( mapConfig.mapActive ) {
 					// clear the accumulator
 					globalData.reset = true;
+					SDL_Delay( 100 );
 				}
 			}
 
@@ -1025,7 +1026,7 @@ void PrometheusInstance::initComputePasses () {
 				// 3 basis vectors -> each consists of 2? verts
 				// N lights -> each consists of ? verts
 
-				int count = 30 + 3 * 2 + lightManager.lights.size() * 0; // tbd how many vertices per light
+				int count = 30 + 3 * 2 + lightManager.lights.size() * 256; // tbd how many vertices per light
 				vkCmdSetLineWidth( cmd, 5.0f );
 				vkCmdDraw( cmd, count, 1, 0, 0 );
 			}
@@ -1689,8 +1690,9 @@ void PrometheusInstance::initImgui () {
 void PrometheusInstance::initLights () {
 	// setting up some of the global resources used by the lights
 	lightManager.Initialize();
-	lightManager.AddLight( 1.0f ); // placeholder, since the mouse light is gone
 	lightManager.brightnessScalar = &globalData.brightnessScalar;
+	lightManager.sceneSize = &globalData.sceneExtents;
+	lightManager.AddLight( 1.0f ); // placeholder, since the mouse light is gone
 
 	// AllocatedImage previewImage = createImage( { 450 + 104, 64, 1 }, VK_FORMAT_R8G8B8A8_SNORM, VK_IMAGE_USAGE_SAMPLED_BIT );
 

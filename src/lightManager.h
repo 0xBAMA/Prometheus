@@ -106,7 +106,7 @@ struct LightEmitterParameters {
 class Light {
 public:
 
-	Light ( float brightness_in = 1.0f ) : brightness { brightness_in } {
+	Light ( float brightness_in = 1.0f, glm::vec3 *sceneSize_in = nullptr ) : brightness { brightness_in }, sceneSize{ sceneSize_in } {
 		// ImGUI needs distinct strings... can use an int, just assign at construction time
 		uniqueID += 42069;
 		myUniqueID = uniqueID;
@@ -131,6 +131,9 @@ public:
 	// need to set this in the maintenance function
 	ImVec2 minUV { 0.0f, 0.0f };
 	ImVec2 maxUV { 1.0f, 1.0f };
+
+	// to help inform the range on the sliders
+	glm::vec3 *sceneSize = nullptr;
 
 	// called inside of the light manager ImGui Draw function
 	void ImGuiDrawLightInfo ( bool mouseLight = false ) {
@@ -206,7 +209,7 @@ public:
 		// emitter parameters
 		ImGui::Separator();
 		ImGui::Text("Emitter Parameters:" );
-		ImGui::SliderFloat3( ( "Location" + lString ).c_str(), ( float* ) &parameters.position, -100.0f, 100.0f, "%.1f" );
+		ImGui::SliderFloat3( ( "Location" + lString ).c_str(), ( float* ) &parameters.position, -glm::length( *sceneSize ),  glm::length( *sceneSize ), "%.1f" );
 		ImGui::SliderFloat3( ( "Direction" + lString ).c_str(), ( float* ) &parameters.direction, -2.0f, 2.0f, "%.3f" );
 		parameters.direction = glm::normalize( parameters.direction ); // should work
 		ImGui::SliderFloat( ( "Radius" + lString ).c_str(), &parameters.radius, 0.0f, 100.0f, "%.1f", ImGuiSliderFlags_Logarithmic );
@@ -414,6 +417,7 @@ public:
 	LightManager () {}
 
 	float* brightnessScalar = nullptr;
+	glm::vec3 *sceneSize = nullptr;
 
 	void Initialize () {
 		// create the texture for the light spectrum sampling -> scale the Y for some max
@@ -488,7 +492,7 @@ public:
 			prevSumPower += light.brightness;
 		}
 
-		lights.emplace_back( brightness ); // constructor calls Update()
+		lights.emplace_back( brightness, sceneSize ); // constructor calls Update()
 		needsUpdate = true;
 
 		// should keep subjective brightness constant (light initialized with brightess = 1)
