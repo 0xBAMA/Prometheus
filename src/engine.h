@@ -196,6 +196,12 @@ public:
 	ComputeEffect mapTransparent;
 	ComputeEffect mapCopy;
 
+	// WIP Wavefront conversion
+	ComputeEffect cameraGen;
+	ComputeEffect intersect;
+	ComputeEffect shading;
+	AllocatedBuffer rayBuffer;
+
 // data/storage resources
 	AllocatedBuffer GlobalUBO;
 	GlobalData globalData; // goes into the UBO
