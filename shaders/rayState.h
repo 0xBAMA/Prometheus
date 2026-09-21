@@ -1,33 +1,13 @@
+//=============================================================================================================================
 // rayState_t setup for Phoenix
 //=============================================================================================================================
-// total 64 bytes
+// total 64 bytes, significantly more memory efficient than Icarus
 struct rayState_t {
 	vec4 data1; // .xyz is origin, .w is wavelength
 	vec4 data2; // .xyz is direction, .w is energy
 	vec4 data3; // .xyz is normal vector, .w is transmission
 	vec4 data4; // .x is mat/IoR, .y is roughness/albedo, .z is distance, .w is packed pixel index
 };
-
-/*
-New version:
-
-// pathtrace state -> 4 floats
-	wavelength
-	energy
-	transmission
-	pixel index -> can pack 2x 16-bit values
-
-// spatial arrangement -> 6 floats
-	origin
-	direction
-
-// intersection result -> 6 floats
-	distance
-	material/IoR -> can pack these two values together
-	roughness -> can use half precision
-	albedo -> can use half precision
-	normal vector
-*/
 //=============================================================================================================================
 void SetRayOrigin 		( inout rayState_t rayState, vec3 origin )		{ rayState.data1.xyz = origin; }
 vec3 GetRayOrigin		( rayState_t rayState )							{ return rayState.data1.xyz; }
@@ -54,9 +34,12 @@ ivec2 GetPixelIndex		( rayState_t rayState )							{ return ivec2( unpackHalf2x1
 void SetDistance		( inout rayState_t rayState, float distanceV )	{ rayState.data4.z = distanceV; }
 float GetDistance		( rayState_t rayState )							{ return rayState.data4.z; }
 
-// need set/get for:
-	// mat/IoR
-	// roughness/albedo
+// makes sense to handle these in pairs, as they are always used together
+void SetMatIoR			( inout rayState_t rayState, vec2 matIoR )		{ rayState.data4.x = uintBitsToFloat( packHalf2x16( matIoR ) ); }
+vec2 GetMatIoR			( rayState_t rayState )							{ return unpackHalf2x16( floatBitsToUint( rayState.data4.x ) ); }
+
+void SetRoughnessAlbedo	( inout rayState_t rayState, vec2 roughnessAlbedo )	{ rayState.data4.y = uintBitsToFloat( packHalf2x16( matIoR ) ); }
+vec2 GetRoughnessAlbedo	( rayState_t rayState )							{ return unpackHalf2x16( floatBitsToUint( rayState.data4.y ) ); }
 //=============================================================================================================================
 void StateReset ( inout rayState_t rayState ) {
 	// write zeroes
