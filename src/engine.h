@@ -197,6 +197,7 @@ public:
 	ComputeEffect mapCopy;
 
 	// WIP Wavefront conversion
+	uint32_t numRays = 2 << 10;
 	ComputeEffect cameraGen;
 	ComputeEffect intersect;
 	ComputeEffect shading;

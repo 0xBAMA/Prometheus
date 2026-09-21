@@ -974,6 +974,75 @@ void PrometheusInstance::initComputePasses () {
 		testPipe.init( &device, &mainDeletionQueue, config );
 	}
 
+	{ // Wavefront Camera Ray Gen
+		ComputeConfig config;
+		config.name = "Phoenix Ray Gen";
+
+		// descriptor setup
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			cameraGen.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, cameraGen.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &cameraGen.pushConstants );
+		};
+
+		config.shaderPath = "../shaders/camera.comp.glsl.spv";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdDispatch( cmd, ( numRays ) / 256, 1, 1 );
+		};
+
+		cameraGen.init( &device, &mainDeletionQueue, config );
+	}
+
+	{ // Wavefront Ray Intersect
+		ComputeConfig config;
+		config.name = "Phoenix Ray Intersect";
+
+		// descriptor setup
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			intersect.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, intersect.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &intersect.pushConstants );
+		};
+
+		config.shaderPath = "../shaders/intersect.comp.glsl.spv";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdDispatch( cmd, ( numRays ) / 256, 1, 1 );
+		};
+
+		intersect.init( &device, &mainDeletionQueue, config );
+	}
+
+	{ // Wavefront Ray Shading
+		ComputeConfig config;
+		config.name = "Phoenix Ray Shade";
+
+		// descriptor setup
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			shading.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, shading.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &shading.pushConstants );
+		};
+
+		config.shaderPath = "../shaders/shading.comp.glsl.spv";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdDispatch( cmd, ( numRays ) / 256, 1, 1 );
+		};
+
+		shading.init( &device, &mainDeletionQueue, config );
+	}
+
 	{
 		RasterConfig config;
 		config.name = "Map Opaque Draw";
