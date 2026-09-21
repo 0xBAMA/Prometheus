@@ -7,7 +7,10 @@ struct rayState_t {
 	vec4 data2; // .xyz is direction, .w is energy
 	vec4 data3; // .xyz is normal vector, .w is transmission
 	vec4 data4; // .x is mat/IoR, .y is roughness/albedo, .z is distance, .w is packed pixel index
-};
+}; // not sure how I'm going to indicate that a ray is a light trace, maybe using a leftover sign bit?
+//=============================================================================================================================
+// -> if you use the sign bit on the IoR to indicate that this ray is a light trace, you can use the mat value for the light index
+	// and I think that gets you what you need for the additive contribution of the light trace
 //=============================================================================================================================
 void SetRayOrigin 		( inout rayState_t rayState, vec3 origin )		{ rayState.data1.xyz = origin; }
 vec3 GetRayOrigin		( rayState_t rayState )							{ return rayState.data1.xyz; }
