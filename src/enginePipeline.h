@@ -375,8 +375,8 @@ struct ComputeEffect {
 
 	void beginRendering( VkCommandBuffer cmd ) {
 		VkExtent2D extent = getRenderResolution();
-		VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info( drawImage->imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL );
-		VkRenderingAttachmentInfo depthAttachment = vkinit::attachment_info( depthImage->imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL );
+		VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info( drawImage->imageView[ 0 ], nullptr, VK_IMAGE_LAYOUT_GENERAL );
+		VkRenderingAttachmentInfo depthAttachment = vkinit::attachment_info( depthImage->imageView[ 0 ], nullptr, VK_IMAGE_LAYOUT_GENERAL );
 		VkRenderingInfo renderInfo = vkinit::rendering_info( extent, &colorAttachment, &depthAttachment );
 
 		if ( clearColor ) { // todo: pass in values for clear color

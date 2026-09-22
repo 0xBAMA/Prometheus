@@ -955,11 +955,11 @@ void PrometheusInstance::initComputePasses () {
 
 			// ACCUMULATOR IMAGE
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
-				[ & ] () { return Resource( Accumulator.imageView ); } },
+				[ & ] () { return Resource( Accumulator.imageView[ 0 ] ); } },
 
 			// sRGB -> REFLECTANCE LUT
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
+				[ & ] () {return Resource( jakobLUTImage.imageView[ 0 ] ); } },
 
 			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
 			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
@@ -967,11 +967,12 @@ void PrometheusInstance::initComputePasses () {
 
 			// IMPORTANCE SAMPLING + WEIGHTING TEXTURES FOR THE LIGHTS
 			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumPDFImage.imageView ); } },
+				[ & ] () {return Resource( SpectrumPDFImage.imageView[ 0 ] ); } },
 			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumISImage.imageView ); } },
+				[ & ] () {return Resource( SpectrumISImage.imageView[ 0 ] ); } },
 			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource( PickISImage.imageView ); } },
+				[ & ] () {return Resource( PickISImage.imageView[ 0 ] ); } },
+
 		};
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
@@ -1038,7 +1039,7 @@ void PrometheusInstance::initComputePasses () {
 
 			// sRGB -> REFLECTANCE LUT
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
+				[ & ] () {return Resource( jakobLUTImage.imageView[ 0 ] ); } },
 
 			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
 			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
@@ -1046,11 +1047,11 @@ void PrometheusInstance::initComputePasses () {
 
 			// IMPORTANCE SAMPLING + WEIGHTING TEXTURES FOR THE LIGHTS
 			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumPDFImage.imageView ); } },
+				[ & ] () {return Resource( SpectrumPDFImage.imageView[ 0 ] ); } },
 			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumISImage.imageView ); } },
+				[ & ] () {return Resource( SpectrumISImage.imageView[ 0 ] ); } },
 			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource( PickISImage.imageView ); } },
+				[ & ] () {return Resource( PickISImage.imageView[ 0 ] ); } },
 
 			// any other buffers associated with intersection (BVH, etc)
 
@@ -1087,7 +1088,7 @@ void PrometheusInstance::initComputePasses () {
 
 			// sRGB -> REFLECTANCE LUT
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
+				[ & ] () {return Resource( jakobLUTImage.imageView[ 0 ] ); } },
 
 			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
 			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
@@ -1095,11 +1096,11 @@ void PrometheusInstance::initComputePasses () {
 
 			// IMPORTANCE SAMPLING + WEIGHTING TEXTURES FOR THE LIGHTS
 			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumPDFImage.imageView ); } },
+				[ & ] () {return Resource( SpectrumPDFImage.imageView[ 0 ] ); } },
 			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumISImage.imageView ); } },
+				[ & ] () {return Resource( SpectrumISImage.imageView[ 0 ] ); } },
 			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource( PickISImage.imageView ); } },
+				[ & ] () {return Resource( PickISImage.imageView[ 0 ] ); } },
 
 			// need to replace the accumulation with Adam accumulator buffers
 		};
@@ -1194,10 +1195,10 @@ void PrometheusInstance::initComputePasses () {
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
 			{ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () { return Resource( mapDrawImage.imageView ); } },
+				[ & ] () { return Resource( mapDrawImage.imageView[ 0 ] ); } },
 
 			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerLinear,
-				[ & ] () { return Resource( Accumulator.imageView ); } }
+				[ & ] () { return Resource( Accumulator.imageView[ 0 ] ); } }
 		};
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
@@ -1229,11 +1230,11 @@ void PrometheusInstance::initComputePasses () {
 
 			// FONT LUTS
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource(  font_codepage437.imageView ); } },
+				[ & ] () {return Resource(  font_codepage437.imageView[ 0 ] ); } },
 			{ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource(  font_fatfont.imageView ); } },
+				[ & ] () {return Resource(  font_fatfont.imageView[ 0 ] ); } },
 			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource(  font_tinyfont.imageView ); } },
+				[ & ] () {return Resource(  font_tinyfont.imageView[ 0 ] ); } },
 		};
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
@@ -1365,10 +1366,10 @@ void PrometheusInstance::initComputePasses () {
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
-				[ & ] () { return Resource( drawImage.imageView ); } },
+				[ & ] () { return Resource( drawImage.imageView[ 0 ] ); } },
 
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () { return Resource( Accumulator.imageView ); } }
+				[ & ] () { return Resource( Accumulator.imageView[ 0 ] ); } }
 		};
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
@@ -1499,7 +1500,7 @@ void PrometheusInstance::lightManagerMaintenance () {
 		// setup for ImGui to draw texture on the menus
 		textureID = ( ImTextureID ) ImGui_ImplVulkan_AddTexture(
 			defaultSamplerNearest,
-			PreviewAtlas.imageView,
+			PreviewAtlas.imageView[ 0 ],
 			VK_IMAGE_LAYOUT_GENERAL
 		);
 
@@ -1572,11 +1573,11 @@ AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat forma
 	VkImageViewCreateInfo view_info = vkinit::imageview_create_info( format, newImage.image, aspectFlag, ( size.depth != 1 ) );
 	view_info.subresourceRange.levelCount = img_info.mipLevels;
 
-	VK_CHECK( vkCreateImageView( device, &view_info, nullptr, &newImage.imageView ) );
+	VK_CHECK( vkCreateImageView( device, &view_info, nullptr, &newImage.imageView[ 0 ] ) );
 
 	if ( label != "" ) {
 		SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) newImage.image, label.c_str() );
-		SetDebugName( VK_OBJECT_TYPE_IMAGE_VIEW, ( uint64_t ) newImage.imageView, label.c_str() );
+		SetDebugName( VK_OBJECT_TYPE_IMAGE_VIEW, ( uint64_t ) newImage.imageView[ 0 ], label.c_str() );
 	}
 
 	return newImage;
@@ -1939,7 +1940,7 @@ void PrometheusInstance::createSwapchain ( uint32_t w, uint32_t h ) {
 	vmaCreateImage( allocator, &rimg_info, &rimg_allocinfo, &drawImage.image, &drawImage.allocation, nullptr );
 	// build a image-view for the draw image to use for rendering
 	VkImageViewCreateInfo rview_info = vkinit::imageview_create_info( drawImage.imageFormat, drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT );
-	VK_CHECK( vkCreateImageView( device, &rview_info, nullptr, &drawImage.imageView ) );
+	VK_CHECK( vkCreateImageView( device, &rview_info, nullptr, &drawImage.imageView[ 0 ] ) );
 
 	// depth image config
 	depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
@@ -1953,17 +1954,17 @@ void PrometheusInstance::createSwapchain ( uint32_t w, uint32_t h ) {
 	vmaCreateImage( allocator, &dimg_info, &rimg_allocinfo, &depthImage.image, &depthImage.allocation, nullptr );
 	// build a image-view for the draw image to use for rendering
 	VkImageViewCreateInfo dview_info = vkinit::imageview_create_info( depthImage.imageFormat, depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT );
-	VK_CHECK( vkCreateImageView( device, &dview_info, nullptr, &depthImage.imageView ) );
+	VK_CHECK( vkCreateImageView( device, &dview_info, nullptr, &depthImage.imageView[ 0 ] ) );
 
 	SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) drawImage.image, "Draw Image" );
 	SetDebugName( VK_OBJECT_TYPE_IMAGE, ( uint64_t ) depthImage.image, "Depth Image" );
 
 	// add to deletion queues
 	mainDeletionQueue.push_function( [ = ] () {
-		vkDestroyImageView( device, drawImage.imageView, nullptr );
+		vkDestroyImageView( device, drawImage.imageView[ 0 ], nullptr );
 		vmaDestroyImage( allocator, drawImage.image, drawImage.allocation );
 
-		vkDestroyImageView( device, depthImage.imageView, nullptr );
+		vkDestroyImageView( device, depthImage.imageView[ 0 ], nullptr );
 		vmaDestroyImage( allocator, depthImage.image, depthImage.allocation );
 	});
 }
