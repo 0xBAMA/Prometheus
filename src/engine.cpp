@@ -824,6 +824,16 @@ void PrometheusInstance::initResources () {
 	mapDepthImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Depth Image" );
 	rayBuffer = createBuffer( 64 * numRays, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Ray Buffer" );
 
+	// placeholder, making sure it works
+	uint32_t width = 1024;
+	uint32_t height = 1024;
+	uint32_t numPixels = width * height;
+	uint32_t* zeroesU = ( uint32_t * ) malloc( numPixels * 4 * sizeof( uint32_t ) );
+	float* zeroesF = ( float * ) malloc( numPixels * 4 * 4 * sizeof( uint32_t ) );
+
+	AdamCount = createImage( zeroesU, { 1024, 1024, 1 }, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 4, "Adam Count", true );
+	AdamColor = createImage( zeroesF, { 1024, 1024, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 16, "Adam Color", true );
+
 	// data storage for the debug layers
 	debugLineDrawBuffer = createBuffer( ( 1 << 16 ) * sizeof( debugLinePoint ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Debug Line SSBO" );
 	debugStringConfigBuffer = createBuffer( 1024 * sizeof( debugStringConfig ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Debug Text SSBO" );
@@ -1069,7 +1079,7 @@ void PrometheusInstance::initComputePasses () {
 			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( rayBuffer.buffer ); } },
 
-						// sRGB -> REFLECTANCE LUT
+			// sRGB -> REFLECTANCE LUT
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
 
@@ -1104,6 +1114,10 @@ void PrometheusInstance::initComputePasses () {
 
 		shading.init( &device, &mainDeletionQueue, config );
 	}
+
+	// pipeline for Adam propagation
+
+	// pipeline to sample the Adam buffers into the accumulator
 
 	{
 		RasterConfig config;

@@ -211,6 +211,11 @@ public:
 	VkExtent2D ImageBufferResolution;
 	AllocatedImage Accumulator;
 
+	// the textures used by the Adam interpolation scheme
+	AllocatedImage AdamCount;
+	AllocatedImage AdamColor;
+	// pipelines for the Adam operation
+
 	// an image to draw into and eventually pass to the swapchain
 	AllocatedImage drawImage;
 	AllocatedImage depthImage;
