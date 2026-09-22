@@ -822,6 +822,7 @@ void PrometheusInstance::initResources () {
 	LightParametersBuffer = createBuffer( 256 * sizeof( LightEmitterParameters ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Light Parameter UBO" );
 	mapDrawImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Color Image" );
 	mapDepthImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Depth Image" );
+	rayBuffer = createBuffer( 64 * numRays, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Ray Buffer" );
 
 	// data storage for the debug layers
 	debugLineDrawBuffer = createBuffer( ( 1 << 16 ) * sizeof( debugLinePoint ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Debug Line SSBO" );
@@ -978,10 +979,20 @@ void PrometheusInstance::initComputePasses () {
 		ComputeConfig config;
 		config.name = "Phoenix Ray Gen";
 
-		// descriptor setup
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// THE RAY BUFFER
+			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( rayBuffer.buffer ); } },
+
+			// wavelength importance sampling buffer (film sensitivity)
+
+		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
-			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+			return getCurrentFrame ().frameDescriptors.allocate( device, dsl );
 		};
 
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
@@ -1001,7 +1012,33 @@ void PrometheusInstance::initComputePasses () {
 		ComputeConfig config;
 		config.name = "Phoenix Ray Intersect";
 
-		// descriptor setup
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// THE RAY BUFFER
+			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( rayBuffer.buffer ); } },
+
+			// sRGB -> REFLECTANCE LUT
+			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
+
+			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
+			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( LightParametersBuffer.buffer ); } },
+
+			// IMPORTANCE SAMPLING + WEIGHTING TEXTURES FOR THE LIGHTS
+			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () {return Resource( SpectrumPDFImage.imageView ); } },
+			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () {return Resource( SpectrumISImage.imageView ); } },
+			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+				[ & ] () {return Resource( PickISImage.imageView ); } },
+
+			// any other buffers associated with intersection (BVH, etc)
+
+		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
@@ -1024,7 +1061,32 @@ void PrometheusInstance::initComputePasses () {
 		ComputeConfig config;
 		config.name = "Phoenix Ray Shade";
 
-		// descriptor setup
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// THE RAY BUFFER
+			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( rayBuffer.buffer ); } },
+
+						// sRGB -> REFLECTANCE LUT
+			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+				[ & ] () {return Resource( jakobLUTImage.imageView ); } },
+
+			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
+			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( LightParametersBuffer.buffer ); } },
+
+			// IMPORTANCE SAMPLING + WEIGHTING TEXTURES FOR THE LIGHTS
+			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () {return Resource( SpectrumPDFImage.imageView ); } },
+			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () {return Resource( SpectrumISImage.imageView ); } },
+			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+				[ & ] () {return Resource( PickISImage.imageView ); } },
+
+			// need to replace the accumulation with Adam accumulator buffers
+		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
