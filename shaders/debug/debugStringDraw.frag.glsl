@@ -3,7 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_buffer_reference : require
 
-#include "common.h"
+#include "../common.h"
 
 layout ( location = 0 ) in flat uint stringIDX;
 layout ( location = 1 ) in flat ivec2 glyphSize;
