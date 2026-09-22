@@ -96,7 +96,7 @@ void vkutil::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage de
 }
 //< copyimg
 //> mipgen
-void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D imageSize)
+void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D imageSize, VkFormat format)
 {
     int mipLevels = int(std::floor(std::log2(std::max(imageSize.width, imageSize.height)))) + 1;
     for (int mip = 0; mip < mipLevels; mip++) {
@@ -153,7 +153,10 @@ void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D ima
             blitInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
             blitInfo.srcImage = image;
             blitInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            blitInfo.filter = VK_FILTER_LINEAR;
+        	// this has issues when you are using a UINT-type texture
+            // blitInfo.filter = VK_FILTER_LINEAR;
+        	bool useNearest = ( format == VK_FORMAT_R32_UINT ); // potentially adding more here int the future
+            blitInfo.filter = useNearest ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;
             blitInfo.regionCount = 1;
             blitInfo.pRegions = &blitRegion;
 
