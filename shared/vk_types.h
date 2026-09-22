@@ -33,10 +33,12 @@
 // we will add our main reusable types here
 struct AllocatedImage {
 	VkImage image;
-	VkImageView imageView;
 	VmaAllocation allocation;
 	VkExtent3D imageExtent;
 	VkFormat imageFormat;
+
+	VkImageView imageView[ 16 ]; // I believe the max level is 14, (2^14==max tex size), so this should be safe
+	uint32_t numMips;
 };
 
 struct AllocatedBuffer {

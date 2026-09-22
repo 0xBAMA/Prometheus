@@ -1545,7 +1545,7 @@ AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat forma
 
 	VkImageCreateInfo img_info = vkinit::image_create_info( format, usage, size );
 	if ( mipmapped ) {
-		img_info.mipLevels = static_cast<uint32_t>( std::floor( std::log2( std::max( size.width, size.height ) ) ) ) + 1;
+		newImage.numMips = img_info.mipLevels = static_cast<uint32_t>( std::floor( std::log2( std::max( size.width, size.height ) ) ) ) + 1;
 	}
 
 	// always allocate images on dedicated GPU memory
@@ -1610,6 +1610,23 @@ AllocatedImage PrometheusInstance::createImage ( void* data, VkExtent3D size, Vk
 			vkutil::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
 		}
 	});
+
+	if ( mipmapped ) { // need to create the image views related to the mip layers
+		// if the format is a depth format, we will need to have it use the correct aspect flag
+		VkImageAspectFlags aspectFlag = VK_IMAGE_ASPECT_COLOR_BIT;
+		if ( format == VK_FORMAT_D32_SFLOAT ) {
+			aspectFlag = VK_IMAGE_ASPECT_DEPTH_BIT;
+		}
+
+		for ( int i = 1; i < new_image.numMips; i++ ) {
+			// build a image-view for the image
+			VkImageViewCreateInfo view_info = vkinit::imageview_create_info( format, new_image.image, aspectFlag, ( size.depth != 1 ) );
+			view_info.subresourceRange.levelCount = 1;
+			view_info.subresourceRange.baseMipLevel = i;
+			view_info.subresourceRange.layerCount = 1;
+			VK_CHECK( vkCreateImageView( device, &view_info, nullptr, &new_image.imageView[ i ] ) );
+		}
+	}
 
 	// finished uploading, that data is now available
 	destroyBuffer( uploadbuffer );
@@ -1695,7 +1712,8 @@ void PrometheusInstance::screenshot() {
 }
 
 void PrometheusInstance::destroyImage ( const AllocatedImage& img ) {
-	vkDestroyImageView( device, img.imageView, nullptr );
+	for ( int i = 0; i < img.numMips; i++ )
+		vkDestroyImageView( device, img.imageView[ i ], nullptr );
 	vmaDestroyImage( allocator, img.image, img.allocation );
 }
 
