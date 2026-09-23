@@ -751,12 +751,12 @@ void main () {
 	const vec4 mixedColor = vec4( ( any( isnan( color.rgb ) ) ) ?
 		vec3( 0.0f ) : mix( previousColor.rgb, color.rgb, mixFactor ), sampleCount );
 
-	if ( rFloat() < 0.001f ) {
+//	if ( rFloat() < 0.001f ) {
 		imageAtomicAdd( rTally, pixel, uint( color.r * 1024 ) );
 		imageAtomicAdd( gTally, pixel, uint( color.g * 1024 ) );
 		imageAtomicAdd( bTally, pixel, uint( color.b * 1024 ) );
 		imageAtomicAdd( cTally, pixel, 1 );
-	}
+//	}
 
 //=============================================================================================================================
 	// and store it back

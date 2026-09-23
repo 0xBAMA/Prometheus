@@ -16,19 +16,28 @@ layout ( rgba32f, set = 0, binding = 5 ) uniform image2D AdamMip0;
 void main () {
 	// bounds check
 	ivec2 loc = ivec2( gl_GlobalInvocationID.xy );
-	if ( loc.x < GlobalData.presentBufferResolution.x && loc.y < GlobalData.presentBufferResolution.y ) {
-		// unapply fixed point scaling from tally operation
-		const float r = float( imageLoad( RTally, loc ).r ) / 1024.0f;
-		const float g = float( imageLoad( GTally, loc ).r ) / 1024.0f;
-		const float b = float( imageLoad( BTally, loc ).r ) / 1024.0f;
-		const float c = float( imageLoad( CTally, loc ).r );
+	if ( GlobalData.reset == 0 ) {
+		if ( loc.x < GlobalData.presentBufferResolution.x && loc.y < GlobalData.presentBufferResolution.y ) {
+			// unapply fixed point scaling from tally operation
+			const float r = float( imageLoad( RTally, loc ).r ) / 1024.0f;
+			const float g = float( imageLoad( GTally, loc ).r ) / 1024.0f;
+			const float b = float( imageLoad( BTally, loc ).r ) / 1024.0f;
+			const float c = float( imageLoad( CTally, loc ).r );
 
-		if ( c != 0.0f ) {
-			// storing normalized data to mip 0 of the Adam texture
-			imageStore( AdamMip0, loc, vec4( r / c, g / c, b / c, c ) );
+			if (c != 0.0f) {
+				// storing normalized data to mip 0 of the Adam texture
+				imageStore( AdamMip0, loc, vec4( r / c, g / c, b / c, c ) );
+			}
+		} else {
+			// can expand copy to full image, if an image clear is needed
+			imageStore( AdamMip0, loc, vec4( 0.0f ) ); // this is cheap
 		}
 	} else {
-		// can expand copy to full image, if an image clear is needed
+		// wiping tallies
+		imageStore( RTally, loc, uvec4( 0 ) );
+		imageStore( GTally, loc, uvec4( 0 ) );
+		imageStore( BTally, loc, uvec4( 0 ) );
+		imageStore( CTally, loc, uvec4( 0 ) );
 		imageStore( AdamMip0, loc, vec4( 0.0f ) );
 	}
 }
