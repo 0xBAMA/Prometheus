@@ -981,6 +981,39 @@ void PrometheusInstance::initComputePasses () {
 		config.name = "Adam Copy";
 
 		// this shader takes tally results for R, G, B, and count, and puts them into the mip 0 of the Adam Output Texture
+			// this one is pretty simple, it is just a copy
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// TALLY IMAGES
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyR.imageView[ 0 ] ); } },
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyG.imageView[ 0 ] ); } },
+			{ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyB.imageView[ 0 ] ); } },
+			{ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamCountTally.imageView[ 0 ] ); } },
+
+			// ADAM TEXTURE
+			{ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamOutputTex.imageView[ 0 ] ); } },
+		};
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			AdamCopy.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, AdamCopy.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &AdamCopy.pushConstants );
+		};
+
+		config.shaderPath = "../shaders/adamCopy.comp.glsl.spv";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdDispatch( cmd, ( ( ImageBufferResolution.width ) + 15 ) / 16, ( ( ImageBufferResolution.height ) + 15 ) / 16, 1 );
+		};
 
 		AdamCopy.init( &device, &mainDeletionQueue, config );
 	}
@@ -989,9 +1022,107 @@ void PrometheusInstance::initComputePasses () {
 		ComputeConfig config;
 		config.name = "Adam Mip Sweep";
 
-		// this shader takes the information from mip 0, propagates to mip 1, etc, to mip N
+		// this shader takes the information from mip 0, propagates to mip 1, etc, to mip N...
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// LAYOUT FOR MIP N AND MIP N+1
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( 0 ); } },
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( 0 ); } },
+		};
+
+		// carve out for Adam to be able to bind individual mips
+		config.customDescriptorWrite = true;
+
+		config.shaderPath = "../shaders/adamSweep.comp.glsl.spv";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+
+			// update push constants
+			vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, AdamSweep.pipeline );
+			AdamSweep.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, AdamSweep.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &AdamSweep.pushConstants );
+
+			// should be power of two
+			uint32_t w = AdamOutputTex.imageExtent.width;
+			uint32_t h = AdamOutputTex.imageExtent.height;
+			uint32_t mips = AdamOutputTex.numMips;
+
+			for ( int i = 0; i < mips - 1; ++i ) {
+				// write descriptors for the imageViews associated with the two mips (N and N+1)
+				VkDescriptorSet descriptorSet;
+				{
+					descriptorSet = getCurrentFrame().frameDescriptors.allocate( device, AdamSweep.descriptorSetLayout );
+					DescriptorWriter writer;
+
+					// write the two mips
+					descriptorItem( 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+						[=](){ return AdamOutputTex.imageView[ i ]; } ).write( writer );
+					descriptorItem( 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+						[=](){ return AdamOutputTex.imageView[ i + 1 ]; } ).write( writer );
+
+					writer.update_set( device, descriptorSet );
+				}
+
+				// bind the newly written descriptors
+				vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, AdamSweep.pipelineLayout, 0, 1, &descriptorSet, 0, nullptr );
+
+				// dispatch with the current dimensions
+				vkCmdDispatch( cmd, ( ( w ) + 15 ) / 16, ( ( h ) + 15 ) / 16, 1 );
+
+				// updating for the next iteration
+				w /= 2;
+				h /= 2;
+
+				// memory barrier, ensuring the writes to mip N+1 have finished
+				VkImageMemoryBarrier2 mipBarrier = makeImageBarrierSingleMip( AdamOutputTex.image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT, i + 1 );
+				VkDependencyInfo dependencyInfo = {
+					.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+					.bufferMemoryBarrierCount = 0,
+					.imageMemoryBarrierCount = 1,
+					.pImageMemoryBarriers = &mipBarrier,
+				};
+				vkCmdPipelineBarrier2( cmd, &dependencyInfo );
+			}
+
+		};
 
 		AdamSweep.init( &device, &mainDeletionQueue, config );
+	}
+
+	{ // Adam Present Shader
+		ComputeConfig config;
+		config.name = "Adam Present";
+
+		// this does the work to sample the Adam representation to the framebuffer
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// PREPPING OUTPUT FOR TONEMAPPING
+			{ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerAdam,
+				[ & ] () { return Resource( AdamOutputTex.imageView[ 0 ] ); } },
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( Accumulator.imageView[ 0 ] ); } },
+		};
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			AdamPresent.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, AdamPresent.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &AdamPresent.pushConstants );
+		};
+
+		config.shaderPath = "../shaders/adamPresent.comp.glsl.spv";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdDispatch( cmd, ( ( drawExtent.width ) + 15 ) / 16, ( ( drawExtent.height ) + 15 ) / 16, 1 );
+		};
+
+		AdamPresent.init( &device, &mainDeletionQueue, config );
 	}
 
 	{ // RAYTRACE UBERSHADER
