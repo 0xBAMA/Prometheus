@@ -1299,7 +1299,15 @@ void PrometheusInstance::initComputePasses () {
 			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( PickISImage.imageView[ 0 ] ); } },
 
-			// need to replace the accumulation with Adam accumulator buffers
+			// TALLY IMAGES TO FEED ADAM
+			{ 7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyR.imageView[ 0 ] ); } },
+			{ 8, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyG.imageView[ 0 ] ); } },
+			{ 9, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyB.imageView[ 0 ] ); } },
+			{ 10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamCountTally.imageView[ 0 ] ); } },
 		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
