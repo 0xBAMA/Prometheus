@@ -182,8 +182,11 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, SpectrumPDFImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, jakobLUTImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
-	vkutil::transition_image( cmd, AdamColor.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, AdamCount.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, AdamColorTallyR.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, AdamColorTallyG.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, AdamColorTallyB.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, AdamCountTally.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, AdamOutputTex.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 	if ( mapConfig.mapActive ) {
 
@@ -827,18 +830,26 @@ void PrometheusInstance::initResources () {
 	mapDepthImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Depth Image" );
 	rayBuffer = createBuffer( 64 * numRays, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Ray Buffer" );
 
-	// placeholder, making sure it works
-	uint32_t width = 1024;
-	uint32_t height = 1024;
-	uint32_t numPixels = width * height;
-	uint32_t* zeroesU = ( uint32_t * ) malloc( numPixels * 4 * sizeof( uint32_t ) );
-	float* zeroesF = ( float * ) malloc( numPixels * 4 * 4 * sizeof( uint32_t ) );
+	// setup for the Adam interpolation scheme
+	AdamColorTallyR = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT, "Adam Color Tally R" );
+	AdamColorTallyG = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT, "Adam Color Tally G" );
+	AdamColorTallyB = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT, "Adam Color Tally B" );
+	AdamCountTally = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT, "Adam Count Tally" );
 
-	AdamCount = createImage( zeroesU, { 1024, 1024, 1 }, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 4, "Adam Count", true );
-	AdamColor = createImage( zeroesF, { 1024, 1024, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 16, "Adam Color", true );
+	auto nextPowerOfTwo = []( uint32_t n ) {
+		if ( n == 0 ) return 1;
 
-	free( zeroesF );
-	free( zeroesU );
+		// Find the position of the most significant bit
+		int msb = 0;
+		while ( n >>= 1 ) { msb++; }
+
+		// Return the next power of 2
+		return 1 << ( msb + 1 );
+	};
+
+	uint32_t PoTdim = nextPowerOfTwo( std::max( ImageBufferResolution.width, ImageBufferResolution.height ) );
+	float* zeroes = ( float* ) malloc( 4 * sizeof( float ) * PoTdim * PoTdim );
+	AdamOutputTex = createImage( zeroes, { PoTdim, PoTdim, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_2_TRANSFER_SRC_BIT_KHR | VK_IMAGE_USAGE_2_TRANSFER_DST_BIT_KHR | VK_IMAGE_USAGE_2_STORAGE_BIT_KHR | VK_IMAGE_USAGE_SAMPLED_BIT, 4 * sizeof( float ), "Adam Output Texture", true );
 
 	// data storage for the debug layers
 	debugLineDrawBuffer = createBuffer( ( 1 << 16 ) * sizeof( debugLinePoint ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Debug Line SSBO" );
@@ -1612,6 +1623,7 @@ AllocatedImage PrometheusInstance::createImage ( void* data, VkExtent3D size, Vk
 		vkCmdCopyBufferToImage( cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion );
 
 		if ( mipmapped ) {
+			// fmt::print( "Image is getting mips: {}\n", label );
 			vkutil::generate_mipmaps(cmd, new_image.image, VkExtent2D{ new_image.imageExtent.width, new_image.imageExtent.height }, format );
 		} else {
 			vkutil::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );

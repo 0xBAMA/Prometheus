@@ -212,8 +212,11 @@ public:
 	AllocatedImage Accumulator;
 
 	// the textures used by the Adam interpolation scheme
-	AllocatedImage AdamCount;
-	AllocatedImage AdamColor;
+	AllocatedImage AdamColorTallyR;
+	AllocatedImage AdamColorTallyG;
+	AllocatedImage AdamColorTallyB;
+	AllocatedImage AdamCountTally;
+	AllocatedImage AdamOutputTex;
 	// pipelines for the Adam operation
 
 	// an image to draw into and eventually pass to the swapchain
