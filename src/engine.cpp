@@ -1198,7 +1198,7 @@ void PrometheusInstance::initComputePasses () {
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
 			// THE RAY BUFFER
-			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( rayBuffer.buffer ); } },
 
 			// wavelength importance sampling buffer (film sensitivity)
@@ -1231,7 +1231,7 @@ void PrometheusInstance::initComputePasses () {
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
 			// THE RAY BUFFER
-			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( rayBuffer.buffer ); } },
 
 			// sRGB -> REFLECTANCE LUT
@@ -1280,7 +1280,7 @@ void PrometheusInstance::initComputePasses () {
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
 			// THE RAY BUFFER
-			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( rayBuffer.buffer ); } },
 
 			// sRGB -> REFLECTANCE LUT

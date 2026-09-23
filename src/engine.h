@@ -212,11 +212,13 @@ public:
 	AllocatedImage Accumulator;
 
 	// the textures used by the Adam interpolation scheme
+	// 4 textures for the atomic writes
 	AllocatedImage AdamColorTallyR;
 	AllocatedImage AdamColorTallyG;
 	AllocatedImage AdamColorTallyB;
 	AllocatedImage AdamCountTally;
-	AllocatedImage AdamOutputTex;
+	// and the texture which contains the hierarchical weighted sums
+	AllocatedImage AdamOutputTex; // this is the only one that gets a mipchain
 
 	// pipelines for the Adam operation
 	ComputeEffect AdamCopy;
