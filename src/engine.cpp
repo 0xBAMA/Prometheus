@@ -957,6 +957,24 @@ void PrometheusInstance::initComputePasses () {
 
 	renderScale = 0.3f;
 
+	{ // Adam Copy Shader
+		ComputeConfig config;
+		config.name = "Adam Copy";
+
+		// this shader takes tally results for R, G, B, and count, and puts them into the mip 0 of the Adam Output Texture
+
+		AdamCopy.init( &device, &mainDeletionQueue, config );
+	}
+
+	{ // Adam Sweep Shader
+		ComputeConfig config;
+		config.name = "Adam Mip Sweep";
+
+		// this shader takes the information from mip 0, propagates to mip 1, etc, to mip N
+
+		AdamSweep.init( &device, &mainDeletionQueue, config );
+	}
+
 	{ // RAYTRACE UBERSHADER
 		ComputeConfig config;
 		config.name = "Test 1";

@@ -217,7 +217,10 @@ public:
 	AllocatedImage AdamColorTallyB;
 	AllocatedImage AdamCountTally;
 	AllocatedImage AdamOutputTex;
+
 	// pipelines for the Adam operation
+	ComputeEffect AdamCopy;
+	ComputeEffect AdamSweep;
 
 	// an image to draw into and eventually pass to the swapchain
 	AllocatedImage drawImage;
