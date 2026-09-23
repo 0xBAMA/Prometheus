@@ -221,6 +221,7 @@ public:
 	// pipelines for the Adam operation
 	ComputeEffect AdamCopy;
 	ComputeEffect AdamSweep;
+	ComputeEffect AdamPresent;
 
 	// an image to draw into and eventually pass to the swapchain
 	AllocatedImage drawImage;
@@ -327,6 +328,7 @@ public:
 	// and default sampler types
 	VkSampler defaultSamplerLinear;
 	VkSampler defaultSamplerNearest;
+	VkSampler defaultSamplerAdam;
 
 	// our frameData struct, which contains command pool/buffer + sync primitive handles
 	frameData_t frameData[ FRAME_OVERLAP ];
