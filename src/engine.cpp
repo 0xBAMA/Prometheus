@@ -1820,6 +1820,12 @@ void PrometheusInstance::initDefaultData () {
 	sampl.minFilter = VK_FILTER_NEAREST;
 	vkCreateSampler( device, &sampl, nullptr, &defaultSamplerNearest );
 
+	// for Adam
+	sampl.magFilter = VK_FILTER_NEAREST;
+	sampl.minFilter = VK_FILTER_NEAREST;
+	sampl.maxLod = 14;
+	vkCreateSampler( device, &sampl, nullptr, &defaultSamplerAdam );
+
 	sampl.magFilter = VK_FILTER_LINEAR;
 	sampl.minFilter = VK_FILTER_LINEAR;
 	sampl.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
