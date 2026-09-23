@@ -17,16 +17,23 @@
 #include <thread>
 #include <chrono>
 #include <fstream>
+#include <fastgltf/types.hpp>
 
 // heightmap gen
 
 struct Resource {
 	enum class Type {
+		None,
 		ImageView,
 		Buffer
 	};
 
 	Type type;
+
+	Resource ( int i ) {
+		// no op/placeholder
+		type = Type::None;
+	}
 
 	Resource( VkBuffer buff ) {
 		type = Type::Buffer;
@@ -128,6 +135,8 @@ struct ComputeConfig {
 	std::vector< VkImageMemoryBarrier2 > imageBarriers;
 	std::vector< VkBufferMemoryBarrier2 > memoryBarriers;
 
+	// specifically for Adam, but may be useful again
+	bool customDescriptorWrite = false;
 };
 
 struct RasterConfig {
@@ -206,6 +215,9 @@ struct ComputeEffect {
 	std::function< void( VkCommandBuffer cmd ) > dispatch;
 	std::function< void( VkCommandBuffer cmd ) > updatePushConstants;
 	std::function< VkExtent2D() > getRenderResolution;
+
+	// specifically for Adam, I need to bind different mips of the image, so I'm doing it this way
+	bool customDescriptorWrite = false;
 
 	VkDevice* devicePtr;
 
@@ -301,6 +313,9 @@ struct ComputeEffect {
 		allocateDescriptorSet = config.allocateDescriptorSet;
 		dispatch = config.dispatch;
 		updatePushConstants = config.updatePushConstants;
+
+		// setup for writing custom descriptors (vs statically written)
+		customDescriptorWrite = config.customDescriptorWrite;
 
 		devicePtr = device;
 		{ // the first thing this needs is the descriptor layout
@@ -422,8 +437,8 @@ struct ComputeEffect {
 	}
 
 	void invoke2( VkCommandBuffer cmd ) {
-		descriptorSet = allocateDescriptorSet( descriptorSetLayout );
-		{
+		if ( !customDescriptorWrite ) {
+			descriptorSet = allocateDescriptorSet( descriptorSetLayout );
 			DescriptorWriter writer;
 			for ( auto& d : descriptors )
 				d.write( writer );
@@ -432,12 +447,17 @@ struct ComputeEffect {
 
 		// setup for buffers etc
 		if ( type == COMPUTE ) {
-			bindPipelineAndDescriptorSetsCompute( cmd );
+			if ( !customDescriptorWrite ) {
+				// this can just happen if the descriptors are the same...
+					// but if they change, they need to do so inside of dispatch()
+				bindPipelineAndDescriptorSetsCompute( cmd );
+				updatePushConstants( cmd );
+			}
 		} else if ( type == GRAPHICS ) {
 			bindPipelineAndDescriptorSetsGraphics( cmd );
 			beginRendering( cmd );
+			updatePushConstants( cmd );
 		}
-		updatePushConstants( cmd );
 
 		// invoke the actual pass + barriers
 		dispatch( cmd );
