@@ -41,6 +41,11 @@ layout ( set = 0, binding = 4 ) uniform sampler2D lightPDF; // Light PDFs, spect
 layout ( set = 0, binding = 5 ) uniform sampler2D lightiCDF; // Light iCDFs, for importance sampling
 layout ( set = 0, binding = 6 ) uniform usampler2D lightPick; // For picking a light, for importance sampling by brightness
 //=============================================================================================================================
+layout ( r32ui, set = 0, binding = 7 ) uniform uimage2D rTally;
+layout ( r32ui, set = 0, binding = 8 ) uniform uimage2D gTally;
+layout ( r32ui, set = 0, binding = 9 ) uniform uimage2D bTally;
+layout ( r32ui, set = 0, binding = 10 ) uniform uimage2D cTally;
+//=============================================================================================================================
 struct ray_t {
 	vec3 origin;
 	vec3 direction;
@@ -745,6 +750,13 @@ void main () {
 	const float mixFactor = 1.0f / sampleCount;
 	const vec4 mixedColor = vec4( ( any( isnan( color.rgb ) ) ) ?
 		vec3( 0.0f ) : mix( previousColor.rgb, color.rgb, mixFactor ), sampleCount );
+
+	if ( rFloat() < 0.001f ) {
+		imageAtomicAdd( rTally, pixel, uint( color.r * 1024 ) );
+		imageAtomicAdd( gTally, pixel, uint( color.g * 1024 ) );
+		imageAtomicAdd( bTally, pixel, uint( color.b * 1024 ) );
+		imageAtomicAdd( cTally, pixel, 1 );
+	}
 
 //=============================================================================================================================
 	// and store it back

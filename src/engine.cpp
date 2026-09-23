@@ -204,10 +204,18 @@ void PrometheusInstance::Draw () {
 
 	} else {
 
-		// running the pathtracer
-		scopedTimer start( "Test 1" );
-		testPipe.invoke2( cmd );
+		{ // running the pathtracer
+			scopedTimer start( "Test 1" );
+			testPipe.invoke2( cmd );
+		}
 
+		{ // testing Adam
+			scopedTimer start( "Adam Test" );
+
+			AdamCopy.invoke2( cmd );			// copy tally data
+			AdamSweep.invoke2( cmd );			// propagate through mips
+			AdamPresent.invoke2( cmd );			// sample Adam into the accumulator
+		}
 	}
 
 	{ // compute shader to accumulate the raster result + put the resolved final image into the drawImage...
@@ -1138,7 +1146,7 @@ void PrometheusInstance::initComputePasses () {
 
 			// sRGB -> REFLECTANCE LUT
 			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource( jakobLUTImage.imageView[ 0 ] ); } },
+				[ & ] () { return Resource( jakobLUTImage.imageView[ 0 ] ); } },
 
 			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
 			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
@@ -1146,11 +1154,21 @@ void PrometheusInstance::initComputePasses () {
 
 			// IMPORTANCE SAMPLING + WEIGHTING TEXTURES FOR THE LIGHTS
 			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumPDFImage.imageView[ 0 ] ); } },
+				[ & ] () { return Resource( SpectrumPDFImage.imageView[ 0 ] ); } },
 			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumISImage.imageView[ 0 ] ); } },
+				[ & ] () { return Resource( SpectrumISImage.imageView[ 0 ] ); } },
 			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
-				[ & ] () {return Resource( PickISImage.imageView[ 0 ] ); } },
+				[ & ] () { return Resource( PickISImage.imageView[ 0 ] ); } },
+
+			// Tally image testing
+			{ 7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyR.imageView[ 0 ] ); } },
+			{ 8, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyG.imageView[ 0 ] ); } },
+			{ 9, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyB.imageView[ 0 ] ); } },
+			{ 10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamCountTally.imageView[ 0 ] ); } },
 
 		};
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
@@ -1300,10 +1318,6 @@ void PrometheusInstance::initComputePasses () {
 
 		shading.init( &device, &mainDeletionQueue, config );
 	}
-
-	// pipeline for Adam propagation
-
-	// pipeline to sample the Adam buffers into the accumulator
 
 	{
 		RasterConfig config;
@@ -1750,7 +1764,9 @@ AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat forma
 
 	// build a image-view for the image
 	VkImageViewCreateInfo view_info = vkinit::imageview_create_info( format, newImage.image, aspectFlag, ( size.depth != 1 ) );
-	view_info.subresourceRange.levelCount = img_info.mipLevels;
+	if ( mipmapped ) {
+		view_info.subresourceRange.levelCount = newImage.numMips;
+	}
 
 	VK_CHECK( vkCreateImageView( device, &view_info, nullptr, &newImage.imageView[ 0 ] ) );
 
