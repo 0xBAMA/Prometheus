@@ -916,7 +916,26 @@ static inline VkImageMemoryBarrier2 makeImageBarrier ( VkImage img, VkPipelineSt
 		}
 	};
 }
-
+static inline VkImageMemoryBarrier2 makeImageBarrierSingleMip ( VkImage img, VkPipelineStageFlags2 srcStage, VkAccessFlags2 srcAccess, VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, uint32_t mip ) {
+	return VkImageMemoryBarrier2 {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+		.srcStageMask = srcStage,
+		.srcAccessMask = srcAccess,
+		.dstStageMask = dstStage,
+		.dstAccessMask = dstAccess,
+		.oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+		.newLayout = VK_IMAGE_LAYOUT_GENERAL,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = img,
+		.subresourceRange = {
+			VK_IMAGE_ASPECT_COLOR_BIT, mip,
+			1,
+			0,
+			VK_REMAINING_ARRAY_LAYERS
+		}
+	};
+}
 static inline VkImageMemoryBarrier2 makeImageBarrierD ( VkImage img, VkPipelineStageFlags2 srcStage, VkAccessFlags2 srcAccess, VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess ) {
 	return VkImageMemoryBarrier2 {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
