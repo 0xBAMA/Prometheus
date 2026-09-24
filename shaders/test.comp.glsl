@@ -658,6 +658,9 @@ void main () {
 	// direct lighting contribution
 		// generate a point on the light
 
+//=============================================================================================================================
+// BUG: the light trace below should not happen if the materialID == NOHIT (rays which escape)
+//=============================================================================================================================
 		// checking occlusion...
 		ray_t shadowRay;
 		shadowRay.origin = ray.origin;
@@ -735,8 +738,8 @@ void main () {
 		// if ( rFloat() > maxChannel ) break;
 		// transmission *= 1.0f / maxChannel; // compensation term
 
-		// single throughput term does not have as much information to work with
-		if ( rFloat() > transmission ) break; // but the operation is the same
+		// single throughput term does not have as much information to work with... unless you also use standard observer curve...
+		if ( ( /* GetLuma( wl_rgb( wavelength ) ) * ? */ rFloat() ) > transmission ) break; // but the operation is the same
 		transmission *= 1.0f / transmission; // compensation term
 	}
 
@@ -744,11 +747,11 @@ void main () {
 
 //=============================================================================================================================
 	// load the previous color, mix the new and old values based on the current sampleCount
-	const vec4 previousColor = imageLoad( image, pixel );
-	const float sampleCount = previousColor.a + 1.0f;
-	const float mixFactor = 1.0f / sampleCount;
-	const vec4 mixedColor = vec4( ( any( isnan( color.rgb ) ) ) ?
-		vec3( 0.0f ) : mix( previousColor.rgb, color.rgb, mixFactor ), sampleCount );
+//	const vec4 previousColor = imageLoad( image, pixel );
+//	const float sampleCount = previousColor.a + 1.0f;
+//	const float mixFactor = 1.0f / sampleCount;
+//	const vec4 mixedColor = vec4( ( any( isnan( color.rgb ) ) ) ?
+//		vec3( 0.0f ) : mix( previousColor.rgb, color.rgb, mixFactor ), sampleCount );
 
 //	if ( rFloat() < 0.001f ) {
 		imageAtomicAdd( rTally, pixel, uint( color.r * 1024 ) );
@@ -759,5 +762,5 @@ void main () {
 
 //=============================================================================================================================
 	// and store it back
-	imageStore( image, pixel, ( GlobalData.reset != 0 ) ? vec4( color, 1.0f ) : mixedColor );
+//	imageStore( image, pixel, ( GlobalData.reset != 0 ) ? vec4( color, 1.0f ) : mixedColor );
 }
