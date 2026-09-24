@@ -1225,8 +1225,19 @@ void PrometheusInstance::initComputePasses () {
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( rayBuffer.buffer ); } },
 
+			// THE LIGHT TRACE RAY BUFFER
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lightTraceRayBuffer.buffer ); } },
+
 			// wavelength importance sampling buffer (film sensitivity)
 
+		};
+
+		config.bufferMemoryBarriers = {
+			makeBufferBarrier( rayBuffer.buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+				VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
+			makeBufferBarrier( lightTraceRayBuffer.buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+				VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
 		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
@@ -1258,24 +1269,45 @@ void PrometheusInstance::initComputePasses () {
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( rayBuffer.buffer ); } },
 
+			// THE LIGHT TRACE RAY BUFFER
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lightTraceRayBuffer.buffer ); } },
+
 			// sRGB -> REFLECTANCE LUT
-			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+			{ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( jakobLUTImage.imageView[ 0 ] ); } },
 
 			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
-			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+			{ 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( LightParametersBuffer.buffer ); } },
 
 			// IMPORTANCE SAMPLING + WEIGHTING TEXTURES FOR THE LIGHTS
-			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumPDFImage.imageView[ 0 ] ); } },
 			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () {return Resource( SpectrumPDFImage.imageView[ 0 ] ); } },
+			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
 				[ & ] () {return Resource( SpectrumISImage.imageView[ 0 ] ); } },
-			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+			{ 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( PickISImage.imageView[ 0 ] ); } },
+
+			// TALLY IMAGES TO FEED ADAM -> used for successful light traces
+			{ 8, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyR.imageView[ 0 ] ); } },
+			{ 9, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyG.imageView[ 0 ] ); } },
+			{ 10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyB.imageView[ 0 ] ); } },
+			// note that we do not include it as we do not write "count", because that would
+				// double-count the sample that created this shadow trace
 
 			// any other buffers associated with intersection (BVH, etc)
 
+		};
+
+		config.bufferMemoryBarriers = {
+			makeBufferBarrier( rayBuffer.buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+				VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
+			makeBufferBarrier( lightTraceRayBuffer.buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+				VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
 		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
@@ -1307,31 +1339,42 @@ void PrometheusInstance::initComputePasses () {
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( rayBuffer.buffer ); } },
 
+			// THE LIGHT TRACE RAY BUFFER
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lightTraceRayBuffer.buffer ); } },
+
 			// sRGB -> REFLECTANCE LUT
-			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+			{ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( jakobLUTImage.imageView[ 0 ] ); } },
 
 			// PARAMETERS FOR THE CURRENTLY CONFIGURED SET OF LIGHTS
-			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+			{ 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( LightParametersBuffer.buffer ); } },
 
 			// IMPORTANCE SAMPLING + WEIGHTING TEXTURES FOR THE LIGHTS
-			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
-				[ & ] () {return Resource( SpectrumPDFImage.imageView[ 0 ] ); } },
 			{ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () {return Resource( SpectrumPDFImage.imageView[ 0 ] ); } },
+			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
 				[ & ] () {return Resource( SpectrumISImage.imageView[ 0 ] ); } },
-			{ 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
+			{ 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerNearest,
 				[ & ] () {return Resource( PickISImage.imageView[ 0 ] ); } },
 
 			// TALLY IMAGES TO FEED ADAM
-			{ 7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
-				[ & ] () { return Resource( AdamColorTallyR.imageView[ 0 ] ); } },
 			{ 8, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
-				[ & ] () { return Resource( AdamColorTallyG.imageView[ 0 ] ); } },
+				[ & ] () { return Resource( AdamColorTallyR.imageView[ 0 ] ); } },
 			{ 9, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
-				[ & ] () { return Resource( AdamColorTallyB.imageView[ 0 ] ); } },
+				[ & ] () { return Resource( AdamColorTallyG.imageView[ 0 ] ); } },
 			{ 10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( AdamColorTallyB.imageView[ 0 ] ); } },
+			{ 11, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
 				[ & ] () { return Resource( AdamCountTally.imageView[ 0 ] ); } },
+		};
+
+		config.bufferMemoryBarriers = {
+			makeBufferBarrier( rayBuffer.buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+				VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
+			makeBufferBarrier( lightTraceRayBuffer.buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+				VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT ),
 		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
