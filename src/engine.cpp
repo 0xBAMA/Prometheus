@@ -204,9 +204,25 @@ void PrometheusInstance::Draw () {
 
 	} else {
 
-		{ // running the pathtracer
-			scopedTimer start( "Test 1" );
-			testPipe.invoke2( cmd );
+		switch ( renderMode ) {
+		case 0: // wavefront case
+			{ // running N bounces for numRays rays in the wavefront pathtracer
+				scopedTimer start( "Wavefront Test" );
+				cameraGen.invoke2( cmd );
+				for ( int i = 0; i < bounces; i++ ) {
+					intersect.invoke2( cmd );
+					shading.invoke2( cmd );
+				}
+			}
+			break;
+		case 1: // conventional case, the iterative pathtracer
+			{ // running one iteration of N bounces
+				scopedTimer start( "Test 1" );
+				testPipe.invoke2( cmd );
+			}
+			break;
+		default:
+			break;
 		}
 
 		{ // testing Adam
@@ -496,6 +512,12 @@ void PrometheusInstance::MainLoop () {
 
 				static bool open = true;
 				if ( ImGui::Begin( "Edit", &open, ImGuiWindowFlags_NoNavInputs ) ) {
+
+					// toggling the renderer mode
+					ImGui::Text( "Renderer mode" );
+					ImGui::RadioButton( "Wavefront", &renderMode, 0 );
+					ImGui::SameLine();
+					ImGui::RadioButton( "Conventional", &renderMode, 1 );
 
 					ImGui::SliderFloat( "Brightness Scale", &globalData.brightnessScalar, 0.3f, 5.0f, "%.5f", ImGuiSliderFlags_Logarithmic ); // this should also apply to the raster step + accumulate step
 					ImGui::SliderFloat( "Resolution Scale", &renderScale, 0.05f, 1.0f ); // this should also apply to the raster step + accumulate step

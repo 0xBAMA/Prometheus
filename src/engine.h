@@ -183,6 +183,9 @@ public:
 	float epsilon = 0.001f;
 	int screenshotRequested = 0;
 
+	// toggling between wavefront and conventional
+	int renderMode = 0;
+
 	// profiling data
 	timerManager_t timer;
 	int timestampPeriod;
