@@ -133,7 +133,7 @@ struct ComputeConfig {
 	std::function< void( VkCommandBuffer cmd ) > updatePushConstants;
 
 	std::vector< VkImageMemoryBarrier2 > imageBarriers;
-	std::vector< VkBufferMemoryBarrier2 > memoryBarriers;
+	std::vector< VkBufferMemoryBarrier2 > bufferMemoryBarriers;
 
 	// specifically for Adam, but may be useful again
 	bool customDescriptorWrite = false;
@@ -153,7 +153,7 @@ struct RasterConfig {
 	std::function< VkExtent2D() > getRenderResolution;
 
 	std::vector< VkImageMemoryBarrier2 > imageBarriers;
-	std::vector< VkBufferMemoryBarrier2 > memoryBarriers;
+	std::vector< VkBufferMemoryBarrier2 > bufferMemoryBarriers;
 
 	// rasterizer config
 	VkCompareOp depthOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
@@ -199,7 +199,7 @@ struct ComputeEffect {
 
 	// barriers needed for this pass
 	std::vector< VkImageMemoryBarrier2 > imageBarriers;
-	std::vector< VkBufferMemoryBarrier2 > memoryBarriers;
+	std::vector< VkBufferMemoryBarrier2 > bufferMemoryBarriers;
 
 	// used for raster only
 	AllocatedImage *depthImage;
@@ -232,7 +232,7 @@ struct ComputeEffect {
 		minDepth = config.minDepth;
 		maxDepth = config.maxDepth;
 		imageBarriers = config.imageBarriers;
-		memoryBarriers = config.memoryBarriers;
+		bufferMemoryBarriers = config.bufferMemoryBarriers;
 
 		allocateDescriptorSet = config.allocateDescriptorSet;
 		dispatch = config.dispatch;
@@ -313,6 +313,9 @@ struct ComputeEffect {
 		allocateDescriptorSet = config.allocateDescriptorSet;
 		dispatch = config.dispatch;
 		updatePushConstants = config.updatePushConstants;
+
+		imageBarriers = config.imageBarriers;
+		bufferMemoryBarriers = config.bufferMemoryBarriers;
 
 		// setup for writing custom descriptors (vs statically written)
 		customDescriptorWrite = config.customDescriptorWrite;
@@ -427,8 +430,8 @@ struct ComputeEffect {
 	void barriers ( VkCommandBuffer cmd ) {
 		VkDependencyInfo barrierDependency {
 			.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-			.bufferMemoryBarrierCount = uint32_t( memoryBarriers.size() ),
-			.pBufferMemoryBarriers = memoryBarriers.data(),
+			.bufferMemoryBarrierCount = uint32_t( bufferMemoryBarriers.size() ),
+			.pBufferMemoryBarriers = bufferMemoryBarriers.data(),
 			.imageMemoryBarrierCount = uint32_t( imageBarriers.size() ),
 			.pImageMemoryBarriers = imageBarriers.data(),
 		};
