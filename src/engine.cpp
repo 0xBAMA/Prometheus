@@ -859,6 +859,8 @@ void PrometheusInstance::initResources () {
 	mapDrawImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Color Image" );
 	mapDepthImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Depth Image" );
 	rayBuffer = createBuffer( 64 * numRays, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Ray Buffer" );
+	lightTraceRayBuffer = createBuffer( 64 * numRays, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Light Trace Ray Buffer" );
+
 
 	// setup for the Adam interpolation scheme
 	AdamColorTallyR = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT, "Adam Color Tally R" );

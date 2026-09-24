@@ -205,6 +205,7 @@ public:
 	ComputeEffect intersect;
 	ComputeEffect shading;
 	AllocatedBuffer rayBuffer;
+	AllocatedBuffer lightTraceRayBuffer;
 
 // data/storage resources
 	AllocatedBuffer GlobalUBO;
