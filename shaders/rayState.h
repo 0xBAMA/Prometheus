@@ -36,11 +36,14 @@ void AddEnergy			( inout rayState_t rayState, float energy )		{ SetEnergyTotal( 
 
 void SetTransmission	( inout rayState_t rayState, float transmission ) { rayState.data3.w = transmission; }
 float GetTransmission	( rayState_t rayState )							{ return rayState.data3.w; }
+void Attenuate			( inout rayState_t rayState, float albedo )		{ float trans = GetTransmission( rayState ); SetTransmission( rayState, trans * albedo ); }
+bool isDead				( rayState_t rayState )							{ return rayState.data3.w == 0.0f; }
+void Kill				( rayState_t rayState )							{ rayState.data3.w = 0.0f; }
 
 void SetNormal			( inout rayState_t rayState, vec3 normal )		{ rayState.data3.xyz = normal; }
 vec3 GetNormal			( rayState_t rayState )							{ return rayState.data3.xyz; }
 
-// encoding in the length of the direction vector now (safer than using normal)
+// encoding in the length of the direction vector now (safer than using normal) / reusing for light id
 void SetBounce			( inout rayState_t rayState, int bounce )		{ vec3 dir = GetRayDirection( rayState ); SetRayDirection( rayState, bounce * normalize( dir ) ); }
 int GetBounce			( rayState_t rayState )							{ return int( length( GetRayDirection( rayState ) ) ); }
 

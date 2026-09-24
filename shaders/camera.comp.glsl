@@ -13,21 +13,36 @@ layout ( set = 0, binding = 1 ) buffer rayBuffer {
 	rayState_t rays[];
 };
 //=============================================================================================================================
+layout ( set = 0, binding = 2 ) buffer lightTraceRayBuffer {
+	rayState_t lightTraceRays[];
+};
+//=============================================================================================================================
 // todo: film sensitivity LUTs, traced like the light LUTs -> importance sampling basis for wavelength
 //=============================================================================================================================
 void main () {
 
 	uint idx = gl_GlobalInvocationID.x;
-	seed = PushConstants.wangSeed + 8675309 * idx;
 
 	// this shader is responsible for generating the initial camera rays
 		// tbd how the pixel offsets are sourced, not sure yet
 
+//=============================================================================================================================
+	// write a dead, but otherwise default initialized ray to the light trace buffer -> known initial state
+	rayState_t rayLightTrace;
+	StateReset( rayLightTrace );
+	Kill( rayLightTrace );
+	lightTraceRays[ idx ] = rayLightTrace;
+
+//=============================================================================================================================
+	// the camera ray
 	rayState_t ray;
 	StateReset( ray );
 
-	// starting uniform sampling
-	const ivec2 pixel = ivec2( rFloat2() * vec2( GlobalData.presentBufferResolution.xy ) );
+	// starting uniform sampling with something that will be more deterministic
+	seed = PushConstants.wangSeed + 8675309 * idx;
+//	const ivec2 pixel = ivec2( rFloat2() * vec2( GlobalData.presentBufferResolution.xy ) );
+	const ivec2 pixel = ivec2( 0.5f * UniformSampleHexagon() * rFloatN2() * vec2( GlobalData.presentBufferResolution.xy ) + GlobalData.presentBufferResolution.xy / 2.0f );
+
 
 //=============================================================================================================================
 	// initial imagespace position for camera + jitter

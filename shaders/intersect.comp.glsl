@@ -8,7 +8,6 @@ layout ( local_size_x = 256, local_size_y = 1 ) in;
 #include "common.h"
 #include "random.h"
 #include "rayState.h"
-#include "draine2.h" // phase function
 #include "pbrConstants.glsl"
 #include "hg_sdf.h"
 #include "wood.h"
@@ -18,8 +17,12 @@ layout ( set = 0, binding = 1 ) buffer rayBuffer {
 	rayState_t rays[];
 };
 //=============================================================================================================================
+layout ( set = 0, binding = 2 ) buffer lightTraceRayBuffer {
+	rayState_t lightTraceRays[];
+};
+//=============================================================================================================================
 // Spectral Reflectance LUT
-layout ( set = 0, binding = 2 ) uniform sampler3D jakobLUT;
+layout ( set = 0, binding = 3 ) uniform sampler3D jakobLUT;
 float sRGBtoReflectance ( vec3 sRGBColor, float lambda ) {
 	vec3 coeff = texture( jakobLUT, sRGBColor ).rgb;
 	float x = fma( fma( coeff.x, lambda, coeff.y ), lambda, coeff.z ),
@@ -35,13 +38,18 @@ struct LightEmitterParameters {
 	float angleThresh;
 	vec3 previewColor;
 };
-layout( set = 0, binding = 3, scalar ) uniform emitterParameters {
+layout( set = 0, binding = 4, scalar ) uniform emitterParameters {
 	LightEmitterParameters params[ 256 ];
 } EmitterParameters;
 //=============================================================================================================================
-layout ( set = 0, binding = 4 ) uniform sampler2D lightPDF; // Light PDFs, spectral power distribution
-layout ( set = 0, binding = 5 ) uniform sampler2D lightiCDF; // Light iCDFs, for importance sampling
-layout ( set = 0, binding = 6 ) uniform usampler2D lightPick; // For picking a light, for importance sampling by brightness
+layout ( set = 0, binding = 5 ) uniform sampler2D lightPDF; // Light PDFs, spectral power distribution
+layout ( set = 0, binding = 6 ) uniform sampler2D lightiCDF; // Light iCDFs, for importance sampling
+layout ( set = 0, binding = 7 ) uniform usampler2D lightPick; // For picking a light, for importance sampling by brightness
+//=============================================================================================================================
+// Atomic Tally Textures
+layout ( r32ui, set = 0, binding = 8 ) uniform uimage2D RTally;
+layout ( r32ui, set = 0, binding = 9 ) uniform uimage2D GTally;
+layout ( r32ui, set = 0, binding = 10 ) uniform uimage2D BTally;
 //=============================================================================================================================
 struct ray_t {
 	vec3 origin;
@@ -589,34 +597,77 @@ void main () {
 //=============================================================================================================================
 	// initial ray state for the ray we want to handle
 	uint idx = gl_GlobalInvocationID.x;
+	seed = PushConstants.wangSeed + 8675309 * idx;
+
+	// load the current state from both buffers
+	rayState_t lightTraceRay = lightTraceRays[ idx ];
 	rayState_t ray = rays[ idx ];
 
+	// if the light trace is queued (vaild ray_t in the light trace buffer) do the light trace also
+	if ( !isDead( lightTraceRay ) ) {
+
+		// light index is encoded in the direction
+		vec3 direction = GetRayDirection( lightTraceRay );
+		uint lightIndex = uint( length( direction ) ) - 1;
+		float wavelength = GetWavelength( lightTraceRay );
+		LightEmitterParameters l = EmitterParameters.params[ lightIndex ];
+
+		// intial early-out based on cone angle
+		if ( dot( l.direction, -normalize( direction ) ) > l.angleThresh ) {
+			ray_t shadowRay;
+			shadowRay.direction = normalize( direction );
+			shadowRay.origin = GetRayOrigin( lightTraceRay );
+
+			// see if we scatter before the given distance ( can that come in as an argument to early out of the traces )
+			intersection_t lightOcclusion = getSceneIntersection( shadowRay );
+			if ( lightOcclusion.dTravel >= GetDistance( lightTraceRay ) ) {
+			// we have a clear path to the light... need to make the appropriate increment to the accumulator
+	// the increment associated with this light can happen immediately, if there is no intersection closer than the light
+
+				float lightContribution = GetTransmission( lightTraceRay ) * texture( lightPDF, vec2( ( wavelength - 380.0f ) / 450.0f, ( lightIndex + 0.5f ) / textureSize( lightPDF, 0 ).y ) ).r;
+
+				// buffer tallies
+				ivec2 pixel = GetPixelIndex( lightTraceRay );
+				vec3 color = wl_rgb( wavelength ) * clamp( lightContribution, 0.0f, 100.0f );
+				imageAtomicAdd( RTally, pixel, uint( color.r * 1024 ) );
+				imageAtomicAdd( GTally, pixel, uint( color.g * 1024 ) );
+				imageAtomicAdd( BTally, pixel, uint( color.b * 1024 ) );
+				// incrementing "count" here would be double counting the parent sample
+			}
+		}
+
+	}
+
+	if ( !isDead( ray ) ) {
+
 	// this shader is responsible for all ray-scene intersections with volumes, SDFs, etc
-		// part of this is also populating all the material information for the intersection
+	// part of this is also populating all the material information for the intersection
 
 //=============================================================================================================================
 	// couple pieces of global state to take care of first
-	wavelength = GetWavelength( ray );
-	bounce = GetBounce( ray );
+		wavelength = GetWavelength( ray );
+		bounce = GetBounce( ray );
 
 	// and the stuff needed for the intersection itself
-	ray_t r;
-	r.direction = normalize( GetDirection( ray ) );
-	r.origin = GetOrigin( ray );
+		ray_t r;
+		r.direction = normalize( GetRayDirection( ray ) );
+		r.origin = GetRayOrigin( ray );
 
-	intersection_t intersection = getSceneIntersection( r );
+		intersection_t intersection = getSceneIntersection( r );
 
 //=============================================================================================================================
-	// key things that need to be written by this shader:
-		// roughness/albedo pair
-		// distance
-		// surface type
-		// mat/ior pair
-		// normal
+// key things that need to be written by this shader:
+	// distance
+	// normal
+	// roughness/albedo pair
+	// mat/ior pair
 
-
-	SetDistance();
+		SetDistance( ray, intersection.dTravel );
+		SetNormal( ray, intersection.normal );
+		SetRoughnessAlbedo( ray, vec2( intersection.roughness, intersection.albedo ) );
+		SetMatIoR( ray, vec2( intersection.materialID, intersection.IoR ) );
 
 	// write back ray state with the information for the closest intersection/scattering event
-	rays[ idx ] = ray;
+		rays[ idx ] = ray;
+	}
 }
