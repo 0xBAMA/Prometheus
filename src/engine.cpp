@@ -1857,6 +1857,8 @@ AllocatedImage PrometheusInstance::createImage ( VkExtent3D size, VkFormat forma
 	VkImageCreateInfo img_info = vkinit::image_create_info( format, usage, size );
 	if ( mipmapped ) {
 		newImage.numMips = img_info.mipLevels = static_cast<uint32_t>( std::floor( std::log2( std::max( size.width, size.height ) ) ) ) + 1;
+	} else {
+		newImage.numMips = img_info.mipLevels;
 	}
 
 	// always allocate images on dedicated GPU memory
