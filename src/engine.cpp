@@ -188,50 +188,56 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, AdamCountTally.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, AdamOutputTex.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
-	if ( mapConfig.mapActive ) {
+	// if ( mapConfig.mapActive ) {
+	//
+	// 	// drawing the map
+	// 	scopedTimer start( "Map Draw" );
+	// 	mapOpaque.invoke2( cmd );
+	//
+	// 	// copying raster result to the framebuffer
+	// 	// vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+	// 	// vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
+	// 	// vkutil::copy_image_to_image( cmd, mapDrawImage.image, Accumulator.image, { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ) }, { uint32_t( ImageBufferResolution.width * renderScale ), uint32_t( ImageBufferResolution.height * renderScale ) });
+	// 	// vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL );
+	// 	// vkutil::transition_image( cmd, mapDrawImage.image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL );
+	// 	mapCopy.invoke2( cmd );
+	//
+	// } else {
+	//
+	// 	switch ( renderMode ) {
+	// 	case 0: // wavefront case
+	// 		{ // running N bounces for numRays rays in the wavefront pathtracer
+	// 			scopedTimer start( "Wavefront Test" );
+	// 			cameraGen.invoke2( cmd );
+	// 			for ( int i = 0; i <= bounces; i++ ) {
+	// 				intersect.invoke2( cmd );
+	// 				shading.invoke2( cmd );
+	// 			}
+	// 		}
+	// 		break;
+	// 	case 1: // conventional case, the iterative pathtracer
+	// 		{ // running one iteration of N bounces
+	// 			scopedTimer start( "Test 1" );
+	// 			testPipe.invoke2( cmd );
+	// 		}
+	// 		break;
+	// 	default:
+	// 		break;
+	// 	}
+	//
+	// 	{ // testing Adam
+	// 		scopedTimer start( "Adam Test" );
+	//
+	// 		AdamCopy.invoke2( cmd );			// copy tally data
+	// 		AdamSweep.invoke2( cmd );			// propagate through mips
+	// 		AdamPresent.invoke2( cmd );			// sample Adam into the accumulator
+	// 	}
+	// }
 
-		// drawing the map
-		scopedTimer start( "Map Draw" );
-		mapOpaque.invoke2( cmd );
-
-		// copying raster result to the framebuffer
-		// vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
-		// vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
-		// vkutil::copy_image_to_image( cmd, mapDrawImage.image, Accumulator.image, { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ) }, { uint32_t( ImageBufferResolution.width * renderScale ), uint32_t( ImageBufferResolution.height * renderScale ) });
-		// vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL );
-		// vkutil::transition_image( cmd, mapDrawImage.image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL );
-		mapCopy.invoke2( cmd );
-
-	} else {
-
-		switch ( renderMode ) {
-		case 0: // wavefront case
-			{ // running N bounces for numRays rays in the wavefront pathtracer
-				scopedTimer start( "Wavefront Test" );
-				cameraGen.invoke2( cmd );
-				for ( int i = 0; i < bounces; i++ ) {
-					intersect.invoke2( cmd );
-					shading.invoke2( cmd );
-				}
-			}
-			break;
-		case 1: // conventional case, the iterative pathtracer
-			{ // running one iteration of N bounces
-				scopedTimer start( "Test 1" );
-				testPipe.invoke2( cmd );
-			}
-			break;
-		default:
-			break;
-		}
-
-		{ // testing Adam
-			scopedTimer start( "Adam Test" );
-
-			AdamCopy.invoke2( cmd );			// copy tally data
-			AdamSweep.invoke2( cmd );			// propagate through mips
-			AdamPresent.invoke2( cmd );			// sample Adam into the accumulator
-		}
+	// pipeline to draw the gaussian splats
+	{
+		scopedTimer start( "Splats" );
+		splats.invoke2( cmd );
 	}
 
 	{ // compute shader to accumulate the raster result + put the resolved final image into the drawImage...

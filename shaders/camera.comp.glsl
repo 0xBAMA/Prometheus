@@ -40,9 +40,7 @@ void main () {
 
 	// starting uniform sampling with something that will be more deterministic
 	seed = PushConstants.wangSeed + 8675309 * idx;
-//	const ivec2 pixel = ivec2( rFloat2() * vec2( GlobalData.presentBufferResolution.xy ) );
-	const ivec2 pixel = ivec2( 0.5f * UniformSampleHexagon() * rFloatN2() * vec2( GlobalData.presentBufferResolution.xy ) + GlobalData.presentBufferResolution.xy / 2.0f );
-
+	const ivec2 pixel = ivec2( rFloat2() * vec2( GlobalData.presentBufferResolution.xy ) );
 
 //=============================================================================================================================
 	// initial imagespace position for camera + jitter

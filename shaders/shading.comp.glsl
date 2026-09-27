@@ -93,6 +93,7 @@ void main () {
 			SetDistance( lightTraceRay, length( shadowRayDirection ) );
 			SetWavelength( lightTraceRay, GetWavelength( ray ) );
 			SetPixelIndex( lightTraceRay, GetPixelIndex( ray ) );
+			SetBounce( lightTraceRay, GetBounce( ray ) );
 		}
 
 		// there is a possibility that this should happen before the light trace is spawned, but this is the order it takes place in right now
@@ -144,6 +145,8 @@ void main () {
 				break;
 			}
 
+			// increment bounce
+			SetBounce( ray, GetBounce( ray ) );
 		}
 
 		// applying the russian roulette compensation term
@@ -157,7 +160,7 @@ void main () {
 
 			bool terminateRay =
 				( rrTerminate ) ||
-				( GetBounce( ray ) == GlobalData.bounces ) ||
+				( GetBounce( ray ) >= GlobalData.bounces - 1 ) ||
 				( GetTransmission( ray ) < 0.001f );
 
 			// this is how the color is determined

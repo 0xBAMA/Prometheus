@@ -457,7 +457,6 @@ float density( vec3 p ) {
 	float val = ( deLumpy( p ) );
 	if ( val > GlobalData.epsilon )
 	return 0.0f;
-	return noise( p * 6.0f );
 	//	return 1.0f;
 	//	return GetLuma( matWood( p * 0.1f ) ).r;
 
