@@ -856,11 +856,39 @@ void PrometheusInstance::initResources () {
 	GlobalUBO = createBuffer( sizeof( GlobalData ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Global Data UBO" );
 	Accumulator = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Accumulator" );
 	LightParametersBuffer = createBuffer( 256 * sizeof( LightEmitterParameters ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Light Parameter UBO" );
-	mapDrawImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Color Image" );
-	mapDepthImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Depth Image" );
 	rayBuffer = createBuffer( 64 * numRays, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Ray Buffer" );
 	lightTraceRayBuffer = createBuffer( 64 * numRays, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Light Trace Ray Buffer" );
 
+	// for the minimap
+	mapDrawImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Color Image" );
+	mapDepthImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Depth Image" );
+
+	// for the gaussian splats
+	{
+		splatDrawImage = createImage( splatExtent, VK_FORMAT_R16G16B16A16_SFLOAT,  VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, "Splat Draw Image" );
+		splatDepthImage = createImage( splatExtent, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Splat Depth Image" );
+
+		// load the data from disk
+		splatModel = loadScene();
+
+		// put the data for the splats into a buffer
+		splatsBuffer = createBuffer( sizeof( GaussianSplatPacked ) * splatModel.splats.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Splat Vertex Buffer"); // need to pack these values
+		memcpy( splatsBuffer.allocation->GetMappedData(), &splatModel.splats[ 0 ], splatModel.splats.size() * sizeof( GaussianSplatPacked ) );
+
+		// this computes the index buffers that are required for blending
+		splatModel.ComputeDistinctOrderings();
+
+		// and computing the scene bounds
+		splatModel.ComputeSceneBounds();
+
+		// 4-byte indices are kept for each splat, for each of the 48 distinct orderings
+		splatsIndexBuffer = createBuffer( splatModel.splats.size() * sizeof( uint32_t ) * 48, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Splat Index Buffer" );
+		memcpy( splatsIndexBuffer.allocation->GetMappedData(), &splatModel.indices[ 0 ], splatModel.splats.size() * sizeof( uint32_t ) * 48 );
+
+		// this is the config struct, with the view transform and some other global rendering data
+		splatsConfigBuffer = createBuffer( sizeof( splatsConfig_t ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Splat Config Buffer" );
+		memcpy( splatsConfigBuffer.allocation->GetMappedData(), &splatsConfig, sizeof( splatsConfig_t ) );
+	}
 
 	// setup for the Adam interpolation scheme
 	AdamColorTallyR = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT, "Adam Color Tally R" );
