@@ -416,6 +416,8 @@ public:
 	static constexpr int maxLights { 256 };
 	LightManager () {}
 
+	vec3* viewerPosition = nullptr;
+	vec3* viewerDirection = nullptr;
 	float* brightnessScalar = nullptr;
 	glm::vec3 *sceneSize = nullptr;
 
@@ -492,7 +494,10 @@ public:
 			prevSumPower += light.brightness;
 		}
 
+		// create the new light at the viewer location
 		lights.emplace_back( brightness, sceneSize ); // constructor calls Update()
+		lights[ lights.size() - 1 ].parameters.direction = *viewerDirection;
+		lights[ lights.size() - 1 ].parameters.position = *viewerPosition;
 		needsUpdate = true;
 
 		// should keep subjective brightness constant (light initialized with brightess = 1)

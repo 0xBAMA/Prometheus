@@ -2179,6 +2179,8 @@ void PrometheusInstance::initLights () {
 	// setting up some of the global resources used by the lights
 	lightManager.Initialize();
 	lightManager.brightnessScalar = &globalData.brightnessScalar;
+	lightManager.viewerPosition = &globalData.viewerPosition;
+	lightManager.viewerDirection = &globalData.basisZ;
 	lightManager.sceneSize = &globalData.sceneExtents;
 	lightManager.AddLight( 1.0f ); // placeholder, since the mouse light is gone
 
