@@ -30,6 +30,8 @@ using namespace std::chrono_literals;
 #include <third_party/imgui/imgui_impl_vulkan.h>
 #include <third_party/imgui/LegitProfiler/ImGuiProfilerRenderer.h>
 
+#include "gaussianSplats.h"
+
 #include <third_party/yaml-cpp/include/yaml-cpp/yaml.h>
 
 #include <glm/gtx/transform.hpp>
@@ -171,6 +173,8 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_imageD( cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_imageD( cmd, mapDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, splatDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_imageD( cmd, splatDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 	vkutil::transition_image( cmd, font_codepage437.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, font_fatfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
@@ -1041,6 +1045,89 @@ static VkBufferMemoryBarrier2 makeBufferBarrier ( VkBuffer buf, VkPipelineStageF
 void PrometheusInstance::initComputePasses () {
 
 	renderScale = 0.3f;
+
+	{
+		RasterConfig config;
+		config.name = "Splat Draw";
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// THE SPLAT INDEX DATA
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( splatsIndexBuffer.buffer ); } },
+
+			// THE SPLAT DATA
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+			[ & ] () { return Resource( splatsBuffer.buffer ); } },
+
+			// THE SPLAT SCENE CONFIG DATA
+			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+			[ & ] () { return Resource( splatsConfigBuffer.buffer ); } },
+		};
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		// SHADERS
+		config.shaderPathFrag = "../shaders/splat.frag.glsl.spv";
+		config.shaderPathVert = "../shaders/splat.vert.glsl.spv";
+
+		// FBO CONFIG
+		config.drawImage = &splatDrawImage;
+		config.depthImage = &splatDepthImage;
+		config.clearColor = true;
+		config.clearDepth = true;
+		config.blendMode = 2; // enable alpha blending
+
+		// raster config
+		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		config.lineWidth = 1.0f;
+		config.defaultEndRendering = false;
+
+		// tbd on depth testing details
+		config.depthWriteEnable = false;
+		config.getRenderResolution = [&]() {
+			return VkExtent2D{ splatExtent.width, splatExtent.height };
+		};
+
+		// DRAW
+		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			splats.pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, splats.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &splats.pushConstants );
+		};
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+		// get the view vector -> this tells you which list of splats you want
+			// splatsConfig.viewMatrix = ;
+			vec3 testVec = ( splatsConfig.viewMatrix * vec4( 0.0f, 0.0f, 1.0f, 0.0f ) ).xyz();
+			splatsConfig.indexOrderSelect = calcOrder( testVec );
+			splatsConfig.numSplats = splatModel.splats.size();
+			splatsConfig.splatFramebufferSize = glm::ivec2( splatExtent.width, splatExtent.height );
+
+			// update the config buffer
+			memcpy( splatsConfigBuffer.allocation->GetMappedData(), &splatsConfig, sizeof( splatsConfig_t ) );
+
+			// draw the splats
+			vkCmdDraw( cmd, 6 * splatsConfig.numSplats, 1, 0, 0 );
+			vkCmdEndRendering( cmd ); // this is a little confused, need to work on this
+
+			// barriers for color resolve
+			VkImageMemoryBarrier2 imgBarrier = makeImageBarrier( splatDrawImage.image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT );
+			VkDependencyInfo dependencyInfo = {
+				.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+				.bufferMemoryBarrierCount = 0,
+				.imageMemoryBarrierCount = 1,
+				.pImageMemoryBarriers = &imgBarrier,
+			};
+			vkCmdPipelineBarrier2( cmd, &dependencyInfo );
+
+			// blit to the accumulator
+			vkutil::copy_image_to_imageG( cmd, splatDrawImage.image, Accumulator.image, { splatExtent.width, splatExtent.height }, drawExtent );
+		};
+
+		splats.init( &device, &mainDeletionQueue, config );
+	}
 
 	{ // Adam Copy Shader
 		ComputeConfig config;

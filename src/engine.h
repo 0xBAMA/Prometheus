@@ -12,6 +12,7 @@
 
 #include "lightManager.h"
 #include "timer.h"
+#include "gaussianSplats.h"
 
 #ifndef PI_DEFINED
 #define PI_DEFINED
@@ -168,6 +169,14 @@ struct mapConfig_t {
 	glm::mat4 orientation = glm::mat4( 1.0f );
 };
 
+struct splatsConfig_t {
+	uint32_t indexOrderSelect = 0; // picking between the 48 sets of indices
+	uint32_t numSplats = 0;
+	glm::mat4 viewMatrix = glm::mat4( 1.0f );
+	glm::mat4 projMatrix = glm::mat4( 1.0f );
+	glm::ivec2 splatFramebufferSize = glm::ivec2( 0 );
+};
+
 class PrometheusInstance {
 public:
 	// simplified state for the interactive camera + scene
@@ -190,6 +199,17 @@ public:
 	timerManager_t timer;
 	int timestampPeriod;
 	bool showMenu = true;
+
+	// quick test of the gaussian splats
+	Scene splatModel;
+	VkExtent3D splatExtent{ 1280, 720, 1 };
+	AllocatedImage splatDrawImage;
+	AllocatedImage splatDepthImage;
+	ComputeEffect splats;
+	AllocatedBuffer splatsBuffer;
+	AllocatedBuffer splatsIndexBuffer;
+	AllocatedBuffer splatsConfigBuffer;
+	splatsConfig_t splatsConfig;
 
 	// for drawing the user interactive map
 	mapConfig_t mapConfig;
