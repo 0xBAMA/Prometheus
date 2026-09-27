@@ -165,6 +165,9 @@ struct RasterConfig {
 
 	bool clearColor = false;
 	bool clearDepth = false;
+	bool defaultEndRendering = true;
+
+	int blendMode = 0;
 
 	// what you're drawing...
 	// polygon mode, default to VK_POLYGON_MODE_FILL
@@ -208,6 +211,9 @@ struct ComputeEffect {
 	bool clearDepth = false;
 	float minDepth = 0.0f;
 	float maxDepth = 1.0f;
+	float lineWidth = 1.0f;
+
+	bool defaultEndRendering = true;
 
 	// so we can have the main loop code local to the declaration
 	std::function< void( VkCommandBuffer cmd ) > invoke;
@@ -233,6 +239,8 @@ struct ComputeEffect {
 		maxDepth = config.maxDepth;
 		imageBarriers = config.imageBarriers;
 		bufferMemoryBarriers = config.bufferMemoryBarriers;
+		lineWidth = config.lineWidth;
+		defaultEndRendering = config.defaultEndRendering;
 
 		allocateDescriptorSet = config.allocateDescriptorSet;
 		dispatch = config.dispatch;
@@ -286,7 +294,12 @@ struct ComputeEffect {
 			pipelineBuilder.set_polygon_mode( VK_POLYGON_MODE_FILL );
 			pipelineBuilder.set_cull_mode( VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE );
 			pipelineBuilder.set_multisampling_none(); // tbd, not core functionality for now
-			pipelineBuilder.disable_blending();
+			switch ( config.blendMode ) {
+				case 0: pipelineBuilder.disable_blending(); break;
+				case 1: pipelineBuilder.enable_blending_additive(); break;
+				case 2: pipelineBuilder.enable_blending_alphablend(); break;
+				default: break;
+			}
 			pipelineBuilder.set_line_width( config.lineWidth );
 			pipelineBuilder.set_color_attachment_format( config.drawImage->imageFormat );
 			pipelineBuilder.enable_depthtest( config.depthWriteEnable, config.depthTestEnable, config.depthOp, config.minDepth, config.maxDepth );
@@ -421,6 +434,8 @@ struct ComputeEffect {
 		VkRect2D scissor = { .offset = { 0, 0 } };
 		scissor.extent = extent;
 		vkCmdSetScissor( cmd, 0, 1, &scissor );
+
+		vkCmdSetLineWidth( cmd, lineWidth );
 	}
 
 	void endRendering( VkCommandBuffer cmd ) {
@@ -465,7 +480,7 @@ struct ComputeEffect {
 		// invoke the actual pass + barriers
 		dispatch( cmd );
 
-		if ( type == GRAPHICS ) {
+		if ( type == GRAPHICS && defaultEndRendering ) {
 			endRendering( cmd );
 		}
 		barriers( cmd );
