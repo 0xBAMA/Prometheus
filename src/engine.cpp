@@ -1234,7 +1234,9 @@ void PrometheusInstance::initComputePasses () {
 
 		config.shaderPath = "../shaders/test.comp.glsl.spv";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
-			vkCmdDispatch( cmd, ( ( drawExtent.width ) + 15 ) / 16, ( ( drawExtent.height ) + 15 ) / 16, 1 );
+			int w = 1024;
+			int h = 1024;
+			vkCmdDispatch( cmd, ( ( w ) + 15 ) / 16, ( ( h ) + 15 ) / 16, 1 );
 		};
 
 		// creating the actual API resources

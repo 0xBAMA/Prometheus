@@ -599,8 +599,11 @@ intersection_t getSceneIntersection ( ray_t ray ) {
 void main () {
 //=============================================================================================================================
 	// initializing the RNG
-	const ivec2 pixel = ivec2( gl_GlobalInvocationID.xy );
+	ivec2 pixel = ivec2( gl_GlobalInvocationID.xy );
 	seed = PushConstants.wangSeed + 8675309 * pixel.x + 42069 * pixel.y;
+
+	// randomize pixel
+	pixel = ivec2( rFloat2() * GlobalData.presentBufferResolution );
 
 //=============================================================================================================================
 	// initial imagespace position for camera + jitter
