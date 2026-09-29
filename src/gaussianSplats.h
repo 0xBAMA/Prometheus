@@ -20,20 +20,13 @@ static constexpr int SH_COUNT = 16;
 static constexpr int SH_CHANNEL_COUNT = 3;
 static constexpr int SH_FLOAT_COUNT = SH_COUNT * SH_CHANNEL_COUNT;
 
-// struct GaussianSplat {
-// 	glm::vec3 centroid = glm::vec3(0.0f);
-// 	float opacity = 0.0f;
-// 	std::array<float, SH_FLOAT_COUNT> sphericalHarmonics = { 0.0f };
-// 	std::array<float, 3> scale = {0.0f, 0.0f, 0.0f};
-// 	std::array<float, 4> rotation = {1.0f, 0.0f, 0.0f, 0.0f};
-// };
+#include "camera.h"
 
 struct GaussianSplatPacked {
 	glm::vec4 centroidOpacity = glm::vec4( 0.0f );
-	glm::vec4 harmonics[ SH_CHANNEL_COUNT ] = { glm::vec4( 0.0f ) };
+	glm::vec4 harmonics[ SH_COUNT ] = { glm::vec4( 0.0f ) };
 	glm::vec4 scale = glm::vec4( 1.0f );
 	glm::vec4 rotation = glm::vec4( 1.0f, 0.0f, 0.0f, 0.0f );
-	glm::vec4 pad = glm::vec4( 0.0f );
 };
 
 // for precomputing index buffers with the orderings
@@ -217,19 +210,20 @@ inline Scene loadScene () {
 			scene.splats[ i ].harmonics[ 0 ].r = vertex_f_dc_0[ i ];
 			scene.splats[ i ].harmonics[ 0 ].g = vertex_f_dc_1[ i ];
 			scene.splats[ i ].harmonics[ 0 ].b = vertex_f_dc_2[ i ];
+			scene.splats[ i ].harmonics[ 0 ].a = 1.0f;
 		}
 
 		// then there's N of these other channels with the harmonics data
 		// find how many channels start with "f_rest_", and use that to guide the rest of the loading
-		int idx = 3; // starting at the third element in this array
+		int idx = 0;
 		for ( int i = 0; i < plyData.getElement( "vertex" ).getPropertyNames().size(); i++ ) {
 			if ( plyData.getElement( "vertex" ).getPropertyNames()[ i ].starts_with( "f_rest_" ) ) {
 				std::vector< float > vertex_f_rest_N = plyData.getElement( "vertex" ).getProperty< float >( plyData.getElement( "vertex" ).getPropertyNames()[ i ] );
 				for ( int i = 0; i < nSplats ; i++ ) {
 					switch ( idx % 3 ) {
-					case 0: scene.splats[ i ].harmonics[ idx / 3 ].r = vertex_f_rest_N[ i ]; break;
-					case 1: scene.splats[ i ].harmonics[ idx / 3 ].g = vertex_f_rest_N[ i ]; break;
-					case 2: scene.splats[ i ].harmonics[ idx / 3 ].b = vertex_f_rest_N[ i ]; break;
+					case 0: scene.splats[ i ].harmonics[ 1 + idx / 3 ].r = vertex_f_rest_N[ i ]; break;
+					case 1: scene.splats[ i ].harmonics[ 1 + idx / 3 ].g = vertex_f_rest_N[ i ]; break;
+					case 2: scene.splats[ i ].harmonics[ 1 + idx / 3 ].b = vertex_f_rest_N[ i ]; break;
 					}
 				}
 				idx++;
