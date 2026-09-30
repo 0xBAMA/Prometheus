@@ -34,7 +34,7 @@ using namespace std::chrono_literals;
 
 #include <third_party/yaml-cpp/include/yaml-cpp/yaml.h>
 
-#include <glm/gtx/transform.hpp>
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/gtc/packing.hpp>
 
 #include <third_party/stb/stb_image_write.h>
@@ -942,9 +942,6 @@ void PrometheusInstance::initResources () {
 		// this computes the index buffers that are required for blending
 		splatModel.ComputeDistinctOrderings();
 
-		// and computing the scene bounds
-		splatModel.ComputeSceneBounds();
-
 		// 4-byte indices are kept for each splat, for each of the 48 distinct orderings
 		splatsIndexBuffer = createBuffer( splatModel.splats.size() * sizeof( uint32_t ) * 48, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Splat Index Buffer" );
 		memcpy( splatsIndexBuffer.allocation->GetMappedData(), &splatModel.indices[ 0 ], splatModel.splats.size() * sizeof( uint32_t ) * 48 );
@@ -1154,24 +1151,44 @@ void PrometheusInstance::initComputePasses () {
 		config.defaultEndRendering = false;
 
 		// tbd on depth testing details
+		config.depthTestEnable = false;
 		config.depthWriteEnable = false;
+		// config.depthWriteEnable = true;
+		// config.depthTestEnable = true;
 		config.getRenderResolution = [&]() {
 			return VkExtent2D{ splatExtent.width, splatExtent.height };
 		};
 
 		// DRAW
-		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
 			splats.pushConstants.wangSeed = genWangSeed();
 			vkCmdPushConstants( cmd, splats.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &splats.pushConstants );
 		};
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
-		// get the view vector -> this tells you which list of splats you want
-			// splatsConfig.viewMatrix = ;
-			vec3 testVec = ( splatsConfig.viewMatrix * vec4( 0.0f, 0.0f, 1.0f, 0.0f ) ).xyz();
-			splatsConfig.indexOrderSelect = calcOrder( testVec );
 			splatsConfig.numSplats = splatModel.splats.size();
 			splatsConfig.splatFramebufferSize = glm::ivec2( splatExtent.width, splatExtent.height );
+
+			constexpr glm::mat4 vulkan_clip {
+				1.0f,  0.0f, 0.0f, 0.0f,
+				0.0f, -1.0f, 0.0f, 0.0f,
+				0.0f,  0.0f, 0.5f, 0.0f,
+				0.0f,  0.0f, 0.5f, 1.0f
+			};
+
+			glm::mat4 view = splatCamera.getViewMatrix();
+			glm::mat4 sceneModel = splatOrbit.modelMatrix();
+			// splatsConfig.viewMatrix = vulkan_clip * view * sceneModel;
+			// splatsConfig.projMatrix = glm::perspective( glm::radians( splatCamera.fov ),  static_cast<float>( splatExtent.width ) / static_cast<float>( splatExtent.height ), splatModel.radius * 0.01f, splatModel.radius * 10.0f ) * vulkan_clip;
+			splatsConfig.viewMatrix = vulkan_clip * view * sceneModel;
+			// splatsConfig.projMatrix = glm::perspective( glm::radians( splatCamera.fov ), static_cast<float>( splatExtent.width ) / static_cast<float>( splatExtent.height ), splatModel.radius * 10.0f, splatModel.radius * 0.01f );
+			splatsConfig.projMatrix = glm::perspective( glm::radians( splatCamera.fov ), static_cast<float>( splatExtent.width ) / static_cast<float>( splatExtent.height ), 1000.0f, 0.001f );
+			splatsConfig.cameraPosition = splatOrbit.cameraPositionInScene( splatCamera.position );
+
+		// get the view vector -> this tells you which ordering of the list of splats you want
+			// vec3 testVec = ( splatsConfig.viewMatrix * vec4( 0.0f, 0.0f, -1.0f, 0.0f ) ).xyz();
+			vec3 testVec = splatCamera.front;
+			splatsConfig.indexOrderSelect = calcOrder( testVec );
 
 			// update the config buffer
 			memcpy( splatsConfigBuffer.allocation->GetMappedData(), &splatsConfig, sizeof( splatsConfig_t ) );
@@ -1181,7 +1198,7 @@ void PrometheusInstance::initComputePasses () {
 			vkCmdEndRendering( cmd ); // this is a little confused, need to work on this
 
 			// barriers for color resolve
-			VkImageMemoryBarrier2 imgBarrier = makeImageBarrier( splatDrawImage.image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT );
+			VkImageMemoryBarrier2 imgBarrier = makeImageBarrier( splatDrawImage.image, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_SHADER_READ_BIT );
 			VkDependencyInfo dependencyInfo = {
 				.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
 				.bufferMemoryBarrierCount = 0,
@@ -1192,6 +1209,7 @@ void PrometheusInstance::initComputePasses () {
 
 			// blit to the accumulator
 			vkutil::copy_image_to_imageG( cmd, splatDrawImage.image, Accumulator.image, { splatExtent.width, splatExtent.height }, drawExtent );
+			vkCmdPipelineBarrier2( cmd, &dependencyInfo );
 		};
 
 		splats.init( &device, &mainDeletionQueue, config );

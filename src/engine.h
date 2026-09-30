@@ -175,6 +175,7 @@ struct splatsConfig_t {
 	glm::mat4 viewMatrix = glm::mat4( 1.0f );
 	glm::mat4 projMatrix = glm::mat4( 1.0f );
 	glm::ivec2 splatFramebufferSize = glm::ivec2( 0 );
+	glm::vec3 cameraPosition = glm::vec3( 0.0f, 0.0f, 0.0f );
 };
 
 class PrometheusInstance {
@@ -210,6 +211,8 @@ public:
 	AllocatedBuffer splatsIndexBuffer;
 	AllocatedBuffer splatsConfigBuffer;
 	splatsConfig_t splatsConfig;
+	Camera splatCamera;
+	SceneOrbit splatOrbit;
 
 	// for drawing the user interactive map
 	mapConfig_t mapConfig;
