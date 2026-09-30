@@ -82,6 +82,10 @@ struct SceneOrbit {
 		rotation = yaw * pitch * rotation;
 	}
 
+	void roll ( float amount, const Camera& camera ) {
+		rotation = glm::rotate( glm::mat4( 1.0f ), amount, camera.front ) * rotation;
+	}
+
 	glm::mat4 modelMatrix() const {
 		return glm::translate( glm::mat4( 1.0f ), center ) * rotation *
 			   glm::translate( glm::mat4( 1.0f ), -center );
