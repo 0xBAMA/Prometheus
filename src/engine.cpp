@@ -380,6 +380,60 @@ void PrometheusInstance::MainLoop () {
 				* glm::scale( glm::mat4( 1.0f ), vec3( baseScalar * ( mapConfig.mapRes.y / mapConfig.mapRes.x ), baseScalar, 0.45f * baseScalar ) )
 				* mapOrientation;
 
+
+			// GAUSSIAN SPLATS
+			if ( e.type == SDL_EVENT_MOUSE_MOTION && ( e.motion.state & SDL_BUTTON_LEFT ) ) {
+				if ( !ImGui::GetIO().WantCaptureMouse ) {
+					splatOrbit.processMouseDrag( e.motion.xrel, e.motion.yrel, splatCamera );
+				}
+			}
+
+			if ( e.type == SDL_EVENT_MOUSE_WHEEL ) {
+				splatCamera.processMouseScroll( e.wheel.y );
+			}
+
+			float deltaTime = shift ? 0.1f : 0.001f;
+			if ( kb[ SDL_SCANCODE_W ] ) {
+				splatCamera.processKeyboard( 0, deltaTime );
+			}
+			if ( kb[ SDL_SCANCODE_S ] ) {
+				splatCamera.processKeyboard( 1, deltaTime );
+			}
+			if ( kb[ SDL_SCANCODE_A ] ) {
+				splatCamera.processKeyboard( 2, deltaTime );
+			}
+			if ( kb[ SDL_SCANCODE_D ] ) {
+				splatCamera.processKeyboard( 3, deltaTime );
+			}
+
+			float verticalVelocity = splatCamera.movementSpeed * deltaTime;
+			if ( kb[ SDL_SCANCODE_Q ] ) {
+				// splatCamera.position -= splatCamera.up * verticalVelocity;
+				// splatCamera.processKeyboard( 4, deltaTime );
+				splatOrbit.roll( deltaTime, splatCamera );
+			}
+			if ( kb[ SDL_SCANCODE_E ] ) {
+				// splatCamera.position += splatCamera.up * verticalVelocity;
+				// splatCamera.processKeyboard( 5, deltaTime );
+				splatOrbit.roll( -deltaTime, splatCamera );
+			}
+
+			float lookSpeed = 90.0f * deltaTime;
+			if ( kb[ SDL_SCANCODE_LEFT ] ) {
+				splatCamera.processMouseMovement(-lookSpeed, 0.0f);
+			}
+			if ( kb[ SDL_SCANCODE_RIGHT ] ) {
+				splatCamera.processMouseMovement(lookSpeed, 0.0f);
+			}
+			if ( kb[ SDL_SCANCODE_UP ] ) {
+				splatCamera.processMouseMovement(0.0f, lookSpeed);
+			}
+			if ( kb[ SDL_SCANCODE_DOWN ] ) {
+				splatCamera.processMouseMovement(0.0f, -lookSpeed);
+			}
+
+
+
 			if ( kb[ SDL_SCANCODE_R ] ) {
 				globalData.reset = true;
 			}
@@ -894,6 +948,20 @@ void PrometheusInstance::initResources () {
 		// 4-byte indices are kept for each splat, for each of the 48 distinct orderings
 		splatsIndexBuffer = createBuffer( splatModel.splats.size() * sizeof( uint32_t ) * 48, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Splat Index Buffer" );
 		memcpy( splatsIndexBuffer.allocation->GetMappedData(), &splatModel.indices[ 0 ], splatModel.splats.size() * sizeof( uint32_t ) * 48 );
+
+		// and computing the scene bounds
+		splatModel.ComputeSceneBounds();
+
+		// Camera setup
+		SceneOrbit sceneOrbit;
+		sceneOrbit.center = splatModel.center;
+		Camera camera( splatModel.center + glm::vec3( 0.0f, 0.0f, splatModel.radius * 2.5f ) );
+		camera.position = { 0.0f, 0.15f, 0.4f };
+		glm::vec3 defaultFront = glm::normalize( glm::vec3( 0.0f, -0.25f, -1.0f ) );
+		camera.front = defaultFront;
+		camera.pitch = glm::degrees( std::asin( defaultFront.y ) );
+		camera.yaw = glm::degrees( std::atan2( defaultFront.z, defaultFront.x ) );
+		camera.movementSpeed = splatModel.radius * 0.1;
 
 		// this is the config struct, with the view transform and some other global rendering data
 		splatsConfigBuffer = createBuffer( sizeof( splatsConfig_t ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Splat Config Buffer" );
