@@ -183,6 +183,12 @@ struct RasterConfig {
 };
 
 struct ComputeEffect {
+	// used for recreation
+	union {
+		RasterConfig rasterConfig;
+		ComputeConfig computeConfig;
+	};
+
 	// pipeline is the thing we use to invoke this shader pass
 	VkPipeline pipeline;
 	pipelineType type;
@@ -212,6 +218,8 @@ struct ComputeEffect {
 	float minDepth = 0.0f;
 	float maxDepth = 1.0f;
 	float lineWidth = 1.0f;
+	bool depthWrite = true;
+	bool depthTest = true;
 
 	bool defaultEndRendering = true;
 
@@ -229,6 +237,7 @@ struct ComputeEffect {
 
 	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue, const RasterConfig config ) {
 		type = GRAPHICS;
+		rasterConfig = config;
 
 		getRenderResolution = config.getRenderResolution;
 		drawImage = config.drawImage;
@@ -241,6 +250,8 @@ struct ComputeEffect {
 		bufferMemoryBarriers = config.bufferMemoryBarriers;
 		lineWidth = config.lineWidth;
 		defaultEndRendering = config.defaultEndRendering;
+		depthTest = config.depthTestEnable;
+		depthWrite = config.depthWriteEnable;
 
 		allocateDescriptorSet = config.allocateDescriptorSet;
 		dispatch = config.dispatch;
@@ -323,6 +334,8 @@ struct ComputeEffect {
 
 	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue, const ComputeConfig config ) {
 		type = COMPUTE;
+		computeConfig = config;
+
 		allocateDescriptorSet = config.allocateDescriptorSet;
 		dispatch = config.dispatch;
 		updatePushConstants = config.updatePushConstants;
@@ -408,7 +421,8 @@ struct ComputeEffect {
 		VkExtent2D extent = getRenderResolution();
 		VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info( drawImage->imageView[ 0 ], nullptr, VK_IMAGE_LAYOUT_GENERAL );
 		VkRenderingAttachmentInfo depthAttachment = vkinit::attachment_info( depthImage->imageView[ 0 ], nullptr, VK_IMAGE_LAYOUT_GENERAL );
-		VkRenderingInfo renderInfo = vkinit::rendering_info( extent, &colorAttachment, &depthAttachment );
+		bool d = depthTest || depthWrite;
+		VkRenderingInfo renderInfo = vkinit::rendering_info( extent, &colorAttachment, d ? &depthAttachment : nullptr );
 
 		if ( clearColor ) { // todo: pass in values for clear color
 			const VkClearColorValue colorClearValue = { { 0.0f, 0.0f, 0.0f, 1.0f } };
@@ -416,7 +430,7 @@ struct ComputeEffect {
 			vkCmdClearColorImage( cmd, drawImage->image, VK_IMAGE_LAYOUT_GENERAL, &colorClearValue, 1, &rangeC );
 		}
 
-		if ( clearDepth ) {
+		if ( clearDepth && d ) {
 			const VkClearDepthStencilValue depthClearValueD = { minDepth, 0 };
 			const VkImageSubresourceRange rangeD = { .aspectMask =  VK_IMAGE_ASPECT_DEPTH_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1 };
 			vkCmdClearDepthStencilImage( cmd, depthImage->image, VK_IMAGE_LAYOUT_GENERAL, &depthClearValueD, 1, &rangeD );
@@ -485,6 +499,10 @@ struct ComputeEffect {
 		}
 		barriers( cmd );
 	}
+};
+
+struct pipelineManager_t {
+	std::vector<ComputeEffect> pipelines;
 
 };
 
