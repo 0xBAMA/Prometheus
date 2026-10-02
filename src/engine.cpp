@@ -242,13 +242,13 @@ void PrometheusInstance::Draw () {
 	// pipeline to draw the gaussian splats
 	{
 		scopedTimer start( "Splats" );
-		splats.invoke2( cmd );
+		pipelineManager.getPipeline( "Splat Draw" )->invoke2( cmd );
 	}
 #endif
 
 	{ // compute shader to accumulate the raster result + put the resolved final image into the drawImage...
 		scopedTimer start( "Present" );
-		BufferPresent.invoke2( cmd );
+		pipelineManager.getPipeline( "Buffer Present" )->invoke2( cmd );
 	}
 
 	if ( screenshotRequested ) { // decrement to zero
@@ -257,12 +257,12 @@ void PrometheusInstance::Draw () {
 	} else {
 		{ // do the debug line draw over top of the final LDR color
 			scopedTimer start( "Debug Line Draw" );
-			DebugLineDraw.invoke2( cmd );
+			pipelineManager.getPipeline( "Debug Line Draw" )->invoke2( cmd );
 		}
 
 		{ // do the debug string draw
 			scopedTimer start( "Debug String Draw" );
-			DebugStringDraw.invoke2( cmd );
+			pipelineManager.getPipeline( "Debug String Draw" )->invoke2( cmd );
 		}
 	}
 
@@ -382,6 +382,10 @@ void PrometheusInstance::MainLoop () {
 				* glm::scale( glm::mat4( 1.0f ), vec3( baseScalar * ( mapConfig.mapRes.y / mapConfig.mapRes.x ), baseScalar, 0.45f * baseScalar ) )
 				* mapOrientation;
 
+			if ( kb[ SDL_SCANCODE_Y ] && shift ) {
+				vkDeviceWaitIdle( device );
+				pipelineManager.reinitialize();
+			}
 
 #ifdef GAUSSIANSPLATS_ENABLE
 			// GAUSSIAN SPLATS
@@ -408,6 +412,7 @@ void PrometheusInstance::MainLoop () {
 			if ( kb[ SDL_SCANCODE_D ] ) {
 				splatCamera.processKeyboard( 3, deltaTime );
 			}
+
 
 			float verticalVelocity = splatCamera.movementSpeed * deltaTime;
 			if ( kb[ SDL_SCANCODE_Q ] ) {
@@ -1141,8 +1146,8 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		// SHADERS
-		config.shaderPathFrag = "../shaders/splat.frag.glsl.spv";
-		config.shaderPathVert = "../shaders/splat.vert.glsl.spv";
+		config.shaderPathFrag = "../shaders/splat.frag.glsl";
+		config.shaderPathVert = "../shaders/splat.vert.glsl";
 
 		// FBO CONFIG
 		config.drawImage = &splatDrawImage;
@@ -1168,8 +1173,9 @@ void PrometheusInstance::initComputePasses () {
 		// DRAW
 		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			splats.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, splats.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &splats.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Splat Draw" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			splatsConfig.numSplats = splatModel.splats.size();
@@ -1218,7 +1224,8 @@ void PrometheusInstance::initComputePasses () {
 			vkCmdPipelineBarrier2( cmd, &dependencyInfo );
 		};
 
-		splats.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// splats.init( &device, &mainDeletionQueue, config );
 	}
 #endif // GAUSSIANSPLATS_ENABLE
 
@@ -1252,16 +1259,18 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			AdamCopy.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, AdamCopy.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &AdamCopy.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Adam Copy" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 
-		config.shaderPath = "../shaders/adamCopy.comp.glsl.spv";
+		config.shaderPath = "../shaders/adamCopy.comp.glsl";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdDispatch( cmd, ( ( ImageBufferResolution.width ) + 15 ) / 16, ( ( ImageBufferResolution.height ) + 15 ) / 16, 1 );
 		};
 
-		AdamCopy.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// AdamCopy.init( &device, &mainDeletionQueue, config );
 	}
 
 	{ // Adam Sweep Shader
@@ -1283,13 +1292,14 @@ void PrometheusInstance::initComputePasses () {
 		// carve out for Adam to be able to bind individual mips
 		config.customDescriptorWrite = true;
 
-		config.shaderPath = "../shaders/adamSweep.comp.glsl.spv";
+		config.shaderPath = "../shaders/adamSweep.comp.glsl";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 
 			// update push constants
-			vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, AdamSweep.pipeline );
-			AdamSweep.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, AdamSweep.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &AdamSweep.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Adam Mip Sweep" );
+			vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipe->pipeline );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 
 			// should be power of two
 			uint32_t w = AdamOutputTex.imageExtent.width;
@@ -1300,7 +1310,7 @@ void PrometheusInstance::initComputePasses () {
 				// write descriptors for the imageViews associated with the two mips (N and N+1)
 				VkDescriptorSet descriptorSet;
 				{
-					descriptorSet = getCurrentFrame().frameDescriptors.allocate( device, AdamSweep.descriptorSetLayout );
+					descriptorSet = getCurrentFrame().frameDescriptors.allocate( device, pipe->descriptorSetLayout );
 					DescriptorWriter writer;
 
 					// write the two mips
@@ -1313,7 +1323,7 @@ void PrometheusInstance::initComputePasses () {
 				}
 
 				// bind the newly written descriptors
-				vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, AdamSweep.pipelineLayout, 0, 1, &descriptorSet, 0, nullptr );
+				vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipe->pipelineLayout, 0, 1, &descriptorSet, 0, nullptr );
 
 				// dispatch with the current dimensions
 				vkCmdDispatch( cmd, ( ( w ) + 15 ) / 16, ( ( h ) + 15 ) / 16, 1 );
@@ -1335,7 +1345,8 @@ void PrometheusInstance::initComputePasses () {
 
 		};
 
-		AdamSweep.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// AdamSweep.init( &device, &mainDeletionQueue, config );
 	}
 
 	{ // Adam Present Shader
@@ -1359,21 +1370,23 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			AdamPresent.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, AdamPresent.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &AdamPresent.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Adam Present" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 
-		config.shaderPath = "../shaders/adamPresent.comp.glsl.spv";
+		config.shaderPath = "../shaders/adamPresent.comp.glsl";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdDispatch( cmd, ( ( drawExtent.width ) + 15 ) / 16, ( ( drawExtent.height ) + 15 ) / 16, 1 );
 		};
 
-		AdamPresent.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// AdamPresent.init( &device, &mainDeletionQueue, config );
 	}
 
 	{ // RAYTRACE UBERSHADER
 		ComputeConfig config;
-		config.name = "Test 1";
+		config.name = "Raytrace Ubershader";
 		config.descriptorSetLayout = {
 			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
@@ -1414,11 +1427,12 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			testPipe.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, testPipe.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &testPipe.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Raytrace Ubershader" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 
-		config.shaderPath = "../shaders/test.comp.glsl.spv";
+		config.shaderPath = "../shaders/test.comp.glsl";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			int w = 1024;
 			int h = 1024;
@@ -1426,7 +1440,8 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		// creating the actual API resources
-		testPipe.init( &device, &mainDeletionQueue, config );
+		// testPipe.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
 	}
 
 	{ // Wavefront Camera Ray Gen
@@ -1461,16 +1476,18 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			cameraGen.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, cameraGen.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &cameraGen.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Phoenix Ray Gen" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 
-		config.shaderPath = "../shaders/camera.comp.glsl.spv";
+		config.shaderPath = "../shaders/camera.comp.glsl";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdDispatch( cmd, ( numRays ) / 256, 1, 1 );
 		};
 
-		cameraGen.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// cameraGen.init( &device, &mainDeletionQueue, config );
 	}
 
 	{ // Wavefront Ray Intersect
@@ -1531,16 +1548,18 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			intersect.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, intersect.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &intersect.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Phoenix Ray Intersect" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 
-		config.shaderPath = "../shaders/intersect.comp.glsl.spv";
+		config.shaderPath = "../shaders/intersect.comp.glsl";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdDispatch( cmd, ( numRays ) / 256, 1, 1 );
 		};
 
-		intersect.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// intersect.init( &device, &mainDeletionQueue, config );
 	}
 
 	{ // Wavefront Ray Shading
@@ -1598,16 +1617,18 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			shading.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, shading.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &shading.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Phoenix Ray Shade" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 
-		config.shaderPath = "../shaders/shading.comp.glsl.spv";
+		config.shaderPath = "../shaders/shading.comp.glsl";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdDispatch( cmd, ( numRays ) / 256, 1, 1 );
 		};
 
-		shading.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// shading.init( &device, &mainDeletionQueue, config );
 	}
 
 	{
@@ -1626,8 +1647,8 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		// SHADERS
-		config.shaderPathFrag = "../shaders/mapOpaque.frag.glsl.spv";
-		config.shaderPathVert = "../shaders/mapOpaque.vert.glsl.spv";
+		config.shaderPathFrag = "../shaders/mapOpaque.frag.glsl";
+		config.shaderPathVert = "../shaders/mapOpaque.vert.glsl";
 
 		// FBO CONFIG
 		config.drawImage = &mapDrawImage;
@@ -1652,8 +1673,9 @@ void PrometheusInstance::initComputePasses () {
 		// DRAW
 		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			mapOpaque.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, mapOpaque.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &mapOpaque.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Map Opaque Draw" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &mapOpaque.pushConstants );
 		};
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			if ( mapConfig.mapActive ) {
@@ -1668,7 +1690,8 @@ void PrometheusInstance::initComputePasses () {
 			}
 		};
 
-		mapOpaque.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// mapOpaque.init( &device, &mainDeletionQueue, config );
 	}
 
 	{
@@ -1688,17 +1711,18 @@ void PrometheusInstance::initComputePasses () {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
 		};
 
-		config.shaderPath = "../shaders/mapCopy.comp.glsl.spv";
+		config.shaderPath = "../shaders/mapCopy.comp.glsl";
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			// get a new wang RNG seed + send the current value of the push constants
-			mapCopy.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, mapCopy.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &mapCopy.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Map Copy" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdDispatch( cmd, ( drawExtent.width + 15 ) / 16, ( drawExtent.height + 15 ) / 16, 1 );
 		};
 
-		mapCopy.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// mapCopy.init( &device, &mainDeletionQueue, config );
 	}
 
 	{
@@ -1725,8 +1749,8 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		// SHADERS
-		config.shaderPathFrag = "../shaders/debugStringDraw.frag.glsl.spv";
-		config.shaderPathVert = "../shaders/debugStringDraw.vert.glsl.spv";
+		config.shaderPathFrag = "../shaders/debug/debugStringDraw.frag.glsl";
+		config.shaderPathVert = "../shaders/debug/debugStringDraw.vert.glsl";
 
 		// FBO CONFIG
 		config.drawImage = &drawImage;
@@ -1747,8 +1771,9 @@ void PrometheusInstance::initComputePasses () {
 
 		// DRAW
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			DebugStringDraw.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, DebugStringDraw.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &DebugStringDraw.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Debug String Draw" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			if ( debugStrings.size() != 0 ) {
@@ -1761,7 +1786,8 @@ void PrometheusInstance::initComputePasses () {
 			}
 		};
 
-		DebugStringDraw.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// DebugStringDraw.init( &device, &mainDeletionQueue, config );
 	}
 
 	{
@@ -1780,8 +1806,8 @@ void PrometheusInstance::initComputePasses () {
 		};
 
 		// SHADERS
-		config.shaderPathFrag = "../shaders/debugLineDraw.frag.glsl.spv";
-		config.shaderPathVert = "../shaders/debugLineDraw.vert.glsl.spv";
+		config.shaderPathFrag = "../shaders/debug/debugLineDraw.frag.glsl";
+		config.shaderPathVert = "../shaders/debug/debugLineDraw.vert.glsl";
 
 		// FBO CONFIG
 		config.drawImage = &drawImage;
@@ -1803,8 +1829,9 @@ void PrometheusInstance::initComputePasses () {
 		// DRAW
 		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			DebugLineDraw.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, DebugLineDraw.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &DebugLineDraw.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Debug Line Draw" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 
@@ -1839,7 +1866,8 @@ void PrometheusInstance::initComputePasses () {
 			vkCmdDraw( cmd, ( 1 << 16 ), 1, 0, 0 );
 		};
 
-		DebugLineDraw.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// DebugLineDraw.init( &device, &mainDeletionQueue, config );
 	}
 
 	{
@@ -1859,17 +1887,18 @@ void PrometheusInstance::initComputePasses () {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
 		};
 
-		config.shaderPath = "../shaders/bufferPresent.comp.glsl.spv";
+		config.shaderPath = "../shaders/bufferPresent.comp.glsl";
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
-			// get a new wang RNG seed + send the current value of the push constants
-			BufferPresent.pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, BufferPresent.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &BufferPresent.pushConstants );
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Buffer Present" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdDispatch( cmd, ( drawExtent.width + 15 ) / 16, ( drawExtent.height + 15 ) / 16, 1 );
 		};
 
-		BufferPresent.init( &device, &mainDeletionQueue, config );
+		pipelineManager.addPipeline( config );
+		// BufferPresent.init( &device, &mainDeletionQueue, config );
 	}
 }
 
