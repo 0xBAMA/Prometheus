@@ -407,6 +407,23 @@ struct ComputeEffect {
 		}
 	}
 
+	void reinit ( VkDevice* device, DeletionQueue* deletionQueue ) {
+		// the config struct will have been stored from the prior init
+		switch ( type ) {
+		case NONE: break; // invalid
+		case COMPUTE: {
+			auto config = std::dynamic_pointer_cast< const ComputeConfig >( pipelineConfig );
+			if ( config )
+				init( device, deletionQueue, *config );
+		} break;
+		case GRAPHICS: {
+			auto config = std::dynamic_pointer_cast< const RasterConfig >( pipelineConfig );
+			if ( config )
+				init( device, deletionQueue, *config );
+		} break;
+		}
+	}
+
 	void bindPipelineAndDescriptorSetsCompute( VkCommandBuffer cmd ) {
 		vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline );
 		vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr );
@@ -499,10 +516,101 @@ struct ComputeEffect {
 		}
 		barriers( cmd );
 	}
+
+	// generalizing across both compute and raster pipelines
+	std::shared_ptr< const PipelineConfig > pipelineConfig = nullptr;
 };
 
 struct pipelineManager_t {
-	std::vector<ComputeEffect> pipelines;
+	std::unordered_map < std::string, ComputeEffect > pipelines;
 
+	pipelineManager_t() {}
+	~pipelineManager_t() {
+		deletionQueue.flush();
+	}
+
+	string validatorPath;
+	std::string compileShader( const std::filesystem::path& shaderPath ) {
+		const auto outputPath = shaderPath.string() + ".spv";
+		const auto reportPath = shaderPath.string() + ".compile.log";
+
+		std::string command =
+			validatorPath +
+			" -V " +
+			"\"" + shaderPath.string() + "\"" +
+			" -o " +
+			"\"" + outputPath + "\"" +
+			" > \"" + reportPath + "\" 2>&1"; // combine stderr and stdout
+
+		fmt::print( "\nRunning Command: {}", command );
+
+		const int result = std::system( command.c_str() );
+
+		// reading back the shader compilation report
+		std::ifstream reportFile( reportPath );
+		std::stringstream report;
+		report << reportFile.rdbuf();
+
+		// remove the compilation report
+		std::error_code ec;
+		std::filesystem::remove( reportPath, ec );
+
+		if ( result != 0 ) {
+			throw std::runtime_error( shaderPath.string() + " Shader compilation failed:\n" + report.str() );
+		}
+
+		return report.str();
+	}
+
+	// these need to be populated before anything else
+	VkDevice* device;
+
+	// this is now its own deletion queue, so it can be flushed independently
+	DeletionQueue deletionQueue;
+
+	// because this is called each time the pipeline is recreated, the compile can happen here
+	void addPipeline( const RasterConfig &config ) {
+		compileShader( config.shaderPathFrag );
+		compileShader( config.shaderPathVert );
+		pipelines[ config.name ].init( device, &deletionQueue, config );
+	}
+
+	void addPipeline( const ComputeConfig &config ) {
+		compileShader( config.shaderPath );
+		pipelines[ config.name ].init( device, &deletionQueue, config );
+	}
+
+	ComputeEffect* getPipeline ( string name ) {
+		return &pipelines[ name ];
+	}
+
+	void reinitialize() {
+		const uint32_t numPipelines = pipelines.size();
+
+		// flush the deletion queues... this kills all the vulkan resources added during the prior init
+		deletionQueue.flush();
+
+		// iterating through the list and doing the work to recreate...
+		for ( auto& pipe : pipelines ) {
+			switch ( pipe.second.pipelineConfig->myPipelineType ) {
+			case NONE: break; // invalid
+			case COMPUTE:
+				// tbd if I can do this more consistently, from the pipelineConfig pointer
+				fmt::print( "Reinitializing Compute Pipeline: {} \n", pipe.first );
+				compileShader( pipe.second.computeConfig.shaderPath );
+				break;
+			case GRAPHICS:
+				fmt::print( "Reinitializing Graphics Pipeline: {} \n", pipe.first );
+				compileShader( pipe.second.rasterConfig.shaderPathFrag );
+				compileShader( pipe.second.rasterConfig.shaderPathVert );
+				break;
+				// no other pipeline types at the moment
+			}
+			// internally this handles the work to recreate, if the shader compilation went as planned
+			pipe.second.reinit( device, &deletionQueue );
+		}
+
+		// and ideally this doesn't crash on errors
+	}
 };
 
