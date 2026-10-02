@@ -12,7 +12,13 @@
 
 #include "lightManager.h"
 #include "timer.h"
+
+// disabled for now, working on Phoenix
+// #define GAUSSIANSPLATS_ENABLE
+
+#ifdef GAUSSIANSPLATS_ENABLE
 #include "gaussianSplats.h"
+#endif
 
 #ifndef PI_DEFINED
 #define PI_DEFINED
@@ -201,6 +207,7 @@ public:
 	int timestampPeriod;
 	bool showMenu = true;
 
+#ifdef GAUSSIANSPLATS_ENABLE
 	// quick test of the gaussian splats
 	Scene splatModel;
 	VkExtent3D splatExtent{ 1280, 720, 1 };
@@ -213,6 +220,7 @@ public:
 	splatsConfig_t splatsConfig;
 	Camera splatCamera;
 	SceneOrbit splatOrbit;
+#endif
 
 	// for drawing the user interactive map
 	mapConfig_t mapConfig;
@@ -229,6 +237,9 @@ public:
 	ComputeEffect shading;
 	AllocatedBuffer rayBuffer;
 	AllocatedBuffer lightTraceRayBuffer;
+
+	// pipeline management
+	pipelineManager_t pipelineManager;
 
 // data/storage resources
 	AllocatedBuffer GlobalUBO;
