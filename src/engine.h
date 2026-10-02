@@ -213,7 +213,6 @@ public:
 	VkExtent3D splatExtent{ 1280, 720, 1 };
 	AllocatedImage splatDrawImage;
 	AllocatedImage splatDepthImage;
-	ComputeEffect splats;
 	AllocatedBuffer splatsBuffer;
 	AllocatedBuffer splatsIndexBuffer;
 	AllocatedBuffer splatsConfigBuffer;
@@ -226,15 +225,9 @@ public:
 	mapConfig_t mapConfig;
 	AllocatedImage mapDrawImage;
 	AllocatedImage mapDepthImage;
-	ComputeEffect mapOpaque;
-	ComputeEffect mapTransparent;
-	ComputeEffect mapCopy;
 
 	// WIP Wavefront conversion
 	uint32_t numRays = 2 << 12;
-	ComputeEffect cameraGen;
-	ComputeEffect intersect;
-	ComputeEffect shading;
 	AllocatedBuffer rayBuffer;
 	AllocatedBuffer lightTraceRayBuffer;
 
@@ -257,11 +250,6 @@ public:
 	AllocatedImage AdamCountTally;
 	// and the texture which contains the hierarchical weighted sums
 	AllocatedImage AdamOutputTex; // this is the only one that gets a mipchain
-
-	// pipelines for the Adam operation
-	ComputeEffect AdamCopy;
-	ComputeEffect AdamSweep;
-	ComputeEffect AdamPresent;
 
 	// an image to draw into and eventually pass to the swapchain
 	AllocatedImage drawImage;
@@ -292,13 +280,6 @@ public:
 	// 2D bounding box helper, draws 4 lines
 	int addDebugDrawBox ( vec2 min, vec2 max, vec3 color, float zDepth = debugDrawMidDepth );
 
-	// engine compute shaders
-	ComputeEffect DebugLineDraw;
-	ComputeEffect DebugStringDraw;
-
-	// little raytracer for testing
-	ComputeEffect testPipe;
-
 	// there are three buffers used for the grid AS at runtime ( prefix, grid, geometry )
 		// and two that are used for precomputation ( bbox, grid precompute )
 	bool geometryListDirty = true;		// triggering the rebuild of GPU structures
@@ -314,9 +295,6 @@ public:
 		// escape to deselect all
 		// so this keeps a list of selected geometry, which is just keeping integer indexes into geometryList, above
 	// operations on the selected geometry is still tbd, but will include things like translating on x and y, drawing a gizmo with the debug lines
-
-	// putting the image on the screen
-	ComputeEffect BufferPresent;
 
 	// light manager
 	LightManager lightManager;
