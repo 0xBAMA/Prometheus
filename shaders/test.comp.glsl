@@ -424,15 +424,16 @@ float de( vec3 p ){
 //	}
 
 	{
-		float scalar = 30.0f;
-		float d = deTemple( p / scalar ) * scalar;
+		float scalar = 12.0f;
+		 float d = deTemple( p / scalar ) * scalar;
+//		float d = deSmooth( p / scalar ) * scalar;
 		sceneDist = min( max( d, dBounds ), sceneDist );
 		if ( sceneDist == d && d < GlobalData.epsilon ) {
-			 hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
-//			hitSurfaceType = DIFFUSE;
+//			 hitSurfaceType = ( rFloat() < 0.9f ) ? METALLIC : MIRROR;
+			hitSurfaceType = MIRROR;
 //			hitRoughness = 0.01f;
-			 hitColor = ( hitSurfaceType == MIRROR ) ? 0.99f : sRGBtoReflectance( iron, wavelength );
-//			 hitColor = ( 0.99f );
+//			 hitColor = ( hitSurfaceType == MIRROR ) ? 0.99f : sRGBtoReflectance( titanium, wavelength );
+			 hitColor = ( 0.99f );
 //			hitColor = sRGBtoReflectance( iron, wavelength );
 //			hitColor = ( hitSurfaceType == MIRROR ) ? 0.99f : sRGBtoReflectance( titanium, wavelength );
 //			mix( tire, gold, noiseFBM( 0.1f * p + vec3( noise( 0.1f * p + vec3( 15.0f, 0.4f, 2.3f ) ), noise( 0.1f * p ), noise( 0.1f * p + vec3( 3.2f, 15.4f, 0.3f ) ) ) ) );
