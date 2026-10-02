@@ -13,6 +13,26 @@ add_executable ( Prometheus
 		third_party/volk/volk.c
 )
 
+find_program(
+		GLSL_VALIDATOR
+		glslangValidator
+		HINTS
+		/usr/bin
+		/usr/local/bin
+		$ENV{VULKAN_SDK}/Bin/
+		$ENV{VULKAN_SDK}/Bin32/
+)
+if (NOT GLSL_VALIDATOR)
+	message(FATAL_ERROR "glslangValidator not found")
+endif()
+
+message(STATUS "glslangValidator: ${GLSL_VALIDATOR}")
+
+target_compile_definitions(
+		Prometheus PUBLIC
+		GLSL_VALIDATOR_PATH="${GLSL_VALIDATOR}"
+)
+
 set_property( TARGET Prometheus PROPERTY CXX_STANDARD 20 )
 set_property( TARGET Prometheus PROPERTY VS_DEBUGGER_WORKING_DIRECTORY $<TARGET_FILE_DIR:Prometheus> )
 

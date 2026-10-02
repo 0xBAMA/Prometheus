@@ -2360,6 +2360,7 @@ void PrometheusInstance::initLights () {
 	lightManager.viewerDirection = &globalData.basisZ;
 	lightManager.sceneSize = &globalData.sceneExtents;
 	lightManager.AddLight( 1.0f ); // placeholder, since the mouse light is gone
+	lightManager.lights[ 0 ].parameters.direction = vec3( 1.0f );// something messed up
 
 	// AllocatedImage previewImage = createImage( { 450 + 104, 64, 1 }, VK_FORMAT_R8G8B8A8_SNORM, VK_IMAGE_USAGE_SAMPLED_BIT );
 
