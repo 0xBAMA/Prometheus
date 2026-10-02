@@ -1,3 +1,5 @@
+#pragma once
+
 #include "engine.h"
 
 #include <SDL3/SDL.h>
@@ -17,6 +19,8 @@
 #include <thread>
 #include <chrono>
 #include <fstream>
+#include <memory>
+#include <unordered_map>
 #include <fastgltf/types.hpp>
 
 // heightmap gen
@@ -54,6 +58,7 @@ struct Resource {
 };
 
 enum pipelineType {
+	NONE, // INVALID
 	COMPUTE,
 	GRAPHICS,
 };
@@ -121,9 +126,18 @@ struct descriptorItem {
 	}
 };
 
-struct ComputeConfig {
-
+struct PipelineConfig {
 	std::string name;
+	pipelineType myPipelineType = NONE;
+
+	PipelineConfig ( pipelineType myType ) : myPipelineType(myType) {}
+
+	virtual ~PipelineConfig () = default;
+};
+
+struct ComputeConfig : PipelineConfig {
+	ComputeConfig () : PipelineConfig( COMPUTE ) {}
+
 	std::vector<descriptorItem> descriptorSetLayout;
 
 	std::string shaderPath;
@@ -139,9 +153,9 @@ struct ComputeConfig {
 	bool customDescriptorWrite = false;
 };
 
-struct RasterConfig {
+struct RasterConfig : PipelineConfig {
+	RasterConfig () : PipelineConfig( GRAPHICS ) {}
 
-	std::string name;
 	std::vector<descriptorItem> descriptorSetLayout;
 
 	std::string shaderPathVert;
@@ -176,18 +190,16 @@ struct RasterConfig {
 
 	// will need to add some things to configure blending
 
-	AllocatedImage *depthImage;
-	AllocatedImage *drawImage;
+	AllocatedImage *depthImage = nullptr;
+	AllocatedImage *drawImage = nullptr;
 
 	VkPrimitiveTopology inputTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 };
 
 struct ComputeEffect {
 	// used for recreation
-	union {
-		RasterConfig rasterConfig;
-		ComputeConfig computeConfig;
-	};
+	RasterConfig rasterConfig;
+	ComputeConfig computeConfig;
 
 	// pipeline is the thing we use to invoke this shader pass
 	VkPipeline pipeline;
@@ -211,8 +223,8 @@ struct ComputeEffect {
 	std::vector< VkBufferMemoryBarrier2 > bufferMemoryBarriers;
 
 	// used for raster only
-	AllocatedImage *depthImage;
-	AllocatedImage *drawImage;
+	AllocatedImage *depthImage = nullptr;
+	AllocatedImage *drawImage = nullptr;
 	bool clearColor = false;
 	bool clearDepth = false;
 	float minDepth = 0.0f;
@@ -238,6 +250,11 @@ struct ComputeEffect {
 	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue, const RasterConfig config ) {
 		type = GRAPHICS;
 		rasterConfig = config;
+
+		// keeping this for when it needs to be reinitialized
+		if ( pipelineConfig == nullptr ) {
+			pipelineConfig = std::make_shared< RasterConfig >( config );
+		}
 
 		getRenderResolution = config.getRenderResolution;
 		drawImage = config.drawImage;
@@ -287,13 +304,13 @@ struct ComputeEffect {
 			SetDebugName( VK_OBJECT_TYPE_PIPELINE_LAYOUT, ( uint64_t ) pipelineLayout, ( config.name + " Raster Pipeline Layout" ).c_str() );
 
 			VkShaderModule fragShader;
-			if ( !vkutil::load_shader_module( config.shaderPathFrag.c_str(), *device, &fragShader ) ) {
+			if ( !vkutil::load_shader_module( ( config.shaderPathFrag + ".spv" ).c_str(), *device, &fragShader ) ) {
 				fmt::print( "Error when building the {} Fragment shader module\n", config.name.c_str() );
 			}
 			SetDebugName( VK_OBJECT_TYPE_SHADER_MODULE, ( uint64_t ) fragShader, ( config.name + " Fragment Shader Module" ).c_str() );
 
 			VkShaderModule vertexShader;
-			if ( !vkutil::load_shader_module( config.shaderPathVert.c_str(), *device, &vertexShader ) ) {
+			if ( !vkutil::load_shader_module( ( config.shaderPathVert + ".spv" ).c_str(), *device, &vertexShader ) ) {
 				fmt::print( "Error when building the {} Vertex shader module\n", config.name.c_str() );
 			}
 			SetDebugName( VK_OBJECT_TYPE_SHADER_MODULE, ( uint64_t ) vertexShader, ( config.name + " Vertex Shader Module" ).c_str() );
@@ -324,7 +341,7 @@ struct ComputeEffect {
 			vkDestroyShaderModule( *device, vertexShader, nullptr );
 
 			// deletors for the pipeline layout + pipeline
-			mainDeletionQueue->push_function( [ & ] () {
+			mainDeletionQueue->push_function( [=] () {
 				vkDestroyDescriptorSetLayout( *device, descriptorSetLayout, nullptr );
 				vkDestroyPipelineLayout( *device, pipelineLayout, nullptr );
 				vkDestroyPipeline( *device, pipeline, nullptr );
@@ -335,6 +352,11 @@ struct ComputeEffect {
 	void init ( VkDevice* device, DeletionQueue* mainDeletionQueue, const ComputeConfig config ) {
 		type = COMPUTE;
 		computeConfig = config;
+
+		// keeping this for when it needs to be reinitialized
+		if ( pipelineConfig == nullptr ) {
+			pipelineConfig = std::make_shared< ComputeConfig >( config );
+		}
 
 		allocateDescriptorSet = config.allocateDescriptorSet;
 		dispatch = config.dispatch;
@@ -376,7 +398,7 @@ struct ComputeEffect {
 			SetDebugName( VK_OBJECT_TYPE_PIPELINE_LAYOUT, ( uint64_t ) pipelineLayout, ( config.name + " Pipeline Layout" ).c_str() );
 
 			VkShaderModule shaderModule;
-			if ( !vkutil::load_shader_module( config.shaderPath.c_str(), *device, &shaderModule ) ) {
+			if ( !vkutil::load_shader_module( ( config.shaderPath + ".spv" ).c_str(), *device, &shaderModule ) ) {
 				fmt::print( "Error when building the {} Compute Shader\n", config.name );
 			}
 			SetDebugName( VK_OBJECT_TYPE_SHADER_MODULE, ( uint64_t ) shaderModule, ( config.name + " Shader Module" ).c_str() );
@@ -399,7 +421,7 @@ struct ComputeEffect {
 			vkDestroyShaderModule( *device, shaderModule, nullptr );
 
 			// deletors for the pipeline layout + pipeline
-			( *mainDeletionQueue ).push_function( [ & ] () {
+			( *mainDeletionQueue ).push_function( [=] () {
 				vkDestroyDescriptorSetLayout( *device, descriptorSetLayout, nullptr );
 				vkDestroyPipelineLayout( *device, pipelineLayout, nullptr );
 				vkDestroyPipeline( *device, pipeline, nullptr );
