@@ -931,6 +931,11 @@ void PrometheusInstance::initDescriptors  () {
 
 void PrometheusInstance::initResources () {
 
+	// setup for the pipeline manager
+	fmt::print( "located shader compiler : {}", GLSL_VALIDATOR_PATH );
+	pipelineManager.validatorPath = GLSL_VALIDATOR_PATH;
+	pipelineManager.device = &device;
+
 	// API resource allocation:
 	GlobalUBO = createBuffer( sizeof( GlobalData ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "Global Data UBO" );
 	Accumulator = createImage( { ImageBufferResolution.width, ImageBufferResolution.height, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Accumulator" );
