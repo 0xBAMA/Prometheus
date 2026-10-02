@@ -4,3 +4,4 @@ bin/
 .idea
 *.spv
 build
+*.compile.log
