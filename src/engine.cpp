@@ -30,7 +30,9 @@ using namespace std::chrono_literals;
 #include <third_party/imgui/imgui_impl_vulkan.h>
 #include <third_party/imgui/LegitProfiler/ImGuiProfilerRenderer.h>
 
+#ifdef GAUSSIANSPLATS_ENABLE
 #include "gaussianSplats.h"
+#endif
 
 #include <third_party/yaml-cpp/include/yaml-cpp/yaml.h>
 
@@ -38,9 +40,6 @@ using namespace std::chrono_literals;
 #include <glm/gtc/packing.hpp>
 
 #include <third_party/stb/stb_image_write.h>
-
-// disabled for now, working on Phoenix
-// #define GAUSSIANSPLATS_ENABLE
 
 // heightmap gen
 #include <third_party/diamondSquare/diamondSquare.h>
@@ -176,8 +175,11 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_imageD( cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_imageD( cmd, mapDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+
+#ifdef GAUSSIANSPLATS_ENABLE
 	vkutil::transition_image( cmd, splatDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_imageD( cmd, splatDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+#endif
 
 	vkutil::transition_image( cmd, font_codepage437.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, font_fatfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
@@ -381,6 +383,7 @@ void PrometheusInstance::MainLoop () {
 				* mapOrientation;
 
 
+#ifdef GAUSSIANSPLATS_ENABLE
 			// GAUSSIAN SPLATS
 			if ( e.type == SDL_EVENT_MOUSE_MOTION && ( e.motion.state & SDL_BUTTON_LEFT ) ) {
 				if ( !ImGui::GetIO().WantCaptureMouse ) {
@@ -431,7 +434,7 @@ void PrometheusInstance::MainLoop () {
 			if ( kb[ SDL_SCANCODE_DOWN ] ) {
 				splatCamera.processMouseMovement(0.0f, -lookSpeed);
 			}
-
+#endif
 
 
 			if ( kb[ SDL_SCANCODE_R ] ) {
