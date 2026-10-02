@@ -197,14 +197,17 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, AdamCountTally.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, AdamOutputTex.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
+	// need to access the pipelines out of the pipeline manager, is the last piece
+		// then also test reinitializing
+
 	if ( mapConfig.mapActive ) {
 
 		// drawing the map
 		scopedTimer start( "Map Draw" );
-		mapOpaque.invoke2( cmd );
+		pipelineManager.getPipeline( "Map Opaque Draw" )->invoke2( cmd );
 
 		// copying raster result to the framebuffer
-		mapCopy.invoke2( cmd );
+		pipelineManager.getPipeline( "Map Copy" )->invoke2( cmd );
 
 	} else {
 
@@ -212,17 +215,17 @@ void PrometheusInstance::Draw () {
 		case 0: // wavefront case
 			{ // running N bounces for numRays rays in the wavefront pathtracer
 				scopedTimer start( "Wavefront Test" );
-				cameraGen.invoke2( cmd );
+				pipelineManager.getPipeline( "Phoenix Ray Gen" )->invoke2( cmd );
 				for ( int i = 0; i <= bounces; i++ ) {
-					intersect.invoke2( cmd );
-					shading.invoke2( cmd );
+					pipelineManager.getPipeline( "Phoenix Ray Intersect" )->invoke2( cmd );
+					pipelineManager.getPipeline( "Phoenix Ray Shade" )->invoke2( cmd );
 				}
 			}
 			break;
 		case 1: // conventional case, the iterative pathtracer
 			{ // running one iteration of N bounces
-				scopedTimer start( "Test 1" );
-				testPipe.invoke2( cmd );
+				scopedTimer start( "Ubershader RT" );
+				pipelineManager.getPipeline( "Raytrace Ubershader" )->invoke2( cmd );
 			}
 			break;
 		default:
@@ -232,10 +235,14 @@ void PrometheusInstance::Draw () {
 		{ // testing Adam
 			scopedTimer start( "Adam Test" );
 
-			AdamCopy.invoke2( cmd );			// copy tally data
-			AdamSweep.invoke2( cmd );			// propagate through mips
-			AdamPresent.invoke2( cmd );			// sample Adam into the accumulator
-		}
+			pipelineManager.getPipeline( "Adam Copy" )->invoke2( cmd );
+			pipelineManager.getPipeline( "Adam Mip Sweep" )->invoke2( cmd );
+			pipelineManager.getPipeline( "Adam Present" )->invoke2( cmd );
+
+			// AdamCopy.invoke2( cmd );			// copy tally data
+			// AdamSweep.invoke2( cmd );			// propagate through mips
+			// AdamPresent.invoke2( cmd );			// sample Adam into the accumulator
+		} // I'd also like to support turning this off
 	}
 
 #ifdef GAUSSIANSPLATS_ENABLE
