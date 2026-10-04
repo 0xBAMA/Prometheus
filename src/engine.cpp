@@ -932,7 +932,7 @@ void PrometheusInstance::initDescriptors  () {
 void PrometheusInstance::initResources () {
 
 	// setup for the pipeline manager
-	fmt::print( "located shader compiler : {}", GLSL_VALIDATOR_PATH );
+	fmt::print( "located shader compiler : {}\n", GLSL_VALIDATOR_PATH );
 	pipelineManager.validatorPath = GLSL_VALIDATOR_PATH;
 	pipelineManager.device = &device;
 
@@ -1687,7 +1687,7 @@ void PrometheusInstance::initComputePasses () {
 		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
 			ComputeEffect *pipe = pipelineManager.getPipeline( "Map Opaque Draw" );
 			pipe->pushConstants.wangSeed = genWangSeed();
-			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &mapOpaque.pushConstants );
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			if ( mapConfig.mapActive ) {
