@@ -96,7 +96,7 @@ struct GlobalData {
 	float resolutionScalar{ 1.0f };
 
 	// sizing the extents of the scene, also used for the map
-	glm::vec3 sceneExtents{  40.0f };
+	glm::vec3 sceneExtents{  60.0f };
 
 	// for mapping into the geometry buffer
 	uint32_t numPrimitives{ 0 };		// setting where the pointer into the primitive buffer is

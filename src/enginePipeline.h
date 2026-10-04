@@ -564,7 +564,7 @@ struct pipelineManager_t {
 			"\"" + outputPath + "\"" +
 			" > \"" + reportPath + "\" 2>&1"; // combine stderr and stdout
 
-		fmt::print( "\nRunning Command: {}", command );
+		// fmt::print( "\nRunning Command: {}", command );
 
 		const int result = std::system( command.c_str() );
 

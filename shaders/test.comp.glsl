@@ -119,6 +119,28 @@ float deTemple(vec3 p) {
 	return length(p)/s;
 }
 
+float deGrid(vec3 p){
+	return min(.65-length(fract(p+.5)-.5),p.y+.2);
+}
+
+float deTemple2( vec3 p ){
+	float s = 2.;
+	float e = 0.;
+	for(int j=0;++j<7;)
+	p.xz=abs(p.xz)-2.3,
+	p.z>p.x?p=p.zyx:p,
+	p.z=1.5-abs(p.z-1.3+sin(p.z)*.2),
+	p.y>p.x?p=p.yxz:p,
+	p.x=3.-abs(p.x-5.+sin(p.x*3.)*.2),
+	p.y>p.x?p=p.yxz:p,
+	p.y=.9-abs(p.y-.4),
+	e=12.*clamp(.3/min(dot(p,p),1.),.0,1.)+
+	2.*clamp(.1/min(dot(p,p),1.),.0,1.),
+	p=e*p-vec3(7,1,1),
+	s*=e;
+	return length(p)/s;
+}
+
 vec3 pmin ( vec3 a, vec3 b, vec3 k ) {
 	vec3 h = clamp( 0.5 + 0.5 * ( b - a ) / k, 0.0, 1.0 );
 	return mix( b, a, h ) - k * h * ( 1.0 - h );
@@ -424,18 +446,17 @@ float de( vec3 p ){
 //	}
 
 	{
-		float scalar = 12.0f;
-		 float d = deTemple( p / scalar ) * scalar;
+		float scalar = 6.18f;
+		float d = deTemple2( p / scalar ) * scalar;
 //		float d = deSmooth( p / scalar ) * scalar;
 		sceneDist = min( max( d, dBounds ), sceneDist );
 		if ( sceneDist == d && d < GlobalData.epsilon ) {
-//			 hitSurfaceType = ( rFloat() < 0.9f ) ? METALLIC : MIRROR;
-			hitSurfaceType = MIRROR;
-//			hitRoughness = 0.01f;
-//			 hitColor = ( hitSurfaceType == MIRROR ) ? 0.99f : sRGBtoReflectance( titanium, wavelength );
-			 hitColor = ( 0.99f );
+			 hitSurfaceType = ( rFloat() < 0.9f ) ? METALLIC : MIRROR;
+//			hitSurfaceType = MIRROR;
+			hitRoughness = 0.01f;
+//			 hitColor = ( 0.99f );
 //			hitColor = sRGBtoReflectance( iron, wavelength );
-//			hitColor = ( hitSurfaceType == MIRROR ) ? 0.99f : sRGBtoReflectance( titanium, wavelength );
+			hitColor = ( hitSurfaceType == MIRROR ) ? 0.99f : sRGBtoReflectance( titanium, wavelength );
 //			mix( tire, gold, noiseFBM( 0.1f * p + vec3( noise( 0.1f * p + vec3( 15.0f, 0.4f, 2.3f ) ), noise( 0.1f * p ), noise( 0.1f * p + vec3( 3.2f, 15.4f, 0.3f ) ) ) ) );
 		}
 	}
@@ -580,6 +601,7 @@ intersection_t getSceneIntersection ( ray_t ray ) {
 
 	intersection_t SDFResult = raymarch( ray );
 	intersection_t DeltaDense = deltaTrack( ray );
+//	intersection_t DeltaDense = DefaultIntersection();
 	intersection_t DeltaSparse = deltaTrackSparse( ray );
 
 	intersection_t result = DefaultIntersection();
@@ -620,18 +642,15 @@ void main () {
 	vec3 baseVec = normalize( vec3( cos( uv.y ) * cos( uv.x ), sin( uv.y ), cos( uv.y ) * sin( uv.x ) ) );
 	baseVec = Rotate3D( pi / 2.0f, vec3( 2.5f, 0.4f, 1.0f ) ) * baseVec; // this is to match the other camera
 
+	// uniformly sampling wavelength, to start...
+	// this should be based on the film sensitivity curves
+	// wavelength = mix( 380.0f, 830.0f, rFloat() );
+	wavelength = mix( 400.0f, 700.0f, rFloat() );
+
 	ray_t ray;
-	ray.direction = normalize( -baseVec.x * GlobalData.basisX + baseVec.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * baseVec.z * GlobalData.basisZ );
+	ray.direction = normalize( -baseVec.x * GlobalData.basisX + baseVec.y * GlobalData.basisY + ( 1.0f / ( GlobalData.FoV + 0.0004f * wavelength ) ) * baseVec.z * GlobalData.basisZ );
 //	ray.direction = normalize( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * GlobalData.basisZ );
 	ray.origin = GlobalData.viewerPosition;
-
-	// uniformly sampling wavelength, to start...
-		// this should be based on the film sensitivity curves
-	// wavelength = mix( 380.0f, 830.0f, rFloat() );
-	 wavelength = mix( 400.0f, 700.0f, rFloat() );
-	// int pickedLight = int( rFloat() * ( GlobalData.numLights ) );
-//	int pickedLight = GlobalData.frameNumber % GlobalData.numLights;
-//	wavelength = texture( lightiCDF, vec2( rFloat(), ( pickedLight + 0.5f ) / textureSize( lightPDF, 0 ).y ) ).r;
 
 //	ray.origin = GlobalData.FoV * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + GlobalData.viewerPosition;
 //	ray.direction = -1.0f * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + vec3( GlobalData.basisZ );
