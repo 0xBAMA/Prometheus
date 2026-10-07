@@ -231,6 +231,10 @@ public:
 	AllocatedBuffer rayBuffer;
 	AllocatedBuffer lightTraceRayBuffer;
 
+	// testing the lens system
+	GPULensDescription lens;
+	AllocatedBuffer lensBuffer;
+
 	// pipeline management
 	pipelineManager_t pipelineManager;
 

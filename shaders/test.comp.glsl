@@ -46,6 +46,11 @@ layout ( r32ui, set = 0, binding = 8 ) uniform uimage2D gTally;
 layout ( r32ui, set = 0, binding = 9 ) uniform uimage2D bTally;
 layout ( r32ui, set = 0, binding = 10 ) uniform uimage2D cTally;
 //=============================================================================================================================
+#include "lens.h"
+layout ( set = 0, binding = 11 ) uniform lensParameters {
+	GPULensDescription params;
+} lens;
+//=============================================================================================================================
 struct ray_t {
 	vec3 origin;
 	vec3 direction;

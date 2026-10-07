@@ -1433,6 +1433,9 @@ void PrometheusInstance::initComputePasses () {
 			{ 10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
 				[ & ] () { return Resource( AdamCountTally.imageView[ 0 ] ); } },
 
+			// for the lens system
+			{ 11, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensBuffer.buffer ); } },
 		};
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
