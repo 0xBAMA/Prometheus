@@ -637,7 +637,17 @@ void main () {
 	// initial imagespace position for camera + jitter
 	vec2 uv = ( ( vec2( pixel ) + rFloatN2() ) / ( GlobalData.presentBufferResolution ) ) * 2.0f - vec2( 1.0f );
 
+#define LENS
 //=============================================================================================================================
+	// uniformly sampling wavelength, to start...
+	// this should be based on the film sensitivity curves
+	// wavelength = mix( 380.0f, 830.0f, rFloat() );
+	wavelength = mix( 400.0f, 700.0f, rFloat() );
+
+
+	ray_t ray;
+
+#ifndef LENS
 	// spherical camera logic, this will be replaced
 	const float aspectRatio = float( imageSize( image ).x ) / float( imageSize( image ).y );
 	uv *= 0.4f;
@@ -646,16 +656,51 @@ void main () {
 	uv = vec2( atan( uv.y, uv.x ) + 0.5f, ( length( uv ) + 0.5f ) * acos( -1.0f ) );
 	vec3 baseVec = normalize( vec3( cos( uv.y ) * cos( uv.x ), sin( uv.y ), cos( uv.y ) * sin( uv.x ) ) );
 	baseVec = Rotate3D( pi / 2.0f, vec3( 2.5f, 0.4f, 1.0f ) ) * baseVec; // this is to match the other camera
-
-	// uniformly sampling wavelength, to start...
-	// this should be based on the film sensitivity curves
-	// wavelength = mix( 380.0f, 830.0f, rFloat() );
-	wavelength = mix( 400.0f, 700.0f, rFloat() );
-
-	ray_t ray;
-	ray.direction = normalize( -baseVec.x * GlobalData.basisX + baseVec.y * GlobalData.basisY + ( 1.0f / ( GlobalData.FoV + 0.0004f * wavelength ) ) * baseVec.z * GlobalData.basisZ );
+	ray.direction = normalize( -baseVec.x * GlobalData.basisX + baseVec.y * GlobalData.basisY + ( 1.0f / ( GlobalData.FoV + 0.0003f * wavelength ) ) * baseVec.z * GlobalData.basisZ );
 //	ray.direction = normalize( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY + ( 1.0f / GlobalData.FoV ) * GlobalData.basisZ );
 	ray.origin = GlobalData.viewerPosition;
+#else
+
+	// sampling the lens system
+	ray.origin = vec3( uv * lens.params.filmSize * 0.5f * GlobalData.FoV, -lens.params.totalSystemThickness );
+	ray.direction = vec3( 0.0f, 0.0f, 1.0f ); // this will change for pupil sampling
+	vec3 normal = vec3( 0.0f );
+	for ( int i = 0; i < 2; i++ ) {
+		float radius = lens.params.elements[ i ].radius;
+		float axisPosition = lens.params.elements[ i ].axisPos;
+		float cosTerm = lens.params.elements[ i ].cosTerm;
+		vec2 materialBack = unpackHalf2x16( floatBitsToUint( lens.params.elements[ i ].materialBack ) );
+		vec2 materialFront = unpackHalf2x16( floatBitsToUint( lens.params.elements[ i ].materialFront ) );
+
+		float t = 0.0f;
+		const vec3 planeNormal = vec3( 0.0f, 0.0f, -1.0f );
+		if ( radius == 0.0f ) {
+			// using planar intersection
+			t = rayPlaneIntersect( planeNormal, vec3( 0.0f, 0.0f, axisPosition ), ray.origin, ray.direction );
+			if ( length( ( ray.origin + ray.direction * t ).xy ) < cosTerm ) { // reused memory for semiaperture
+				normal = planeNormal;
+			}
+		} else {
+			// spherical element is specified
+			t = sphereCapIntersect( vec3( 0.0f, 0.0f, axisPosition ), radius, vec3( 0.0f, 0.0f, ( radius < 0.0f ) ? -1.0f : 1.0f ), cosTerm, ray.origin, ray.direction, normal );
+		}
+
+		// tbd, this is not correct at all
+		ray.origin = ray.origin + ray.direction * t;
+		ray.direction = refract( ray.direction, normal, evaluateCauchy( materialFront.x, materialFront.y, wavelength ) );
+
+		// failed refract, or failed intersection
+		if ( length( ray.direction ) == 0.0f || t < 0.0f ) {
+			// break;
+			return;
+		}
+	}
+
+	// tbd the position will likely be considered
+	// ray.origin = ray.origin.x * GlobalData.basisX + ray.origin.y * GlobalData.basisY + ray.origin.z * GlobalData.basisZ + GlobalData.viewerPosition;
+	ray.origin = GlobalData.viewerPosition;
+	ray.direction = normalize( ray.direction.x * GlobalData.basisX + ray.direction.y * GlobalData.basisY + ray.direction.z * GlobalData.basisZ );
+#endif
 
 //	ray.origin = GlobalData.FoV * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + GlobalData.viewerPosition;
 //	ray.direction = -1.0f * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + vec3( GlobalData.basisZ );
