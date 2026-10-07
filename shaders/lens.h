@@ -19,6 +19,7 @@ struct GPULensDescription {
 	float totalSystemThickness; // this also includes the focus offset
 	float numElements;
 	vec2 filmSize;
+	float maxSemiAperture;
 
 	// maxing out at 32 interfaces for now, this is an easy thing to bump later
 	GPUInterfaceDescription elements[ 32 ];

@@ -1002,15 +1002,17 @@ void PrometheusInstance::initResources () {
 	}
 
 	// report the contents of the buffer
-	fmt::print( "Specifying a lens with {} interfaces\n", elements.size() );
+	fmt::print( "Specifying a lens with {} interfaces, total system thickness: {}\n", elements.size(), lens.totalSystemThickness );
 	int idx = 0;
 	for ( auto& element : elements ) {
+		lens.maxSemiAperture = std::max( lens.maxSemiAperture, element.semiAperture );
 		vec2 matFront = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialFront ) );
 		vec2 matBack = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialBack ) );
 		fmt::print( "{}: radius: {}, axisPosition: {}, semiaperture: {}\n", idx, element.radius, element.axisPos, element.semiAperture );
 		idx++;
 	}
 
+	lens.numElements = elements.size();
 	for ( int i = 0; i < 32; i++ ) {
 		if ( i < elements.size() ) {
 			lens.interfaces[ i ] = elements[ i ];
