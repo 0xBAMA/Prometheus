@@ -151,9 +151,13 @@ void PrometheusInstance::Draw () {
 	globalData.mapMode = mapConfig.mapActive ? 1 : 0; // tbd if we use this to send more data
 	globalData.mapMatrix = mapConfig.orientation;
 
+	// updating the lens system parameters
+	GPULensDescription* lensBufferPtr = ( GPULensDescription * ) lensBuffer.allocation->GetMappedData();
+	memcpy( lensBufferPtr, &lens, sizeof( GPULensDescription ) );
+
 	// write directly from the memory on the PrometheusInstance
 	GlobalData* uniformData = ( GlobalData * ) GlobalUBO.allocation->GetMappedData();
-	*uniformData = globalData;
+	memcpy( uniformData, &globalData, sizeof( GlobalData ) );
 
 	// reset the reset flag
 	if ( globalData.reset != 0 ) {
