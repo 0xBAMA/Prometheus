@@ -12,6 +12,7 @@
 
 #include "lightManager.h"
 #include "timer.h"
+#include "camera.h"
 
 // disabled for now, working on Phoenix
 // #define GAUSSIANSPLATS_ENABLE
@@ -260,6 +261,11 @@ public:
 	AllocatedImage depthImage;
 	VkExtent2D drawExtent;
 	float renderScale = 1.0f;
+
+	// for lens preview
+	// todo: raster+accumulate setup for rays, like VkForwardPT
+	ImTextureID LensTextureID;
+	AllocatedImage lensPreviewImage;
 
 	// debug line state
 	AllocatedBuffer debugLineDrawBuffer;

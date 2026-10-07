@@ -52,6 +52,7 @@ struct GPULensDescription {
 	float totalSystemThickness = 0.0f; // this also includes the focus offset
 	float numElements = 0.0f;
 	glm::vec2 filmSize{ 0.0f, 0.0f };
+	float maxSemiAperture = 0.0f;
 
 	// establishing a maximum number of lens elements which can be part of a lens system
 	GPUInterfaceDescription interfaces[ 32 ]{};

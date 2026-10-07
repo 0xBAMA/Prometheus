@@ -189,6 +189,7 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, font_fatfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, font_tinyfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
+	vkutil::transition_image( cmd, lensPreviewImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, PreviewAtlas.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, PickISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, SpectrumISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
@@ -203,6 +204,8 @@ void PrometheusInstance::Draw () {
 
 	// need to access the pipelines out of the pipeline manager, is the last piece
 		// then also test reinitializing
+
+	pipelineManager.getPipeline( "Lens Element Preview" )->invoke2( cmd );
 
 	if ( mapConfig.mapActive ) {
 
@@ -596,6 +599,8 @@ void PrometheusInstance::MainLoop () {
 				static bool open = true;
 				if ( ImGui::Begin( "Edit", &open, ImGuiWindowFlags_NoNavInputs ) ) {
 
+					ImGui::Image( LensTextureID, ImVec2( 512, 512 ), { 0.0f, 0.0f }, { 1.0f, 1.0f } );
+
 					// toggling the renderer mode
 					ImGui::Text( "Renderer mode" );
 					ImGui::RadioButton( "Wavefront", &renderMode, 0 );
@@ -954,24 +959,26 @@ void PrometheusInstance::initResources () {
 	// for the lens system
 	lensBuffer = createBuffer( sizeof( GPULensDescription ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Buffer" );
 
+	std::vector<interfaceDescription> elementsSrc = elementsFisheye;
+
 	// prepping some data for the lens system
-	lens.numElements = elementsPetzval.size();
-	for ( auto& element : elementsPetzval ) {
+	lens.numElements = elementsSrc.size();
+	for ( auto& element : elementsSrc ) {
 		lens.totalSystemThickness += element.thickness;
 	}
 
-	float axisPos = lens.totalSystemThickness;
+	float axisPos = -lens.totalSystemThickness;
 	std::vector< GPUInterfaceDescription > elements;
-	for ( int i = elementsPetzval.size() - 1; i >= 0; i-- ) {
+	for ( int i = elementsSrc.size() - 1; i >= 0; i-- ) {
 
 		// can then also at the same time compute some additional parameters
-		float r = ( elementsPetzval[ i ].radius == inf ) ? 0.0f :  elementsPetzval[ i ].radius;
-		float sa = elementsPetzval[ i ].semiAperture;
-		float t = elementsPetzval[ i ].thickness;
+		float r = ( elementsSrc[ i ].radius == inf ) ? 0.0f :  elementsSrc[ i ].radius;
+		float sa = elementsSrc[ i ].semiAperture;
+		float t = elementsSrc[ i ].thickness;
 
 		// then also materials, tbd on front/back stuff
-		float idxPrev = elementsPetzval[ i ].index;
-		float abbePrev = elementsPetzval[ i ].abbeN;
+		float idxPrev = elementsSrc[ i ].index;
+		float abbePrev = elementsSrc[ i ].abbeN;
 		const glm::vec2 idxAbbePrev = IndexAbbeToCauchyAB( idxPrev, abbePrev );
 
 		float idxNext = ( i == 0 ) ? 1.0f : elementsPetzval[ i - 1 ].index;
@@ -988,11 +995,11 @@ void PrometheusInstance::initResources () {
 		// somewhat redundant, but I want to keep it for now
 		interface.semiAperture = sa;
 
-		// since this behavior is uniform for both positive and negative radii, this can be handled the same for positive and negative radii
-		interface.axisPos = axisPos - r;
-
 		// bump axis position for next iteration
-		axisPos -= t;
+		axisPos += t;
+
+		// since this behavior is uniform for both positive and negative radii, this can be handled the same for positive and negative radii
+		interface.axisPos = axisPos;
 
 		// in order to pull the trig out of the spherical cap intersector, you can precompute this term rather than doing so at runtime
 			// for plano elements this is actually just encoding the semiaperture, it's redundant but it doesn't really matter right now
@@ -1023,6 +1030,10 @@ void PrometheusInstance::initResources () {
 
 	// placeholder, full frame
 	lens.filmSize = glm::vec2( 36.0f, 24.0f );
+
+	// setup for the lens preview stuff
+		// will need to add the raster + accumulate stuff, too
+	lensPreviewImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Lens Preview Image" );
 
 #ifdef GAUSSIANSPLATS_ENABLE
 	// for the gaussian splats
@@ -1117,6 +1128,8 @@ void PrometheusInstance::initResources () {
 		destroyBuffer( LightParametersBuffer );
 		destroyBuffer( debugLineDrawBuffer );
 		destroyBuffer( debugStringConfigBuffer );
+
+		// several missing here...
 
 		// destroying images
 		destroyImage( Accumulator );
@@ -1471,6 +1484,44 @@ void PrometheusInstance::initComputePasses () {
 
 		pipelineManager.addPipeline( config );
 		// AdamPresent.init( &device, &mainDeletionQueue, config );
+	}
+
+	{
+		ComputeConfig config;
+
+		config.name = "Lens Element Preview";
+
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// PREVIEW IMAGE TO DRAW TO
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( lensPreviewImage.imageView[ 0 ] ); } },
+
+			// for the lens system
+			{ 2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensBuffer.buffer ); } },
+		};
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Lens Element Preview" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
+		};
+
+		config.shaderPath = "../shaders/lensElementPreview.comp.glsl";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			int w = 512;
+			int h = 512;
+			vkCmdDispatch( cmd, ( ( w ) + 15 ) / 16, ( ( h ) + 15 ) / 16, 1 );
+		};
+
+		pipelineManager.addPipeline( config );
 	}
 
 	{ // RAYTRACE UBERSHADER
@@ -2106,6 +2157,12 @@ void PrometheusInstance::lightManagerMaintenance () {
 		textureID = ( ImTextureID ) ImGui_ImplVulkan_AddTexture(
 			defaultSamplerNearest,
 			PreviewAtlas.imageView[ 0 ],
+			VK_IMAGE_LAYOUT_GENERAL
+		);
+
+		LensTextureID = ( ImTextureID ) ImGui_ImplVulkan_AddTexture(
+			defaultSamplerNearest,
+			lensPreviewImage.imageView[ 0 ],
 			VK_IMAGE_LAYOUT_GENERAL
 		);
 
