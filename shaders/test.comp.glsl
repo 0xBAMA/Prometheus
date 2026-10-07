@@ -47,7 +47,7 @@ layout ( r32ui, set = 0, binding = 9 ) uniform uimage2D bTally;
 layout ( r32ui, set = 0, binding = 10 ) uniform uimage2D cTally;
 //=============================================================================================================================
 #include "lens.h"
-layout ( set = 0, binding = 11 ) uniform lensParameters {
+layout ( set = 0, binding = 11, scalar ) uniform lensParameters {
 	GPULensDescription params;
 } lens;
 //=============================================================================================================================
@@ -665,7 +665,7 @@ void main () {
 	ray.origin = vec3( uv * lens.params.filmSize * 0.5f * GlobalData.FoV, -lens.params.totalSystemThickness );
 	ray.direction = vec3( 0.0f, 0.0f, 1.0f ); // this will change for pupil sampling
 	vec3 normal = vec3( 0.0f );
-	for ( int i = 0; i < 2; i++ ) {
+	for ( int i = 0; i < lens.params.numElements; i++ ) {
 		float radius = lens.params.elements[ i ].radius;
 		float axisPosition = lens.params.elements[ i ].axisPos;
 		float cosTerm = lens.params.elements[ i ].cosTerm;
@@ -691,7 +691,10 @@ void main () {
 
 		// failed refract, or failed intersection
 		if ( length( ray.direction ) == 0.0f || t < 0.0f ) {
-			// break;
+			// black sample
+			imageAtomicAdd( cTally, pixel, 1 );
+
+			// and break
 			return;
 		}
 	}
