@@ -951,6 +951,77 @@ void PrometheusInstance::initResources () {
 	mapDrawImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Color Image" );
 	mapDepthImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Depth Image" );
 
+	// for the lens system
+	lensBuffer = createBuffer( sizeof( GPULensDescription ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Buffer" );
+
+	// prepping some data for the lens system
+	lens.numElements = elementsPetzval.size();
+	for ( auto& element : elementsPetzval ) {
+		lens.totalSystemThickness += element.thickness;
+	}
+
+	float axisPos = lens.totalSystemThickness;
+	std::vector< GPUInterfaceDescription > elements;
+	for ( int i = elementsPetzval.size() - 1; i >= 0; i-- ) {
+
+		// can then also at the same time compute some additional parameters
+		float r = ( elementsPetzval[ i ].radius == inf ) ? 0.0f :  elementsPetzval[ i ].radius;
+		float sa = elementsPetzval[ i ].semiAperture;
+		float t = elementsPetzval[ i ].thickness;
+
+		// then also materials, tbd on front/back stuff
+		float idxPrev = elementsPetzval[ i ].index;
+		float abbePrev = elementsPetzval[ i ].abbeN;
+		const glm::vec2 idxAbbePrev = IndexAbbeToCauchyAB( idxPrev, abbePrev );
+
+		float idxNext = ( i == 0 ) ? 1.0f : elementsPetzval[ i - 1 ].index;
+		float abbeNext = ( i == 0 ) ? 89.3f : elementsPetzval[ i - 1 ].abbeN;
+		glm::vec2 idxAbbeNext = IndexAbbeToCauchyAB( idxNext, abbeNext );
+
+		GPUInterfaceDescription interface;
+		interface.materialBack = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbePrev ) );
+		interface.materialFront = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbeNext ) );
+
+		// reserve value of 0.0f is easier to check for on the GPU, rather than the infinity constant
+		interface.radius = r;
+
+		// somewhat redundant, but I want to keep it for now
+		interface.semiAperture = sa;
+
+		// since this behavior is uniform for both positive and negative radii, this can be handled the same for positive and negative radii
+		interface.axisPos = axisPos - r;
+
+		// bump axis position for next iteration
+		axisPos -= t;
+
+		// in order to pull the trig out of the spherical cap intersector, you can precompute this term rather than doing so at runtime
+			// for plano elements this is actually just encoding the semiaperture, it's redundant but it doesn't really matter right now
+		interface.cosTerm = ( r == 0.0f ) ? sa : float( std::cos( std::asin( sa / abs( r ) ) ) );
+
+		elements.push_back( interface );
+	}
+
+	// report the contents of the buffer
+	fmt::print( "Specifying a lens with {} interfaces\n", elements.size() );
+	int idx = 0;
+	for ( auto& element : elements ) {
+		vec2 matFront = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialFront ) );
+		vec2 matBack = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialBack ) );
+		fmt::print( "{}: radius: {}, axisPosition: {}, semiaperture: {}\n", idx, element.radius, element.axisPos, element.semiAperture );
+		idx++;
+	}
+
+	for ( int i = 0; i < 32; i++ ) {
+		if ( i < elements.size() ) {
+			lens.interfaces[ i ] = elements[ i ];
+		} else {
+			memset( &lens.interfaces[ i ], 0.0f, sizeof( GPUInterfaceDescription ) );
+		}
+	}
+
+	// placeholder, full frame
+	lens.filmSize = glm::vec2( 36.0f, 24.0f );
+
 #ifdef GAUSSIANSPLATS_ENABLE
 	// for the gaussian splats
 	{

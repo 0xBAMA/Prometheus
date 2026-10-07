@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef CAMERA_H
 #define CAMERA_H
 
@@ -46,8 +48,17 @@ struct GPUInterfaceDescription {
 	float pad = 0.0f; // padding out to 8x 4 bytes
 };
 
+struct GPULensDescription {
+	float totalSystemThickness = 0.0f; // this also includes the focus offset
+	float numElements = 0.0f;
+	glm::vec2 filmSize{ 0.0f, 0.0f };
+
+	// establishing a maximum number of lens elements which can be part of a lens system
+	GPUInterfaceDescription interfaces[ 32 ]{};
+};
+
 // lens prescriptions from Modern Lens Design by Warren J. Smith
-const interfaceDescription elementsFisheye[] = {
+const std::vector< interfaceDescription > elementsFisheye = {
 	interfaceDescription(599.383f, 35.030f, 448.4f, 1.517f, 64.2f),
 	interfaceDescription(235.825f, 190.161f, 234.0f),
 	interfaceDescription(605.513f, 30.025f, 251.8f, 1.487f, 70.4f),
@@ -67,7 +78,7 @@ const interfaceDescription elementsFisheye[] = {
 	interfaceDescription(-337.536f, 150.110f, 139.0f)
 };
 
-const interfaceDescription elementsHypergon[] = {
+const std::vector< interfaceDescription > elementsHypergon = {
 	interfaceDescription(8.570f, 2.200f, 8.5f, 1.510f, 63.5f),
 	interfaceDescription(8.630f, 6.900f, 8.5f),
 	interfaceDescription(8.630f, 6.900f, 2.2f),
@@ -75,7 +86,7 @@ const interfaceDescription elementsHypergon[] = {
 	interfaceDescription(-8.570f, 92.925f, 8.5f)
 };
 
-const interfaceDescription elementsPetzval[] = {
+const std::vector< interfaceDescription > elementsPetzval = {
 	interfaceDescription(53.000f, 19.500f, 30.0f, 1.517f, 64.2f),
 	interfaceDescription(-460.000f, 2.565f, 30.0f),
 	interfaceDescription(-139.700f, 5.000f, 30.0f, 1.620f, 36.4f),
@@ -86,7 +97,7 @@ const interfaceDescription elementsPetzval[] = {
 	interfaceDescription(-161.0f, 46.646f, 21.5f)
 };
 
-const interfaceDescription elementsSonnar[] = {
+const std::vector< interfaceDescription > elementsSonnar = {
 	interfaceDescription(121.480f, 8.810f, 45.0f, 1.613f, 58.6f),
 	interfaceDescription(310.660f, 0.5f, 45.0f),
 	interfaceDescription(73.270f, 8.380f, 40.0f, 1.613f, 58.6f),
@@ -99,7 +110,7 @@ const interfaceDescription elementsSonnar[] = {
 	interfaceDescription(-190.620f, 31.406f, 23.0f)
 };
 
-const interfaceDescription elementsIkuoMoriMacro[] = {
+const std::vector< interfaceDescription > elementsIkuoMoriMacro = {
 	interfaceDescription(66.185f, 5.530f, 29.1f, 1.755f, 52.3f),
 	interfaceDescription(166.926f, 0.120f, 28.6f),
 	interfaceDescription(37.47f, 12.530f, 25.0f, 1.670f, 57.3f),
