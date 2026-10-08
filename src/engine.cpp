@@ -981,8 +981,8 @@ void PrometheusInstance::initResources () {
 		float abbePrev = elementsSrc[ i ].abbeN;
 		const glm::vec2 idxAbbePrev = IndexAbbeToCauchyAB( idxPrev, abbePrev );
 
-		float idxNext = ( i == 0 ) ? 1.0f : elementsPetzval[ i - 1 ].index;
-		float abbeNext = ( i == 0 ) ? 89.3f : elementsPetzval[ i - 1 ].abbeN;
+		float idxNext = ( i == 0 ) ? 1.0f : elementsSrc[ i - 1 ].index;
+		float abbeNext = ( i == 0 ) ? 89.3f : elementsSrc[ i - 1 ].abbeN;
 		glm::vec2 idxAbbeNext = IndexAbbeToCauchyAB( idxNext, abbeNext );
 
 		GPUInterfaceDescription interface;
