@@ -73,7 +73,7 @@ const std::vector< interfaceDescription > elementsFisheye = {
 	interfaceDescription(38507.649f, 10.008f, 84.1f, 1.785f, 26.1f),
 	interfaceDescription(95.081f, 110.093f, 84.1f, 1.744f, 44.7f),
 	interfaceDescription(-162.638f, 130.110f, 84.1f),
-	interfaceDescription(1376.167f, 20.017f, 84.1f, 1.785f, 26.1f),
+	interfaceDescription(1376.167f, 20.017f, 139.0f, 1.785f, 26.1f),
 	interfaceDescription(177.275f, 150.127f, 139.0f, 1.702f, 41.0f),
 	interfaceDescription(-400.339f, 18.766f, 139.0f, 1.668f, 41.9f),
 	interfaceDescription(-337.536f, 150.110f, 139.0f)
