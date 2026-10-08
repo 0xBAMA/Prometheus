@@ -202,10 +202,10 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, AdamCountTally.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, AdamOutputTex.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
-	// need to access the pipelines out of the pipeline manager, is the last piece
-		// then also test reinitializing
-
-	pipelineManager.getPipeline( "Lens Element Preview" )->invoke2( cmd );
+	{ // this piece only needs to run once when lens parameters change
+		scopedTimer start( "Lens Element Preview" );
+		pipelineManager.getPipeline( "Lens Element Preview" )->invoke2( cmd );
+	}
 
 	if ( mapConfig.mapActive ) {
 
@@ -956,85 +956,6 @@ void PrometheusInstance::initResources () {
 	mapDrawImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Color Image" );
 	mapDepthImage = createImage( { uint32_t( mapConfig.mapRes.x ), uint32_t( mapConfig.mapRes.y ), 1 }, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, "Map Depth Image" );
 
-	// for the lens system
-	lensBuffer = createBuffer( sizeof( GPULensDescription ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Buffer" );
-
-	std::vector<interfaceDescription> elementsSrc = elementsFisheye;
-
-	// prepping some data for the lens system
-	lens.numElements = elementsSrc.size();
-	for ( auto& element : elementsSrc ) {
-		lens.totalSystemThickness += element.thickness;
-	}
-
-	float axisPos = -lens.totalSystemThickness;
-	std::vector< GPUInterfaceDescription > elements;
-	for ( int i = elementsSrc.size() - 1; i >= 0; i-- ) {
-
-		// can then also at the same time compute some additional parameters
-		float r = ( elementsSrc[ i ].radius == inf ) ? 0.0f :  elementsSrc[ i ].radius;
-		float sa = elementsSrc[ i ].semiAperture;
-		float t = elementsSrc[ i ].thickness;
-
-		// then also materials, tbd on front/back stuff
-		float idxPrev = elementsSrc[ i ].index;
-		float abbePrev = elementsSrc[ i ].abbeN;
-		const glm::vec2 idxAbbePrev = IndexAbbeToCauchyAB( idxPrev, abbePrev );
-
-		float idxNext = ( i == 0 ) ? 1.0f : elementsSrc[ i - 1 ].index;
-		float abbeNext = ( i == 0 ) ? 89.3f : elementsSrc[ i - 1 ].abbeN;
-		glm::vec2 idxAbbeNext = IndexAbbeToCauchyAB( idxNext, abbeNext );
-
-		GPUInterfaceDescription interface;
-		interface.materialBack = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbePrev ) );
-		interface.materialFront = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbeNext ) );
-
-		// reserve value of 0.0f is easier to check for on the GPU, rather than the infinity constant
-		interface.radius = r;
-
-		// somewhat redundant, but I want to keep it for now
-		interface.semiAperture = sa;
-
-		// bump axis position for next iteration
-		axisPos += t;
-
-		// since this behavior is uniform for both positive and negative radii, this can be handled the same for positive and negative radii
-		interface.axisPos = axisPos;
-
-		// in order to pull the trig out of the spherical cap intersector, you can precompute this term rather than doing so at runtime
-			// for plano elements this is actually just encoding the semiaperture, it's redundant but it doesn't really matter right now
-		interface.cosTerm = ( r == 0.0f ) ? sa : float( std::cos( std::asin( sa / abs( r ) ) ) );
-
-		elements.push_back( interface );
-	}
-
-	// report the contents of the buffer
-	fmt::print( "Specifying a lens with {} interfaces, total system thickness: {}\n", elements.size(), lens.totalSystemThickness );
-	int idx = 0;
-	for ( auto& element : elements ) {
-		lens.maxSemiAperture = std::max( lens.maxSemiAperture, element.semiAperture );
-		vec2 matFront = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialFront ) );
-		vec2 matBack = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialBack ) );
-		fmt::print( "{}: radius: {}, axisPosition: {}, semiaperture: {}\n", idx, element.radius, element.axisPos, element.semiAperture );
-		idx++;
-	}
-
-	lens.numElements = elements.size();
-	for ( int i = 0; i < 32; i++ ) {
-		if ( i < elements.size() ) {
-			lens.interfaces[ i ] = elements[ i ];
-		} else {
-			memset( &lens.interfaces[ i ], 0.0f, sizeof( GPUInterfaceDescription ) );
-		}
-	}
-
-	// placeholder, full frame
-	lens.filmSize = glm::vec2( 36.0f, 24.0f );
-
-	// setup for the lens preview stuff
-		// will need to add the raster + accumulate stuff, too
-	lensPreviewImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Lens Preview Image" );
-
 #ifdef GAUSSIANSPLATS_ENABLE
 	// for the gaussian splats
 	{
@@ -1120,6 +1041,200 @@ void PrometheusInstance::initResources () {
 		font_tinyfont = createImage( data, extent, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, 4, "TinyFont LUT" );
 		stbi_image_free( data );
 	}
+
+		// for the lens system
+	lensBuffer = createBuffer( sizeof( GPULensDescription ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Buffer" );
+
+	std::vector<interfaceDescription> elementsSrc = elementsFisheye;
+
+	// prepping some data for the lens system
+	lens.numElements = elementsSrc.size();
+	for ( auto& element : elementsSrc ) {
+		lens.totalSystemThickness += element.thickness;
+	}
+
+	std::vector< uint8_t > elementCodes;
+	elementCodes.push_back( 0b01 ); // first element is always air-glass
+	for ( int i = 1; i < elementsSrc.size(); i++ ) {
+		elementCodes.push_back( ( elementsSrc[ i - 1 ].isAir ? 0 : 2 ) + ( elementsSrc[ i ].isAir ? 0 : 1 ) );
+	}
+
+	vec2 o = vec2( 512.0f );
+	float axisPosition = 0.0f;
+	for ( int i = 0; i < elementsSrc.size() - 1; i++ ) {
+		// lens parameters
+		const float sa = elementsSrc[ i ].semiAperture;
+		const float r = elementsSrc[ i ].radius;
+		const float t = elementsSrc[ i ].thickness;
+
+		switch ( elementCodes[ i ] ) {
+		case 0: // aperture stop
+			addDebugDrawLine( o + vec2( axisPosition, -sa - 100 ), o + vec2( axisPosition, -sa ), vec3( 1.0f ) );
+			addDebugDrawLine( o + vec2( axisPosition, sa + 100 ), o + vec2( axisPosition, sa ), vec3( 1.0f ) );
+			break;
+		default: {
+			if ( r == inf ) { // plano- element
+				// single line to represent
+				addDebugDrawLine( o + vec2( axisPosition, -sa ), o + vec2( axisPosition, sa ), vec3( 1.0f ) );
+			} else { // some curved element
+				// trace an arc for the lens surface
+				vec2 center = vec2( axisPosition + r, 0.0f );
+				float arcAngle = std::asin( sa / abs( r ) );
+
+				float d = glm::distance( vec2( cos( 0.0f ), sin( 0.0f ) ) * r, vec2( cos( 0.001f ), sin( 0.001f ) ) * r );
+				float increment = 0.001f / d;
+				for ( float k = 0.0f; k < arcAngle; k += increment ) {
+					vec2 p1 = center - vec2( cos( k ), sin( k ) ) * r;
+					vec2 p2 = center - vec2( cos( k + increment ), sin( k + increment ) ) * r;
+					addDebugDrawLine( o + p1, o + p2, vec3( 1.0f ) );
+					addDebugDrawLine( o + vec2( p1.x, -p1.y ), o + vec2( p2.x, -p2.y ), vec3( 1.0f ) );
+				}
+			}
+			break;
+		}
+		}
+
+		switch ( elementCodes[ i ] ) {
+		case 1: // air-glass interface
+		case 3: // cemented glass-glass interface
+			vec2 p1, p2;
+			if ( r == inf ) {
+				// plano element, simpler to find endpoints
+				p1 = vec2( axisPosition, sa );
+			} else {
+				vec2 center = vec2( axisPosition + r, 0.0f );
+				float arcAngle = std::asin( sa / abs( r ) );
+				p1 = center - vec2( cos( arcAngle ), sin( arcAngle ) ) * r;
+				if ( r < 0.0f ) {
+					p1.y = -p1.y;
+				}
+			}
+
+			if ( elementsSrc[ i + 1 ].radius == inf ) {
+				p2 = vec2( axisPosition + t, elementsSrc[ i + 1 ].semiAperture );
+			} else {
+				vec2 center = vec2( axisPosition + t + elementsSrc[ i + 1 ].radius, 0.0f );
+				float arcAngle = std::asin(  elementsSrc[ i + 1 ].semiAperture / abs( elementsSrc[ i + 1 ].radius ) );
+				p2 = center - vec2( cos( arcAngle ), sin( arcAngle ) ) * elementsSrc[ i + 1 ].radius;
+				if ( elementsSrc[ i + 1 ].radius < 0.0f ) {
+					p2.y = -p2.y;
+				}
+			}
+
+			if ( abs( p1.y - p2.y ) < 0.001f ) {
+				addDebugDrawLine( o + p1, o + p2, vec3( 1.0f ) );
+				addDebugDrawLine( o + vec2( p1.x, -p1.y ), o + vec2( p2.x, -p1.y ), vec3( 1.0f ) );
+			} else if ( p1.y > p2.y ) {
+				float deltaY = p2.y - p1.y;
+				float deltaX = p2.x - p1.x;
+				addDebugDrawLine( o + p1, o + p1 + vec2( 0.0f, deltaY ), vec3( 1.0f ) );
+				addDebugDrawLine( o + p2, o + p2 - vec2( deltaX, 0.0f ), vec3( 1.0f ) );
+				p1.y = -p1.y;
+				p2.y = -p2.y;
+				addDebugDrawLine( o + p1, o + p1 + vec2( 0.0f, -deltaY ), vec3( 1.0f ) );
+				addDebugDrawLine( o + p2, o + p2 - vec2( deltaX, 0.0f ), vec3( 1.0f ) );
+			} else {
+				float deltaY = p2.y - p1.y;
+				float deltaX = p2.x - p1.x;
+				addDebugDrawLine( o + p1, o + p1 + vec2( deltaX, 0.0f ), vec3( 1.0f ) );
+				addDebugDrawLine( o + p2, o + p2 - vec2( 0.0f, deltaY ), vec3( 1.0f ) );
+				p1.y = -p1.y;
+				p2.y = -p2.y;
+				addDebugDrawLine( o + p1, o + p1 + vec2( deltaX, 0.0f ), vec3( 1.0f ) );
+				addDebugDrawLine( o + p2, o + p2 - vec2( 0.0f, -deltaY ), vec3( 1.0f ) );
+			}
+			break;
+		default:
+			break;
+		}
+
+		// bump for next arc
+		axisPosition += t;
+	}
+
+	// drawing the film plane
+	addDebugDrawLine( o + vec2( lens.totalSystemThickness, 100.0f ), o + vec2( lens.totalSystemThickness, -100.0f ), vec3( 1.0f ) );
+
+	// fmt::print( "\nElement Codes: \n" );
+	// for ( auto& el : elementCodes ) {
+	// 	switch ( el ) {
+	// 	case 0: fmt::print( "Aperture Stop\n" ); break;
+	// 	case 1: fmt::print( "Air-Glass Interface\n" ); break;
+	// 	case 2: fmt::print( "Glass-Air Interface\n" ); break;
+	// 	case 3: fmt::print( "Cemented Glass-Glass\n" ); break;
+	// 	}
+	// }
+	// fmt::print( "\n" );
+
+
+
+	float axisPos = -lens.totalSystemThickness;
+	std::vector< GPUInterfaceDescription > elements;
+	for ( int i = elementsSrc.size() - 1; i >= 0; i-- ) {
+
+		// can then also at the same time compute some additional parameters
+		float r = ( elementsSrc[ i ].radius == inf ) ? 0.0f :  elementsSrc[ i ].radius;
+		float sa = elementsSrc[ i ].semiAperture;
+		float t = elementsSrc[ i ].thickness;
+
+		// then also materials, tbd on front/back stuff
+		float idxPrev = elementsSrc[ i ].index;
+		float abbePrev = elementsSrc[ i ].abbeN;
+		const glm::vec2 idxAbbePrev = IndexAbbeToCauchyAB( idxPrev, abbePrev );
+
+		float idxNext = ( i == 0 ) ? 1.0f : elementsSrc[ i - 1 ].index;
+		float abbeNext = ( i == 0 ) ? 89.3f : elementsSrc[ i - 1 ].abbeN;
+		glm::vec2 idxAbbeNext = IndexAbbeToCauchyAB( idxNext, abbeNext );
+
+		GPUInterfaceDescription interface;
+		interface.materialBack = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbePrev ) );
+		interface.materialFront = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbeNext ) );
+
+		// reserve value of 0.0f is easier to check for on the GPU, rather than the infinity constant
+		interface.radius = r;
+
+		// somewhat redundant, but I want to keep it for now
+		interface.semiAperture = sa;
+
+		// bump axis position for next iteration
+		axisPos += t;
+
+		// since this behavior is uniform for both positive and negative radii, this can be handled the same for positive and negative radii
+		interface.axisPos = axisPos;
+
+		// in order to pull the trig out of the spherical cap intersector, you can precompute this term rather than doing so at runtime
+			// for plano elements this is actually just encoding the semiaperture, it's redundant but it doesn't really matter right now
+		interface.cosTerm = ( r == 0.0f ) ? sa : float( std::cos( std::asin( sa / abs( r ) ) ) );
+
+		elements.push_back( interface );
+	}
+
+	// report the contents of the buffer
+	fmt::print( "Specifying a lens with {} interfaces, total system thickness: {}\n", elements.size(), lens.totalSystemThickness );
+	int idx = 0;
+	for ( auto& element : elements ) {
+		lens.maxSemiAperture = std::max( lens.maxSemiAperture, element.semiAperture );
+		vec2 matFront = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialFront ) );
+		vec2 matBack = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialBack ) );
+		fmt::print( "{}: radius: {}, axisPosition: {}, semiaperture: {}\n", idx, element.radius, element.axisPos, element.semiAperture );
+		idx++;
+	}
+
+	lens.numElements = elements.size();
+	for ( int i = 0; i < 32; i++ ) {
+		if ( i < elements.size() ) {
+			lens.interfaces[ i ] = elements[ i ];
+		} else {
+			memset( &lens.interfaces[ i ], 0.0f, sizeof( GPUInterfaceDescription ) );
+		}
+	}
+
+	// placeholder, full frame
+	lens.filmSize = glm::vec2( 36.0f, 24.0f );
+
+	// setup for the lens preview stuff
+		// will need to add the raster + accumulate stuff, too
+	lensPreviewImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Lens Preview Image" );
 
 	// make sure to clean up at the end
 	mainDeletionQueue.push_function([ & ] () {
