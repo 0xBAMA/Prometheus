@@ -1055,6 +1055,7 @@ void PrometheusInstance::initResources () {
 
 	// replacing the debug lines
 	std::vector<vec2> lensOutlines;
+	std::vector<vec3> lensOutlineColors; // this should be refactored into a palette, so it's less to swap out each time (and you retain meaningful semantic tagging (element index, edges, aperture, etc) on a third parameter for the line segments)
 
 	// prepping some data for the lens system
 	lens.numElements = elementsSrc.size();
@@ -1068,7 +1069,8 @@ void PrometheusInstance::initResources () {
 		elementCodes.push_back( ( elementsSrc[ i - 1 ].isAir ? 0 : 2 ) + ( elementsSrc[ i ].isAir ? 0 : 1 ) );
 	}
 
-	vec2 o = vec2( 0.0f );
+	const vec3 edgeColor = vec3( 0.618f );
+	const vec2 o = vec2( 0.0f );
 	float axisPosition = 0.0f;
 	for ( int i = 0; i < elementsSrc.size(); i++ ) {
 		// lens parameters
@@ -1076,18 +1078,30 @@ void PrometheusInstance::initResources () {
 		const float r = elementsSrc[ i ].radius;
 		const float t = elementsSrc[ i ].thickness;
 
+		const int iBack = elementsSrc.size() - 1 - i;
+		const vec3 color = vec3( sin( iBack - 0.95f ) / 2.0f + 0.5f, cos( iBack + 0.9f ) / 2.0f + 0.5f, sin( iBack + 0.5f ) / 2.0f + 0.5f );
+
 		switch ( elementCodes[ i ] ) {
 		case 0: // aperture stop
 			lensOutlines.push_back( o + vec2( axisPosition, -sa - 100 ) );
 			lensOutlines.push_back( o + vec2( axisPosition, -sa ) );
 			lensOutlines.push_back( o + vec2( axisPosition, sa + 100 ) );
 			lensOutlines.push_back( o + vec2( axisPosition, sa ) );
+
+			lensOutlineColors.push_back( color );
+			lensOutlineColors.push_back( color );
+			lensOutlineColors.push_back( color );
+			lensOutlineColors.push_back( color );
 			break;
 		default: {
 			if ( r == inf ) { // plano- element
 				// single line to represent
 				lensOutlines.push_back( o + vec2( axisPosition, -sa ) );
 				lensOutlines.push_back( o + vec2( axisPosition, sa ) );
+
+				lensOutlineColors.push_back( color );
+				lensOutlineColors.push_back( color );
+
 			} else { // some curved element
 				// trace an arc for the lens surface
 				vec2 center = vec2( axisPosition + r, 0.0f );
@@ -1102,6 +1116,11 @@ void PrometheusInstance::initResources () {
 					lensOutlines.push_back( o + p2 );
 					lensOutlines.push_back( o + vec2( p1.x, -p1.y ) );
 					lensOutlines.push_back( o + vec2( p2.x, -p2.y ) );
+
+					lensOutlineColors.push_back( color );
+					lensOutlineColors.push_back( color );
+					lensOutlineColors.push_back( color );
+					lensOutlineColors.push_back( color );
 				}
 			}
 			break;
@@ -1140,6 +1159,10 @@ void PrometheusInstance::initResources () {
 				lensOutlines.push_back( o + p2 );
 				lensOutlines.push_back( o + vec2( p1.x, -p1.y ) );
 				lensOutlines.push_back( o + vec2( p2.x, -p2.y ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
 			} else if ( p1.y > p2.y ) {
 				float deltaY = p2.y - p1.y;
 				float deltaX = p2.x - p1.x;
@@ -1147,12 +1170,20 @@ void PrometheusInstance::initResources () {
 				lensOutlines.push_back( o + p1 + vec2( 0.0f, deltaY ) );
 				lensOutlines.push_back( o + p2 );
 				lensOutlines.push_back( o + p2 - vec2( deltaX, 0.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
 				p1.y = -p1.y;
 				p2.y = -p2.y;
 				lensOutlines.push_back( o + p1 );
 				lensOutlines.push_back( o + p1 + vec2( 0.0f, -deltaY ) );
 				lensOutlines.push_back( o + p2 );
 				lensOutlines.push_back( o + p2 - vec2( deltaX, 0.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
 			} else {
 				float deltaY = p2.y - p1.y;
 				float deltaX = p2.x - p1.x;
@@ -1160,12 +1191,20 @@ void PrometheusInstance::initResources () {
 				lensOutlines.push_back( o + p1 + vec2( deltaX, 0.0f ) );
 				lensOutlines.push_back( o + p2 );
 				lensOutlines.push_back( o + p2 - vec2( 0.0f, deltaY ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
 				p1.y = -p1.y;
 				p2.y = -p2.y;
 				lensOutlines.push_back( o + p1 );
 				lensOutlines.push_back( o + p1 + vec2( deltaX, 0.0f ) );
 				lensOutlines.push_back( o + p2 );
 				lensOutlines.push_back( o + p2 - vec2( 0.0f, -deltaY ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
+				lensOutlineColors.push_back( vec3( 1.0f ) );
 			}
 			break;
 		default:
@@ -1179,17 +1218,25 @@ void PrometheusInstance::initResources () {
 	// drawing the film plane
 	lensOutlines.push_back( o + vec2( lens.totalSystemThickness, lens.filmSize.y / 2.0f ) );
 	lensOutlines.push_back( o + vec2( lens.totalSystemThickness, -lens.filmSize.y / 2.0f ) );
+	lensOutlineColors.push_back( vec3( 1.0f ) );
+	lensOutlineColors.push_back( vec3( 1.0f ) );
 
 	// with a couple little bits to emphasize dimensions
 	lensOutlines.push_back( o + vec2( lens.totalSystemThickness * 0.99f, lens.filmSize.y / 2.0f ) );
 	lensOutlines.push_back( o + vec2( lens.totalSystemThickness * 1.01f, lens.filmSize.y / 2.0f ) );
 	lensOutlines.push_back( o + vec2( lens.totalSystemThickness * 0.99f, -lens.filmSize.y / 2.0f ) );
 	lensOutlines.push_back( o + vec2( lens.totalSystemThickness * 1.01f, -lens.filmSize.y / 2.0f ) );
+	lensOutlineColors.push_back( vec3( 1.0f ) );
+	lensOutlineColors.push_back( vec3( 1.0f ) );
+	lensOutlineColors.push_back( vec3( 1.0f ) );
+	lensOutlineColors.push_back( vec3( 1.0f ) );
 
 	numLinesLensOutline = lensOutlines.size();
 
 	lensOutlineBuffer = createBuffer( sizeof( vec2 ) * lensOutlines.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Outline Buffer" );
+	lensOutlineColorBuffer = createBuffer( sizeof( vec3 ) * lensOutlines.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Outline Color Buffer" );
 	memcpy( lensOutlineBuffer.allocation->GetMappedData(), lensOutlines.data(), sizeof( vec2 ) * lensOutlines.size() );
+	memcpy( lensOutlineColorBuffer.allocation->GetMappedData(), lensOutlineColors.data(), sizeof( vec3 ) * lensOutlines.size() );
 
 	// fmt::print( "\nElement Codes: \n" );
 	// for ( auto& el : elementCodes ) {
@@ -1647,6 +1694,10 @@ void PrometheusInstance::initComputePasses () {
 			// for the lens outlines
 			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( lensOutlineBuffer.buffer ); } },
+
+			// colors for the lens outlines
+			{ 3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensOutlineColorBuffer.buffer ); } },
 
 		};
 

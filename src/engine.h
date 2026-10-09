@@ -267,6 +267,7 @@ public:
 	ImTextureID LensTextureID;
 	AllocatedImage lensPreviewImage;
 	AllocatedBuffer lensOutlineBuffer;
+	AllocatedBuffer lensOutlineColorBuffer;
 	AllocatedImage lensOutlineDrawImage;
 	uint32_t numLinesLensOutline = 0;
 

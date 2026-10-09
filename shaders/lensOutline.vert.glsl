@@ -14,6 +14,11 @@ layout ( set = 0, binding = 1, scalar ) uniform lensParameters {
 layout( set = 0, binding = 2, scalar ) readonly buffer lensOutlines {
 	vec2 points[];
 };
+layout( set = 0, binding = 3, scalar ) readonly buffer lensOutlineColors {
+	vec3 colors[];
+};
+
+layout ( location = 0 ) out vec3 color;
 
 void main () {
 	// initializing the RNG
@@ -24,6 +29,8 @@ void main () {
 	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness );
 
 	vec2 jitter = rFloatN2() / 512.0f;
+
+	color = colors[ gl_VertexIndex ];
 
 	gl_Position = vec4(
 		remap( -points[ gl_VertexIndex ].x, 0.1f * maxDim, -1.1 * maxDim, -1.0f, 1.0f ) + jitter.x,
