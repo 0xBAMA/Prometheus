@@ -221,7 +221,8 @@ void PrometheusInstance::Draw () {
 	} else {
 
 		switch ( renderMode ) {
-		case 0: // wavefront case
+		case 0: break;
+		case 1: // wavefront case
 			{ // running N bounces for numRays rays in the wavefront pathtracer
 				scopedTimer start( "Wavefront Test" );
 				pipelineManager.getPipeline( "Phoenix Ray Gen" )->invoke2( cmd );
@@ -231,7 +232,7 @@ void PrometheusInstance::Draw () {
 				}
 			}
 			break;
-		case 1: // conventional case, the iterative pathtracer
+		case 2: // conventional case, the iterative pathtracer
 			{ // running one iteration of N bounces
 				scopedTimer start( "Ubershader RT" );
 				pipelineManager.getPipeline( "Raytrace Ubershader" )->invoke2( cmd );
@@ -606,9 +607,11 @@ void PrometheusInstance::MainLoop () {
 
 					// toggling the renderer mode
 					ImGui::Text( "Renderer mode" );
-					ImGui::RadioButton( "Wavefront", &renderMode, 0 );
+					ImGui::RadioButton( "Disabled", &renderMode, 0 );
 					ImGui::SameLine();
-					ImGui::RadioButton( "Conventional", &renderMode, 1 );
+					ImGui::RadioButton( "Wavefront", &renderMode, 1 );
+					ImGui::SameLine();
+					ImGui::RadioButton( "Conventional", &renderMode, 2 );
 
 					ImGui::SliderFloat( "Brightness Scale", &globalData.brightnessScalar, 0.3f, 5.0f, "%.5f", ImGuiSliderFlags_Logarithmic ); // this should also apply to the raster step + accumulate step
 					ImGui::SliderFloat( "Resolution Scale", &renderScale, 0.05f, 1.0f ); // this should also apply to the raster step + accumulate step
