@@ -179,6 +179,7 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_imageD( cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_imageD( cmd, mapDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, lensOutlineDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 #ifdef GAUSSIANSPLATS_ENABLE
 	vkutil::transition_image( cmd, splatDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
@@ -204,6 +205,7 @@ void PrometheusInstance::Draw () {
 
 	{ // this piece only needs to run once when lens parameters change
 		scopedTimer start( "Lens Element Preview" );
+		pipelineManager.getPipeline( "Lens Outline" )->invoke2( cmd );
 		pipelineManager.getPipeline( "Lens Element Preview" )->invoke2( cmd );
 	}
 
@@ -1042,10 +1044,17 @@ void PrometheusInstance::initResources () {
 		stbi_image_free( data );
 	}
 
-		// for the lens system
+	// for the lens system
 	lensBuffer = createBuffer( sizeof( GPULensDescription ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Buffer" );
 
+	lensOutlineDrawImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Outline Draw Image" );
 	std::vector<interfaceDescription> elementsSrc = elementsFisheye;
+
+	// placeholder, full frame
+	lens.filmSize = glm::vec2( 36.0f, 24.0f );
+
+	// replacing the debug lines
+	std::vector<vec2> lensOutlines;
 
 	// prepping some data for the lens system
 	lens.numElements = elementsSrc.size();
@@ -1059,9 +1068,9 @@ void PrometheusInstance::initResources () {
 		elementCodes.push_back( ( elementsSrc[ i - 1 ].isAir ? 0 : 2 ) + ( elementsSrc[ i ].isAir ? 0 : 1 ) );
 	}
 
-	vec2 o = vec2( 512.0f );
+	vec2 o = vec2( 0.0f );
 	float axisPosition = 0.0f;
-	for ( int i = 0; i < elementsSrc.size() - 1; i++ ) {
+	for ( int i = 0; i < elementsSrc.size(); i++ ) {
 		// lens parameters
 		const float sa = elementsSrc[ i ].semiAperture;
 		const float r = elementsSrc[ i ].radius;
@@ -1069,13 +1078,16 @@ void PrometheusInstance::initResources () {
 
 		switch ( elementCodes[ i ] ) {
 		case 0: // aperture stop
-			addDebugDrawLine( o + vec2( axisPosition, -sa - 100 ), o + vec2( axisPosition, -sa ), vec3( 1.0f ) );
-			addDebugDrawLine( o + vec2( axisPosition, sa + 100 ), o + vec2( axisPosition, sa ), vec3( 1.0f ) );
+			lensOutlines.push_back( o + vec2( axisPosition, -sa - 100 ) );
+			lensOutlines.push_back( o + vec2( axisPosition, -sa ) );
+			lensOutlines.push_back( o + vec2( axisPosition, sa + 100 ) );
+			lensOutlines.push_back( o + vec2( axisPosition, sa ) );
 			break;
 		default: {
 			if ( r == inf ) { // plano- element
 				// single line to represent
-				addDebugDrawLine( o + vec2( axisPosition, -sa ), o + vec2( axisPosition, sa ), vec3( 1.0f ) );
+				lensOutlines.push_back( o + vec2( axisPosition, -sa ) );
+				lensOutlines.push_back( o + vec2( axisPosition, sa ) );
 			} else { // some curved element
 				// trace an arc for the lens surface
 				vec2 center = vec2( axisPosition + r, 0.0f );
@@ -1086,8 +1098,10 @@ void PrometheusInstance::initResources () {
 				for ( float k = 0.0f; k < arcAngle; k += increment ) {
 					vec2 p1 = center - vec2( cos( k ), sin( k ) ) * r;
 					vec2 p2 = center - vec2( cos( k + increment ), sin( k + increment ) ) * r;
-					addDebugDrawLine( o + p1, o + p2, vec3( 1.0f ) );
-					addDebugDrawLine( o + vec2( p1.x, -p1.y ), o + vec2( p2.x, -p2.y ), vec3( 1.0f ) );
+					lensOutlines.push_back( o + p1 );
+					lensOutlines.push_back( o + p2 );
+					lensOutlines.push_back( o + vec2( p1.x, -p1.y ) );
+					lensOutlines.push_back( o + vec2( p2.x, -p2.y ) );
 				}
 			}
 			break;
@@ -1122,26 +1136,36 @@ void PrometheusInstance::initResources () {
 			}
 
 			if ( abs( p1.y - p2.y ) < 0.001f ) {
-				addDebugDrawLine( o + p1, o + p2, vec3( 1.0f ) );
-				addDebugDrawLine( o + vec2( p1.x, -p1.y ), o + vec2( p2.x, -p1.y ), vec3( 1.0f ) );
+				lensOutlines.push_back( o + p1 );
+				lensOutlines.push_back( o + p2 );
+				lensOutlines.push_back( o + vec2( p1.x, -p1.y ) );
+				lensOutlines.push_back( o + vec2( p2.x, -p2.y ) );
 			} else if ( p1.y > p2.y ) {
 				float deltaY = p2.y - p1.y;
 				float deltaX = p2.x - p1.x;
-				addDebugDrawLine( o + p1, o + p1 + vec2( 0.0f, deltaY ), vec3( 1.0f ) );
-				addDebugDrawLine( o + p2, o + p2 - vec2( deltaX, 0.0f ), vec3( 1.0f ) );
+				lensOutlines.push_back( o + p1 );
+				lensOutlines.push_back( o + p1 + vec2( 0.0f, deltaY ) );
+				lensOutlines.push_back( o + p2 );
+				lensOutlines.push_back( o + p2 - vec2( deltaX, 0.0f ) );
 				p1.y = -p1.y;
 				p2.y = -p2.y;
-				addDebugDrawLine( o + p1, o + p1 + vec2( 0.0f, -deltaY ), vec3( 1.0f ) );
-				addDebugDrawLine( o + p2, o + p2 - vec2( deltaX, 0.0f ), vec3( 1.0f ) );
+				lensOutlines.push_back( o + p1 );
+				lensOutlines.push_back( o + p1 + vec2( 0.0f, -deltaY ) );
+				lensOutlines.push_back( o + p2 );
+				lensOutlines.push_back( o + p2 - vec2( deltaX, 0.0f ) );
 			} else {
 				float deltaY = p2.y - p1.y;
 				float deltaX = p2.x - p1.x;
-				addDebugDrawLine( o + p1, o + p1 + vec2( deltaX, 0.0f ), vec3( 1.0f ) );
-				addDebugDrawLine( o + p2, o + p2 - vec2( 0.0f, deltaY ), vec3( 1.0f ) );
+				lensOutlines.push_back( o + p1 );
+				lensOutlines.push_back( o + p1 + vec2( deltaX, 0.0f ) );
+				lensOutlines.push_back( o + p2 );
+				lensOutlines.push_back( o + p2 - vec2( 0.0f, deltaY ) );
 				p1.y = -p1.y;
 				p2.y = -p2.y;
-				addDebugDrawLine( o + p1, o + p1 + vec2( deltaX, 0.0f ), vec3( 1.0f ) );
-				addDebugDrawLine( o + p2, o + p2 - vec2( 0.0f, -deltaY ), vec3( 1.0f ) );
+				lensOutlines.push_back( o + p1 );
+				lensOutlines.push_back( o + p1 + vec2( deltaX, 0.0f ) );
+				lensOutlines.push_back( o + p2 );
+				lensOutlines.push_back( o + p2 - vec2( 0.0f, -deltaY ) );
 			}
 			break;
 		default:
@@ -1153,7 +1177,19 @@ void PrometheusInstance::initResources () {
 	}
 
 	// drawing the film plane
-	addDebugDrawLine( o + vec2( lens.totalSystemThickness, 100.0f ), o + vec2( lens.totalSystemThickness, -100.0f ), vec3( 1.0f ) );
+	lensOutlines.push_back( o + vec2( lens.totalSystemThickness, lens.filmSize.y / 2.0f ) );
+	lensOutlines.push_back( o + vec2( lens.totalSystemThickness, -lens.filmSize.y / 2.0f ) );
+
+	// with a couple little bits to emphasize dimensions
+	lensOutlines.push_back( o + vec2( lens.totalSystemThickness * 0.99f, lens.filmSize.y / 2.0f ) );
+	lensOutlines.push_back( o + vec2( lens.totalSystemThickness * 1.01f, lens.filmSize.y / 2.0f ) );
+	lensOutlines.push_back( o + vec2( lens.totalSystemThickness * 0.99f, -lens.filmSize.y / 2.0f ) );
+	lensOutlines.push_back( o + vec2( lens.totalSystemThickness * 1.01f, -lens.filmSize.y / 2.0f ) );
+
+	numLinesLensOutline = lensOutlines.size();
+
+	lensOutlineBuffer = createBuffer( sizeof( vec2 ) * lensOutlines.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Outline Buffer" );
+	memcpy( lensOutlineBuffer.allocation->GetMappedData(), lensOutlines.data(), sizeof( vec2 ) * lensOutlines.size() );
 
 	// fmt::print( "\nElement Codes: \n" );
 	// for ( auto& el : elementCodes ) {
@@ -1165,8 +1201,6 @@ void PrometheusInstance::initResources () {
 	// 	}
 	// }
 	// fmt::print( "\n" );
-
-
 
 	float axisPos = -lens.totalSystemThickness;
 	std::vector< GPUInterfaceDescription > elements;
@@ -1228,9 +1262,6 @@ void PrometheusInstance::initResources () {
 			memset( &lens.interfaces[ i ], 0.0f, sizeof( GPUInterfaceDescription ) );
 		}
 	}
-
-	// placeholder, full frame
-	lens.filmSize = glm::vec2( 36.0f, 24.0f );
 
 	// setup for the lens preview stuff
 		// will need to add the raster + accumulate stuff, too
@@ -1676,6 +1707,12 @@ void PrometheusInstance::initComputePasses () {
 			// for the lens system
 			{ 2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( lensBuffer.buffer ); } },
+
+			// for the drawn lens outline
+			// { 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerLinear,
+				// [ & ] () { return Resource( lensOutlineDrawImage.imageView[ 0 ] ); } },
+			{ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () { return Resource( lensOutlineDrawImage.imageView[ 0 ] ); } },
 		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {

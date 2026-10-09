@@ -266,6 +266,9 @@ public:
 	// todo: raster+accumulate setup for rays, like VkForwardPT
 	ImTextureID LensTextureID;
 	AllocatedImage lensPreviewImage;
+	AllocatedBuffer lensOutlineBuffer;
+	AllocatedImage lensOutlineDrawImage;
+	uint32_t numLinesLensOutline = 0;
 
 	// debug line state
 	AllocatedBuffer debugLineDrawBuffer;

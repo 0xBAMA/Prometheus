@@ -15,6 +15,9 @@ layout ( set = 0, binding = 2, scalar ) uniform lensParameters {
 	GPULensDescription params;
 } lens;
 //=============================================================================================================================
+ layout ( set = 0, binding = 3 ) uniform sampler2D outlineRasterResult;
+//layout ( rgba16f, set = 0, binding = 3 ) uniform image2D outlineRasterResult;
+//=============================================================================================================================
 void main () {
 	// initializing the RNG
 	ivec2 pixel = ivec2( gl_GlobalInvocationID.xy );
@@ -24,19 +27,20 @@ void main () {
 		// the extents of the image are determined by the maximum of the horizontal and vertical extents
 	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness );
 
+	const int numSamples = 256;
 	vec4 colorContribution = vec4( 0.0f );
-	for ( int i = 0; i < 16; i++ ) {
-		vec2 jitter = rFloatN2();
+	for ( int i = 0; i < numSamples; i++ ) {
+		vec2 jitter = rnd_disc_cauchy();
 
 		// the image that we are drawing to is 512px square, so the scaling on each axis should be uniform
 		vec2 myPos = vec2(// overall scaling is based on 1.2x the max dimension, to give some margin
-		remap(pixel.x + jitter.x, 0.0f, 511.0f, 0.1f * maxDim, -1.1 * maxDim),
-		remap(pixel.y + jitter.y, 0.0f, 511.0f, 0.6f * maxDim, -0.6f * maxDim)
+			remap( pixel.x + jitter.x, 0.0f, 511.0f, 0.1f * maxDim, -1.1 * maxDim ),
+			remap( pixel.y + jitter.y, 0.0f, 511.0f, 0.6f * maxDim, -0.6f * maxDim )
 		);
 
 		// matching to the lens system orientation
 		vec3 rayOrigin = vec3(0.0f, myPos.y, myPos.x);
-		vec3 rayDirection = vec3(1.0f, 0.0f, 0.0f);
+		vec3 rayDirection = vec3( 1.0f, 0.0f, 0.0f );
 
 		float dClosest = 1e9f;
 		int iClosest = -1;
@@ -69,14 +73,17 @@ void main () {
 			}
 		}
 
-		if ((myPos.x < 0.0f && myPos.x > -maxDim) && abs(myPos.y) < lens.params.maxSemiAperture) {
-			colorContribution += vec4( vec3( 0.1f ), 1.0f );
-			if (iClosest != -1) {
-				colorContribution += vec4( vec3( sin( iClosest + 0.5f ) / 2.0f + 0.5f, cos( iClosest ) / 2.0f + 0.5f, sin( iClosest ) / 2.0f + 0.5f ), 1.0f );
-			}
+		if ((myPos.x <= 0.01f * maxDim && myPos.x >= -maxDim * 1.01f ) && abs(myPos.y) <= lens.params.maxSemiAperture * 1.01f ) {
+//			colorContribution += vec4( vec3( 0.1f ), 1.0f );
+//			if (iClosest != -1) {
+//				colorContribution += vec4( vec3( sin( iClosest - 0.95f ) / 2.0f + 0.5f, cos( iClosest + 0.9f ) / 2.0f + 0.5f, sin( iClosest + 0.5f ) / 2.0f + 0.5f ), 1.0f );
+//			}
 		} else {
-			colorContribution += vec4( vec3( checkerBoard( 0.1f, vec3( pixel, 0.5f ) ) ), 1.0f );
+//			colorContribution += vec4( vec3( checkerBoard( 0.1f, vec3( pixel, 0.5f ) ) ), 1.0f );
 		}
+		colorContribution.a += 1.0f;
+		colorContribution += texture( outlineRasterResult, ( gl_GlobalInvocationID.xy + jitter ) / 512.0f ).rrrr / ( 1.618f * numSamples );
 	}
-	imageStore( image, pixel, colorContribution / 16.0f );
+//	colorContribution += imageLoad( outlineRasterResult, pixel ).rrrr;
+	imageStore( image, pixel, colorContribution / numSamples );
 }
