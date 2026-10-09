@@ -1602,6 +1602,65 @@ void PrometheusInstance::initComputePasses () {
 	}
 
 	{
+		RasterConfig config;
+		config.name = "Lens Outline";
+
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// for the lens system
+			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensBuffer.buffer ); } },
+
+			// for the lens outlines
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensOutlineBuffer.buffer ); } },
+
+		};
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		// SHADERS
+		config.shaderPathFrag = "../shaders/lensOutline.frag.glsl";
+		config.shaderPathVert = "../shaders/lensOutline.vert.glsl";
+
+		// FBO CONFIG
+		config.drawImage = &lensOutlineDrawImage;
+		config.clearColor = true;
+		config.clearDepth = false;
+		config.depthWriteEnable = false;
+		config.depthTestEnable = false;
+		config.blendMode = 1;
+
+		config.lineWidth = 1.618f;
+		config.getRenderResolution = [&]() {
+			return VkExtent2D {
+				uint32_t( 512 ),
+				uint32_t( 512 ),
+			};
+		};
+
+		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Lens Outline" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
+		};
+
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdSetLineWidth( cmd, 1.618f );
+			vkCmdDraw( cmd, numLinesLensOutline * 2, 256, 0, 0 );
+		};
+
+		config.imageBarriers.push_back( makeImageBarrier( lensOutlineDrawImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT , VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ) );
+
+		pipelineManager.addPipeline( config );
+	}
+
+	{
 		ComputeConfig config;
 
 		config.name = "Lens Element Preview";
