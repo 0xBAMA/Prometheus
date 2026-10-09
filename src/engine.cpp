@@ -601,7 +601,8 @@ void PrometheusInstance::MainLoop () {
 				static bool open = true;
 				if ( ImGui::Begin( "Edit", &open, ImGuiWindowFlags_NoNavInputs ) ) {
 
-					ImGui::Image( LensTextureID, ImVec2( 512, 512 ), { 0.0f, 0.0f }, { 1.0f, 1.0f } );
+					int w = ImGui::GetContentRegionAvail().x;
+					ImGui::Image( LensTextureID, ImVec2( w, w ), { 0.0f, 0.0f }, { 1.0f, 1.0f } );
 
 					// toggling the renderer mode
 					ImGui::Text( "Renderer mode" );
