@@ -12,10 +12,7 @@ layout ( set = 0, binding = 1, scalar ) uniform lensParameters {
 } lens;
 
 layout( set = 0, binding = 2, scalar ) readonly buffer lensOutlines {
-	vec2 points[];
-};
-layout( set = 0, binding = 3, scalar ) readonly buffer lensOutlineColors {
-	vec3 colors[];
+	vec3 points[];
 };
 
 layout ( location = 0 ) out vec3 color;
@@ -30,7 +27,13 @@ void main () {
 
 	vec2 jitter = rFloatN2() / 512.0f;
 
-	color = colors[ gl_VertexIndex ];
+	if ( points[ gl_VertexIndex ].z == -1.0f ) {
+		color = vec3( 0.618f );
+	} else if ( points[ gl_VertexIndex ].z == -2.0f ) {
+		color = vec3( 1.0f );
+	} else {
+		color = vec3( sin( points[ gl_VertexIndex ].z - 0.95f ) / 2.0f + 0.5f, cos( points[ gl_VertexIndex ].z + 0.9f ) / 2.0f + 0.5f, sin( points[ gl_VertexIndex ].z + 0.5f ) / 2.0f + 0.5f );
+	}
 
 	gl_Position = vec4(
 		remap( -points[ gl_VertexIndex ].x, 0.1f * maxDim, -1.1 * maxDim, -1.0f, 1.0f ) + jitter.x,

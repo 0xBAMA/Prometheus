@@ -74,15 +74,13 @@ void main () {
 		}
 
 		if ((myPos.x <= 0.01f * maxDim && myPos.x >= -maxDim * 1.01f ) && abs(myPos.y) <= lens.params.maxSemiAperture * 1.01f ) {
-//			colorContribution += vec4( vec3( 0.1f ), 1.0f );
-			if (iClosest != -1) {
+			if ( iClosest != -1 ) { // raytrace contribution
 				colorContribution += 0.3f * vec4( vec3( sin( iClosest - 0.95f ) / 2.0f + 0.5f, cos( iClosest + 0.9f ) / 2.0f + 0.5f, sin( iClosest + 0.5f ) / 2.0f + 0.5f ), 1.0f );
 			}
-		} else {
-//			colorContribution += vec4( vec3( checkerBoard( 0.1f, vec3( pixel, 0.5f ) ) ), 1.0f );
 		}
-		colorContribution.a += 1.0f;
-		colorContribution += texture( outlineRasterResult, ( gl_GlobalInvocationID.xy + jitter ) / 512.0f ).rgba / ( 1.618f * numSamples );
+		vec4 texRead = texture( outlineRasterResult, ( gl_GlobalInvocationID.xy + jitter ) / 512.0f ).rgba / ( numSamples );
+		texRead.a *= numSamples;
+		colorContribution += texRead;
 	}
 //	colorContribution += imageLoad( outlineRasterResult, pixel ).rrrr;
 	imageStore( image, pixel, colorContribution / numSamples );
