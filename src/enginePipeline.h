@@ -178,6 +178,7 @@ struct RasterConfig : PipelineConfig {
 	float maxDepth = 1.0f;
 
 	bool clearColor = false;
+	vec4 clearColorValue = vec4( 0.0f, 0.0f, 0.0f, 1.0f );
 	bool clearDepth = false;
 	bool defaultEndRendering = true;
 
@@ -225,6 +226,7 @@ struct ComputeEffect {
 	// used for raster only
 	AllocatedImage *depthImage = nullptr;
 	AllocatedImage *drawImage = nullptr;
+	vec4 clearColorValue = vec4( 0.0f, 0.0f, 0.0f, 1.0f );
 	bool clearColor = false;
 	bool clearDepth = false;
 	float minDepth = 0.0f;
@@ -260,6 +262,7 @@ struct ComputeEffect {
 		drawImage = config.drawImage;
 		depthImage = config.depthImage;
 		clearColor = config.clearColor;
+		clearColorValue = config.clearColorValue;
 		clearDepth = config.clearDepth;
 		minDepth = config.minDepth;
 		maxDepth = config.maxDepth;
@@ -469,10 +472,10 @@ struct ComputeEffect {
 			renderInfo = vkinit::rendering_info( extent, &colorAttachment, nullptr );
 		}
 
-		if ( clearColor ) { // todo: pass in values for clear color
-			const VkClearColorValue colorClearValue = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+		if ( clearColor ) {
+			const VkClearColorValue vcolorClearValue = { { clearColorValue.x,  clearColorValue.y,  clearColorValue.x,  clearColorValue.w  } };
 			const VkImageSubresourceRange rangeC = { .aspectMask =  VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1 };
-			vkCmdClearColorImage( cmd, drawImage->image, VK_IMAGE_LAYOUT_GENERAL, &colorClearValue, 1, &rangeC );
+			vkCmdClearColorImage( cmd, drawImage->image, VK_IMAGE_LAYOUT_GENERAL, &vcolorClearValue, 1, &rangeC );
 		}
 
 		if ( clearDepth && d ) {
