@@ -233,7 +233,6 @@ public:
 	AllocatedBuffer lightTraceRayBuffer;
 
 	// testing the lens system
-	GPULensDescription lens;
 	AllocatedBuffer lensBuffer;
 
 	// pipeline management
@@ -269,6 +268,8 @@ public:
 	AllocatedBuffer lensOutlineBuffer;
 	AllocatedImage lensOutlineDrawImage;
 	uint32_t numLinesLensOutline = 0;
+
+	lensSystem currentLensSystem;
 
 	// debug line state
 	AllocatedBuffer debugLineDrawBuffer;

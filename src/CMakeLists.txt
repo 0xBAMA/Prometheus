@@ -7,6 +7,8 @@ add_subdirectory( third_party )
 add_executable ( Prometheus
 		Prometheus.cpp
 		Prometheus.h
+		camera.cpp
+		camera.h
 		engine.cpp
 		engine.h
 		third_party/volk/volk.h

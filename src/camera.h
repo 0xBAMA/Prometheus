@@ -125,6 +125,26 @@ const std::vector< interfaceDescription > elementsIkuoMoriMacro = {
 	interfaceDescription(-82.104f, 62.819f, 22.1f)
 };
 
+class lensSystem {
+public:
+	lensSystem() {};
+	lensSystem( const std::vector< interfaceDescription > &elementsSrc_in );
+
+	void clear();
+	void loadSystem( const std::vector< interfaceDescription > &elementsSrc_in );
+
+	// storage is used to create the buffers:
+		// outline segments
+	std::vector<glm::vec3> lensOutlines;
+
+	// other data caching tbd
+	std::vector< interfaceDescription > elementsSrc;
+
+	// other lens parameters in the buffer
+	GPULensDescription lensParameters;
+};
+
+
 // some common film sizes (units of mm)
 static const char*  frameNames[] = {
 	"iPhone 6", "iPhone XS", "Super 8", "Super 16", "Micro Four Thirds",
