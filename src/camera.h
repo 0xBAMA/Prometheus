@@ -3,10 +3,17 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
+#include "glm/glm.hpp"
+
 #include "glm/ext/matrix_float4x4.hpp"
 #include "glm/ext/vector_float3.hpp"
 #include "glm/geometric.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "glm/packing.hpp"
+
+using glm::vec4;
+
+#include <fmt/core.h>
 
 static glm::vec2 IndexAbbeToCauchyAB( float index, float abbe ) {
 	// can calculate the A and B Cauchy parameters from the two values
@@ -125,6 +132,89 @@ const std::vector< interfaceDescription > elementsIkuoMoriMacro = {
 	interfaceDescription(-82.104f, 62.819f, 22.1f)
 };
 
+
+// simple element
+// interfaceDescription( , , , , ),
+// interfaceDescription( , , ),
+
+// aperture stop
+// interfaceDescription( , , ),
+
+// compound element
+// interfaceDescription( , , , , ),
+// interfaceDescription( , , , , ),
+// interfaceDescription( , , , , ),
+// interfaceDescription( , , ),
+
+// Modern Optical Engineering, p.537
+const std::vector< interfaceDescription > elementsDgaussNakagawa = {
+	interfaceDescription( 78.186f, 8.862f, 36.4f, 1.835f, 42.7f ),
+	interfaceDescription( 259.846f, 0.232f, 36.4f ),
+
+	interfaceDescription( 42.498f, 8.784f, 31.5f, 1.808f, 40.6f ),
+	interfaceDescription( 60.180f, 3.436f, 30.8f ),
+
+	interfaceDescription( 69.416f, 2.606f, 28.7f, 1.785f, 26.1f ),
+	interfaceDescription( 28.654f, 16.888f, 23.7f ),
+
+	interfaceDescription( inf, 14.0f, 23.6f ),
+
+	interfaceDescription( -31.582f, 2.646f, 23.5f, 1.785f, 26.1f ),
+	interfaceDescription( -99.808f, 9.982f, 29.7f, 1.808f, 40.6f ),
+	interfaceDescription( -52.702f, 0.192f, 29.7f ),
+
+	interfaceDescription( -150.994f, 9.692f, 31.9f, 1.713f, 53.8f ),
+	interfaceDescription( -50.290f, 0.232f, 31.9f ),
+
+	interfaceDescription( 338.224f, 5.174f, 30.0f, 1.713f, 53.8f ),
+	interfaceDescription( -186.406f, 73.796f, 30.0f )
+};
+
+// Modern Optical Engineering p.538
+const std::vector<interfaceDescription> dGaussAngenieuxF1_1 = {
+	interfaceDescription( 164.120f,   10.990f, 54.0f, 1.673f, 32.2f ),
+	interfaceDescription( 559.280f,    0.230f, 54.0f ),
+	interfaceDescription( 100.120f,   11.450f, 51.0f, 1.670f, 47.1f ),
+	interfaceDescription( 213.540f,    0.230f, 51.0f ),
+	interfaceDescription( 58.040f,    22.950f, 41.0f, 1.691f, 54.7f ),
+	interfaceDescription( 2551.000f,   2.580f, 41.0f, 1.673f, 32.2f ),
+	interfaceDescription( 32.390f,    15.660f, 27.0f ),
+	interfaceDescription( inf,       15.000f, 25.5f ),
+	interfaceDescription( -40.420f,    2.740f, 25.0f, 1.699f, 30.1f ),
+	interfaceDescription( 192.980f,   27.920f, 36.0f, 1.620f, 60.3f ),
+	interfaceDescription( -55.530f,    0.230f, 36.0f ),
+	interfaceDescription( 192.980f,    7.980f, 35.0f, 1.691f, 54.7f ),
+	interfaceDescription( -225.280f,   0.230f, 35.0f ),
+	interfaceDescription( 175.100f,    8.480f, 35.0f, 1.691f, 54.7f ),
+	interfaceDescription( -203.540f,  55.742f, 35.0f )
+};
+
+// modern optical engineering p.539
+const std::vector<interfaceDescription> angulonF5_6 = {
+	interfaceDescription( inf,        6.150f, 41.4f, 1.522f, 59.5f ),
+	interfaceDescription( inf,        2.360f, 41.4f ),
+	interfaceDescription( 110.520f,   4.140f, 34.0f, 1.487f, 70.4f ),
+	interfaceDescription( 32.048f,   22.300f, 26.6f ),
+	interfaceDescription( 39.402f,   16.880f, 22.3f, 1.717f, 48.0f ),
+	interfaceDescription( 19.453f,   13.270f, 13.8f, 1.501f, 56.4f ),
+	interfaceDescription( 157.295f,   6.260f, 10.6f ),
+	interfaceDescription( inf,        1.700f, 10.3f ),
+	interfaceDescription( 251.613f,  15.610f, 10.6f, 1.620f, 60.3f ),
+	interfaceDescription( -20.718f,   9.560f, 13.4f, 1.689f, 31.2f ),
+	interfaceDescription( -37.760f,  38.120f, 17.0f ),
+	interfaceDescription( -37.760f,   3.820f, 27.6f, 1.487f, 70.4f ),
+	interfaceDescription( -369.843f, 53.701f, 35.0f )
+};
+
+const std::vector<interfaceDescription> F2_8_1degHFOV_TRIPLET_TELESCOPE_OBJECTIVE = {
+	interfaceDescription( 50.098f, 4.500f, 18.0f, 1.517f, 64.2f ),
+	interfaceDescription( -983.420f, 0.100f, 18.0f ),
+	interfaceDescription( 56.671f, 4.500f, 17.3f, 1.517f, 64.2f ),
+	interfaceDescription( -171.150f, 5.571f, 17.3f ),
+	interfaceDescription( -97.339f, 3.500f, 15.0f, 1.717f, 29.5f ),
+	interfaceDescription( 81.454f, 75.132f, 15.0f )
+};
+
 class lensSystem {
 public:
 	lensSystem() {};
@@ -189,9 +279,9 @@ class Camera {
 		if (direction == 3)
 			position += glm::normalize(glm::cross(front, up)) * velocity;
     	if (direction == 4)
-    		up = ( glm::rotate( velocity, front ) * vec4( up, 0.0f ) ).xyz();
+    		up = glm::vec3( ( glm::rotate( glm::mat4(1.0f), velocity, front ) * vec4( up, 0.0f ) ) );
     	if (direction == 5)
-    		up = ( glm::rotate( -velocity, front ) * vec4( up, 0.0f ) ).xyz();
+    		up = glm::vec3( ( glm::rotate( glm::mat4(1.0f), -velocity, front ) * vec4( up, 0.0f ) ) );
     }
 
     void processMouseMovement(float xOffset, float yOffset) {
