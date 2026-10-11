@@ -12,7 +12,7 @@ layout ( set = 0, binding = 1, scalar ) uniform lensParameters {
 } lens;
 
 layout( set = 0, binding = 2, scalar ) readonly uniform lensOutlines {
-	vec2 points[];
+	vec3 points[];
 };
 
 layout ( location = 0 ) in vec3 color;
