@@ -262,12 +262,17 @@ public:
 	float renderScale = 1.0f;
 
 	// for lens preview
-	// todo: raster+accumulate setup for rays, like VkForwardPT
 	ImTextureID LensTextureID;
 	AllocatedImage lensPreviewImage;
 	AllocatedBuffer lensOutlineBuffer;
 	AllocatedImage lensOutlineDrawImage;
 	uint32_t numLinesLensOutline = 0;
+
+	// for the lens ray drawings
+	AllocatedImage lensRayColorAttachment;
+	AllocatedImage lensRayColorAccumulator;
+	AllocatedBuffer lensRaySegmentBuffer;
+	// glm::ivec2 lensSourcePoint = glm::ivec2( 0 );
 
 	lensSystem currentLensSystem;
 

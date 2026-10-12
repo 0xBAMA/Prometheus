@@ -221,8 +221,10 @@ void PrometheusInstance::Draw () {
 	} else {
 
 		switch ( renderMode ) {
-		case 0: {
-				// run "Lens Preview Render"
+		case 0:
+			{ // previewing the view through the lens
+				scopedTimer start( "Lens Preview Render" );
+				pipelineManager.getPipeline( "Lens Preview Render" )->invoke2( cmd );
 			}
 			break;
 		case 1: // wavefront case
@@ -1076,6 +1078,12 @@ void PrometheusInstance::initResources () {
 		// will need to add the raster + accumulate stuff, too
 	lensPreviewImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Lens Preview Image" );
 
+	// for the illustration of the pupil sampling
+
+	// lensRayColorAttachment
+	// lensRayColorAccumulator
+	// lensRaySegmentBuffer
+
 	// make sure to clean up at the end
 	mainDeletionQueue.push_function([ & ] () {
 		// destroying buffers
@@ -1286,6 +1294,8 @@ void PrometheusInstance::initComputePasses () {
 	}
 #endif // GAUSSIANSPLATS_ENABLE
 
+	// = Adam ==========================================================================================================
+
 	{ // Adam Copy Shader
 		ComputeConfig config;
 		config.name = "Adam Copy";
@@ -1441,30 +1451,123 @@ void PrometheusInstance::initComputePasses () {
 		// AdamPresent.init( &device, &mainDeletionQueue, config );
 	}
 
-	{
-		ComputeConfig config;
-		config.name = "Lens Preview Render";
-
-	}
-
+	// = Lens Ray Preview ==============================================================================================
 	{
 		ComputeConfig config;
 		config.name = "Lens Ray Sampling";
 
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// for the lens system
+			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensBuffer.buffer ); } },
+
+			// scratch memory for the ray segments
+
+		};
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Lens Ray Sampling" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
+		};
+
+		config.shaderPath = "../shaders/lensRaySample.comp.glsl";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdDispatch( cmd, 1024, 1, 1 );
+		};
+
+		// pipelineManager.addPipeline( config );
 	}
 
-	{
+	{ // rasterizing the result of "Lens Ray Sampling"
 		RasterConfig config;
 		config.name = "Lens Ray Raster";
 
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+
+		};
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		// SHADERS
+		config.shaderPathFrag = "../shaders/lensRayRaster.frag.glsl";
+		config.shaderPathVert = "../shaders/lensRayRaster.vert.glsl";
+
+		// FBO CONFIG
+		config.drawImage = &lensRayColorAttachment;
+		config.clearColor = true;
+		config.clearDepth = false;
+		config.depthWriteEnable = false;
+		config.depthTestEnable = false;
+		config.blendMode = 1;
+		config.clearColor = true;
+		config.clearColorValue = vec4( 0.0f );
+
+		config.lineWidth = 1.618f;
+		config.getRenderResolution = [&]() {
+			return VkExtent2D {
+				uint32_t( 512 ),
+				uint32_t( 512 ),
+			};
+		};
+
+		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Lens Ray Raster" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
+		};
+
+		// counts tbd
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdSetLineWidth( cmd, 1.618f );
+			// vkCmdDraw( cmd, numLinesLensOutline * 2, 256, 0, 0 );
+		};
+
+		// pipelineManager.addPipeline( config );
 	}
 
-	{
+	{ // accumulating the result of "Lens Ray Raster"
 		ComputeConfig config;
 		config.name = "Lens Ray Accumulate";
 
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+		};
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Lens Ray Accumulate" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
+		};
+
+		config.shaderPath = "../shaders/lensRayAccumulate.comp.glsl";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdDispatch( cmd, 512 / 16, 512 / 16, 1 );
+		};
+
+		// pipelineManager.addPipeline( config );
 	}
 
+	// = Lens System Outline ===========================================================================================
 	{
 		RasterConfig config;
 		config.name = "Lens Outline";
@@ -1526,7 +1629,7 @@ void PrometheusInstance::initComputePasses () {
 		pipelineManager.addPipeline( config );
 	}
 
-	{
+	{ // combining the realtime results of the pupil sampling to draw to the buffer
 		ComputeConfig config;
 
 		config.name = "Lens Element Preview";
@@ -1546,6 +1649,8 @@ void PrometheusInstance::initComputePasses () {
 			// for the drawn lens outline
 			{ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
 				[ & ] () { return Resource( lensOutlineDrawImage.imageView[ 0 ] ); } },
+
+			// for the accumulated lens ray results
 		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
@@ -1563,6 +1668,44 @@ void PrometheusInstance::initComputePasses () {
 			int w = 512;
 			int h = 512;
 			vkCmdDispatch( cmd, w / 16, h / 16, 1 );
+		};
+
+		pipelineManager.addPipeline( config );
+	}
+
+	// = Main Draw Shaders =============================================================================================
+
+	{ // this goes away eventually, it's just to write some basics to the main accumulator for testing
+		ComputeConfig config;
+		config.name = "Lens Preview Render";
+
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// ACCUMULATOR IMAGE
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( Accumulator.imageView[ 0 ] ); } },
+
+				// lens tracing tbd
+
+		};
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Lens Preview Render" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
+		};
+
+		config.shaderPath = "../shaders/lensPreviewRender.comp.glsl";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			int w = drawExtent.width;
+			int h = drawExtent.height;
+			vkCmdDispatch( cmd, ( w + 15 ) / 16, ( h + 15 ) / 16, 1 );
 		};
 
 		pipelineManager.addPipeline( config );
@@ -1631,6 +1774,7 @@ void PrometheusInstance::initComputePasses () {
 		pipelineManager.addPipeline( config );
 	}
 
+	// = Wavefront stuff (broken) ======================================================================================
 	{ // Wavefront Camera Ray Gen
 		ComputeConfig config;
 		config.name = "Phoenix Ray Gen";
@@ -1818,6 +1962,7 @@ void PrometheusInstance::initComputePasses () {
 		// shading.init( &device, &mainDeletionQueue, config );
 	}
 
+	// = Map ===========================================================================================================
 	{
 		RasterConfig config;
 		config.name = "Map Opaque Draw";
@@ -1912,6 +2057,7 @@ void PrometheusInstance::initComputePasses () {
 		// mapCopy.init( &device, &mainDeletionQueue, config );
 	}
 
+	// = Engine Debug Renderers ========================================================================================
 	{
 		RasterConfig config;
 		config.name = "Debug String Draw";
@@ -2057,6 +2203,7 @@ void PrometheusInstance::initComputePasses () {
 		// DebugLineDraw.init( &device, &mainDeletionQueue, config );
 	}
 
+	// = Blit to Screen ================================================================================================
 	{
 		ComputeConfig config;
 		config.name = "Buffer Present";
