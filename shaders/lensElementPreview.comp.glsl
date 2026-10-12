@@ -44,7 +44,7 @@ void main () {
 
 		float dClosest = 1e9f;
 		int iClosest = -1;
-		for (int i = 0; i < lens.params.numElements; i++) {
+		for ( int i = 0; i < lens.params.numElements; i++ ) {
 			float radius = lens.params.elements[i].radius;
 			float axisPosition = lens.params.elements[i].axisPos - radius;
 			float cosTerm = lens.params.elements[i].cosTerm;
@@ -54,7 +54,7 @@ void main () {
 			// plano elements are orthogonal to this preview, so it doesn't really make sense to draw them
 			float t = 0.0f;
 			//		const vec3 planeNormal = vec3( 0.0f, 0.0f, -1.0f );
-			if (radius == 0.0f) {
+			if ( radius == 0.0f ) {
 				// using planar intersection
 				//			t = rayPlaneIntersect( planeNormal, vec3( 0.0f, 0.0f, axisPosition ), ray.origin, ray.direction );
 				//			if ( length( ( ray.origin + ray.direction * t ).xy ) < cosTerm ) { // reused memory for semiaperture
@@ -75,13 +75,16 @@ void main () {
 
 		if ((myPos.x <= 0.01f * maxDim && myPos.x >= -maxDim * 1.01f ) && abs(myPos.y) <= lens.params.maxSemiAperture * 1.01f ) {
 			if ( iClosest != -1 ) { // raytrace contribution
-				colorContribution += 0.3f * vec4( vec3( sin( iClosest - 0.95f ) / 2.0f + 0.5f, cos( iClosest + 0.9f ) / 2.0f + 0.5f, sin( iClosest + 0.5f ) / 2.0f + 0.5f ), 1.0f );
+				colorContribution += 0.5f * vec4( vec3( sin( iClosest - 0.95f ) / 2.0f + 0.5f, cos( iClosest + 0.9f ) / 2.0f + 0.5f, sin( iClosest + 0.5f ) / 2.0f + 0.5f ), 0.5 );
 			}
 		}
-		vec4 texRead = texture( outlineRasterResult, ( gl_GlobalInvocationID.xy + jitter ) / 512.0f ).rgba / ( numSamples );
-		texRead.a *= numSamples;
+		vec4 texRead = texture( outlineRasterResult, ( gl_GlobalInvocationID.xy + jitter ) / 512.0f ).rgba;
+		texRead.a = saturate( texRead.a / 2.0f );
+		texRead.rgb /= 256;
 		colorContribution += texRead;
 	}
+	colorContribution /= numSamples;
+//	colorContribution.rgb /= colorContribution.a;
 //	colorContribution += imageLoad( outlineRasterResult, pixel ).rrrr;
-	imageStore( image, pixel, colorContribution / numSamples );
+	imageStore( image, pixel, colorContribution );
 }

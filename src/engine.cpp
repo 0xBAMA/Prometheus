@@ -221,7 +221,10 @@ void PrometheusInstance::Draw () {
 	} else {
 
 		switch ( renderMode ) {
-		case 0: break;
+		case 0: {
+				// run "Lens Preview Render"
+			}
+			break;
 		case 1: // wavefront case
 			{ // running N bounces for numRays rays in the wavefront pathtracer
 				scopedTimer start( "Wavefront Test" );
@@ -1053,7 +1056,7 @@ void PrometheusInstance::initResources () {
 	lensOutlineDrawImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Outline Draw Image" );
 
 	// std::vector<interfaceDescription> elementsSrc = elementsSonnar;
-	const std::vector<interfaceDescription> elementsSrc = F2_8_1degHFOV_TRIPLET_TELESCOPE_OBJECTIVE;
+	const std::vector<interfaceDescription> elementsSrc = horimotoFishEyeF28;
 	// std::vector<interfaceDescription> elementsSrc = elementsPetzval;
 	// std::vector<interfaceDescription> elementsSrc = elementsIkuoMoriMacro;
 	// std::vector<interfaceDescription> elementsSrc = elementsHypergon;
@@ -1436,6 +1439,30 @@ void PrometheusInstance::initComputePasses () {
 
 		pipelineManager.addPipeline( config );
 		// AdamPresent.init( &device, &mainDeletionQueue, config );
+	}
+
+	{
+		ComputeConfig config;
+		config.name = "Lens Preview Render";
+
+	}
+
+	{
+		ComputeConfig config;
+		config.name = "Lens Ray Sampling";
+
+	}
+
+	{
+		RasterConfig config;
+		config.name = "Lens Ray Raster";
+
+	}
+
+	{
+		ComputeConfig config;
+		config.name = "Lens Ray Accumulate";
+
 	}
 
 	{
