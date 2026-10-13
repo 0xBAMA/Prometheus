@@ -56,6 +56,9 @@ struct GPUInterfaceDescription {
 };
 
 struct GPULensDescription {
+	// for interactive placement
+	glm::vec2 mouseloc;
+
 	float totalSystemThickness = 0.0f; // this also includes the focus offset
 	float numElements = 0.0f;
 	glm::vec2 filmSize{ 0.0f, 0.0f };

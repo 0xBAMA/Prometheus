@@ -16,6 +16,9 @@ const float lensMaxDistance = 1e30f;
 	// which should indicate the distance to the intersection or max distance otherwise
 
 struct GPULensDescription {
+	// current mouse location
+	vec2 mouseloc;
+
 	float totalSystemThickness; // this also includes the focus offset
 	float numElements;
 	vec2 filmSize;
