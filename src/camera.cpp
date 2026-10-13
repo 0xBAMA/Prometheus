@@ -189,19 +189,25 @@ void lensSystem::loadSystem ( const std::vector< interfaceDescription >& element
 		float abbePrev = elementsSrc[ i ].abbeN;
 		const glm::vec2 idxAbbePrev = IndexAbbeToCauchyAB( idxPrev, abbePrev );
 
-		float idxNext = ( i == 0 ) ? 1.0f : elementsSrc[ i ].index;
-		float abbeNext = ( i == 0 ) ? 89.3f : elementsSrc[ i ].abbeN;
+		float idxNext = ( i == 0 ) ? 1.0f : elementsSrc[ i - 1 ].index;
+		float abbeNext = ( i == 0 ) ? 89.3f : elementsSrc[ i - 1 ].abbeN;
 		glm::vec2 idxAbbeNext = IndexAbbeToCauchyAB( idxNext, abbeNext );
 
 		GPUInterfaceDescription interface;
-		interface.materialBack = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbePrev ) );
-		interface.materialFront = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbeNext ) );
+		// interface.materialBack = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbePrev ) );
+		// interface.materialFront = glm::uintBitsToFloat( glm::packHalf2x16( idxAbbeNext ) );
 
-		fmt::print( "Back index:{}, abbe:{}, Front index:{}, abbe:{} becomes: {}, {}\n", idxPrev, abbePrev, idxNext, abbeNext, interface.materialFront, interface.materialBack );
+		// going to simplest possible representation
+		interface.frontCauchyA = idxAbbeNext.x;
+		interface.frontCauchyB = idxAbbeNext.y;
+		interface.backCauchyA = idxAbbePrev.x;
+		interface.backCauchyB = idxAbbePrev.y;
 
-		vec2 matFront = glm::unpackHalf2x16( glm::floatBitsToUint( interface.materialFront ) );
-		vec2 matBack = glm::unpackHalf2x16( glm::floatBitsToUint( interface.materialBack ) );
-		fmt::print( "Back index:{}, abbe:{}, Front index:{}, abbe:{}\n\n", matFront.x, matFront.y, matFront.x, matFront.y );
+		// fmt::print( "Back index:{}, abbe:{}, Front index:{}, abbe:{} becomes: {}, {}\n", idxPrev, abbePrev, idxNext, abbeNext, interface.materialFront, interface.materialBack );
+
+		// vec2 matFront = glm::unpackHalf2x16( glm::floatBitsToUint( interface.materialFront ) );
+		// vec2 matBack = glm::unpackHalf2x16( glm::floatBitsToUint( interface.materialBack ) );
+		// fmt::print( "Back index:{}, abbe:{}, Front index:{}, abbe:{}\n\n", matFront.x, matFront.y, matFront.x, matFront.y );
 
 
 		// reserve value of 0.0f is easier to check for on the GPU, rather than the infinity constant
@@ -228,9 +234,9 @@ void lensSystem::loadSystem ( const std::vector< interfaceDescription >& element
 	int idx = 0;
 	for ( auto& element : elements ) {
 		lensParameters.maxSemiAperture = std::max( lensParameters.maxSemiAperture, element.semiAperture );
-		vec2 matFront = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialFront ) );
-		vec2 matBack = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialBack ) );
-		fmt::print( "{}: r: {}, pos: {}, sa: {}, front index: {}, abbe: {}, back index: {} abbe: {}\n", idx, element.radius, element.axisPos, element.semiAperture, matFront.x, matFront.y, matBack.x, matBack.y );
+		// vec2 matFront = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialFront ) );
+		// vec2 matBack = glm::unpackHalf2x16( glm::floatBitsToUint( element.materialBack ) );
+		// fmt::print( "{}: r: {}, pos: {}, sa: {}, front index: {}, abbe: {}, back index: {} abbe: {}\n", idx, element.radius, element.axisPos, element.semiAperture, matFront.x, matFront.y, matBack.x, matBack.y );
 		idx++;
 	}
 

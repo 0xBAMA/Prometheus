@@ -49,8 +49,8 @@ void main () {
 			float radius = lens.params.elements[i].radius;
 			float axisPosition = lens.params.elements[i].axisPos - radius;
 			float cosTerm = lens.params.elements[i].cosTerm;
-			vec2 materialBack = unpackHalf2x16(floatBitsToUint(lens.params.elements[i].materialBack));
-			vec2 materialFront = unpackHalf2x16(floatBitsToUint(lens.params.elements[i].materialFront));
+//			vec2 materialBack = unpackHalf2x16(floatBitsToUint(lens.params.elements[i].materialBack));
+//			vec2 materialFront = unpackHalf2x16(floatBitsToUint(lens.params.elements[i].materialFront));
 
 			// plano elements are orthogonal to this preview, so it doesn't really make sense to draw them
 			float t = 0.0f;

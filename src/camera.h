@@ -49,10 +49,11 @@ struct GPUInterfaceDescription {
 	float axisPos = 0.0f;
 	float semiAperture = 0.0f;
 	float cosTerm = 0.0f; // contains a value which helps compute the intersection on the GPU faster (no runtime trig)
-	float materialFront = 0.0f; // contains two half-floats with Cauchy A and B parameters
-	float materialBack = 0.0f; // contains two half-floats with Cauchy A and B parameters
-	float information = 0.0f; // contains some packed control bits
-	float pad = 0.0f; // padding out to 8x 4 bytes
+
+	float frontCauchyA;
+	float frontCauchyB;
+	float backCauchyA;
+	float backCauchyB;
 };
 
 struct GPULensDescription {

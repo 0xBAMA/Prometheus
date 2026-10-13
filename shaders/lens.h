@@ -4,10 +4,10 @@ struct GPUInterfaceDescription {
 	float axisPos;
 	float semiAperture;
 	float cosTerm; // contains a value which helps compute the intersection on the GPU faster (no runtime trig)
-	float materialFront; // contains two half-floats with Cauchy A and B parameters
-	float materialBack; // contains two half-floats with Cauchy A and B parameters
-	float information; // contains some packed control bits
-	float pad; // padding out to 8x 4 bytes
+	float frontCauchyA;
+	float frontCauchyB;
+	float backCauchyA;
+	float backCauchyB;
 };
 
 const float lensMaxDistance = 1e30f;

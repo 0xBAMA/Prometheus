@@ -673,8 +673,8 @@ void main () {
 		float radius = lens.params.elements[ i ].radius;
 		float axisPosition = lens.params.elements[ i ].axisPos;
 		float cosTerm = lens.params.elements[ i ].cosTerm;
-		vec2 materialBack = unpackHalf2x16( floatBitsToUint( lens.params.elements[ i ].materialBack ) );
-		vec2 materialFront = unpackHalf2x16( floatBitsToUint( lens.params.elements[ i ].materialFront ) );
+//		vec2 materialBack = unpackHalf2x16( floatBitsToUint( lens.params.elements[ i ].materialBack ) );
+//		vec2 materialFront = unpackHalf2x16( floatBitsToUint( lens.params.elements[ i ].materialFront ) );
 
 		float t = 0.0f;
 		const vec3 planeNormal = vec3( 0.0f, 0.0f, -1.0f );
@@ -690,8 +690,8 @@ void main () {
 		}
 
 		// tbd, this is not correct at all
-		ray.origin = ray.origin + ray.direction * t;
-		ray.direction = refract( ray.direction, normal, evaluateCauchy( materialBack.x, materialBack.y, wavelength ) );
+//		ray.origin = ray.origin + ray.direction * t;
+//		ray.direction = refract( ray.direction, normal, evaluateCauchy( materialBack.x, materialBack.y, wavelength ) );
 
 		// failed refract, or failed intersection
 		if ( length( ray.direction ) == 0.0f || t < 0.0f ) {
