@@ -31,6 +31,10 @@ void lensSystem::loadSystem ( const std::vector< interfaceDescription >& element
 		lensParameters.totalSystemThickness += element.thickness;
 	}
 
+	// todo: fix for radius offset
+	lensParameters.rearElementZ = lensParameters.totalSystemThickness - elementsSrc[ elementsSrc.size() - 1 ].thickness;
+	lensParameters.rearElementSA = elementsSrc[ elementsSrc.size() - 1 ].semiAperture;
+
 	std::vector< uint8_t > elementCodes;
 	elementCodes.push_back( 0b01 ); // first element is always air-glass
 	for ( int i = 1; i < elementsSrc.size(); i++ ) {

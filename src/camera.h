@@ -58,7 +58,11 @@ struct GPUInterfaceDescription {
 
 struct GPULensDescription {
 	// for interactive placement
-	glm::vec2 mouseloc;
+	glm::vec2 mouseloc = glm::vec2( 0.5f );
+	int mouseReset = 0;
+
+	float rearElementSA = 0.0f;
+	float rearElementZ = 0.0f;
 
 	float totalSystemThickness = 0.0f; // this also includes the focus offset
 	float numElements = 0.0f;

@@ -18,6 +18,11 @@ const float lensMaxDistance = 1e30f;
 struct GPULensDescription {
 	// current mouse location
 	vec2 mouseloc;
+	int mouseReset;
+
+	// rear element sampling
+	float rearElementSA;
+	float rearElementZ;
 
 	float totalSystemThickness; // this also includes the focus offset
 	float numElements;
