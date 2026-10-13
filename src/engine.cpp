@@ -180,6 +180,8 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_imageD( cmd, mapDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 	vkutil::transition_image( cmd, lensOutlineDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, lensRayColorAttachment.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	vkutil::transition_image( cmd, lensRayColorAccumulator.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 #ifdef GAUSSIANSPLATS_ENABLE
 	vkutil::transition_image( cmd, splatDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
@@ -1083,9 +1085,9 @@ void PrometheusInstance::initResources () {
 	// for the lens system
 	lensOutlineDrawImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Outline Draw Image" );
 
-	// std::vector<interfaceDescription> elementsSrc = elementsSonnar;
-	const std::vector<interfaceDescription> elementsSrc = horimotoFishEyeF28;
-	// std::vector<interfaceDescription> elementsSrc = elementsPetzval;
+	std::vector<interfaceDescription> elementsSrc = elementsSonnar;
+	// const std::vector<interfaceDescription> elementsSrc = elementsDgaussNakagawa;
+	// std::vector<interfaceDescription> elementsSrc = elementsFisheye;
 	// std::vector<interfaceDescription> elementsSrc = elementsIkuoMoriMacro;
 	// std::vector<interfaceDescription> elementsSrc = elementsHypergon;
 
@@ -1108,7 +1110,7 @@ void PrometheusInstance::initResources () {
 
 	lensRayColorAttachment = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Ray Segment Color Attachment" );
 	lensRayColorAccumulator = createImage( { 512, 512, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Ray Segment Color Accumulator" );
-	lensRaySegmentBuffer = createBuffer( ( sizeof( vec2 ) * 64 + sizeof( float ) ) * lensRaysPerFrame, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Ray Segment Scratch Buffer" );
+	lensRaySegmentBuffer = createBuffer( ( sizeof( vec2 ) * 128 + sizeof( float ) ) * lensRaysPerFrame, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Ray Segment Scratch Buffer" );
 
 	// make sure to clean up at the end
 	mainDeletionQueue.push_function([ & ] () {
@@ -1512,7 +1514,7 @@ void PrometheusInstance::initComputePasses () {
 
 		config.shaderPath = "../shaders/lensRaySample.comp.glsl";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
-			vkCmdDispatch( cmd, lensRaysPerFrame, 1, 1 );
+			vkCmdDispatch( cmd, lensRaysPerFrame / 256, 1, 1 );
 		};
 
 		pipelineManager.addPipeline( config );
@@ -1597,6 +1599,10 @@ void PrometheusInstance::initComputePasses () {
 			// buffer that accumulates values - note that because it's additive, you need to accumulate number of frames since you last reset it
 			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
 				[ & ] () { return Resource( lensRayColorAccumulator.imageView[ 0 ] ); } },
+
+						// for the lens system
+			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensBuffer.buffer ); } },
 		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {

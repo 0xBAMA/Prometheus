@@ -15,5 +15,9 @@ layout ( set = 0, binding = 2, scalar ) uniform lensParameters {
 } lens;
 //=============================================================================================================================
 void main () {
-	imageStore( image, ivec2( gl_GlobalInvocationID.xy ), vec4( 1.0f ) );
+	vec4 color = vec4( 1.0f );
+	if ( distance( lens.params.mouseloc.xy, ( gl_GlobalInvocationID.xy + 0.5f ) / GlobalData.floatBufferResolution ) < 0.01f ) {
+		color = vec4( 1.0f, 0.0f, 0.0f, 0.0f );
+	}
+	imageStore( image, ivec2( gl_GlobalInvocationID.xy ), color );
 }

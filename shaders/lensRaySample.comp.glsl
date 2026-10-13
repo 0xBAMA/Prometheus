@@ -22,6 +22,7 @@ void main () {
 	seed = gl_GlobalInvocationID.x * 8675309 + PushConstants.wangSeed;
 
 	int index = int( gl_GlobalInvocationID.x );
+	float wavelength = scratch.wavelengths[ index ] = remap( rFloat(), 0.0f, 1.0f, 380.0f, 830.0f );
 
 	// attempting to shoot a stochastically sampled ray through the lens - our ray starts between two points:
 		// a specified point on the film plane
@@ -36,62 +37,79 @@ void main () {
 	vec3 rayOrigin = filmPlanePoint;
 	vec3 rayDirection = normalize( rearElementPoint - filmPlanePoint );
 
-	vec3 nextSegmentPoint;
-	vec3 nextSegmentDir;
+	int prevI = -1;
 
-	float dClosest = 1e9f;
-	int iClosest = -1;
-	vec3 nClosest = vec3( 0.0f );
-	for ( int i = 0; i < lens.params.numElements; i++ ) {
+	int bounce = 0;
+	for ( bounce = 0; bounce < 128; bounce++ ) {
 
-		float radius = lens.params.elements[ i ].radius;
-		float axisPosition = lens.params.elements[ i ].axisPos - radius;
-		float cosTerm = lens.params.elements[ i ].cosTerm;
-		vec2 materialBack = vec2( lens.params.elements[ i ].backCauchyA, lens.params.elements[ i ].backCauchyB );
-		vec2 materialFront = vec2( lens.params.elements[ i ].frontCauchyA, lens.params.elements[ i ].frontCauchyB );
+		float dClosest = 1e9f;
+		int iClosest = -1;
+		vec3 nClosest = vec3( 0.0f );
+		float iorClosest = 0.0f;
 
-		vec3 normal = vec3( 0.0f );
-		float t = 0.0f;
-		if ( radius == 0.0f ) {
-			// using planar intersection
-			// const vec3 planeNormal = vec3( 0.0f, 0.0f, -1.0f );
-			// t = rayPlaneIntersect( planeNormal, vec3( 0.0f, 0.0f, axisPosition ), ray.origin, ray.direction );
-			// if ( length( ( ray.origin + ray.direction * t ).xy ) < cosTerm ) { // reused memory for semiaperture
-				// normal = planeNormal;
-			// }
+		for ( int i = 0; i < lens.params.numElements; i++ ) {
+
+			float radius = lens.params.elements[ i ].radius;
+			float axisPosition = lens.params.elements[ i ].axisPos - radius;
+			float cosTerm = lens.params.elements[ i ].cosTerm;
+			vec2 materialBack = vec2( lens.params.elements[ i ].backCauchyA, lens.params.elements[ i ].backCauchyB );
+			vec2 materialFront = vec2( lens.params.elements[ i ].frontCauchyA, lens.params.elements[ i ].frontCauchyB );
+
+			vec3 normal = vec3( 0.0f );
+			float t = 0.0f;
+			if ( radius == 0.0f ) {
+				// using planar intersection
+				 const vec3 planeNormal = vec3( 0.0f, 0.0f, -1.0f );
+				 t = rayPlaneIntersect( planeNormal, vec3( 0.0f, 0.0f, axisPosition ), rayOrigin, rayDirection );
+				 if ( length( ( rayOrigin + rayDirection * t ).xy ) < cosTerm ) { // reused memory for semiaperture
+					 normal = planeNormal;
+				 } else {
+					 t = 1e30f; // invalid hit, outside of aperture
+				 }
+			} else {
+				// spherical element is specified
+				t = sphereCapIntersect( vec3( 0.0f, 0.0f, axisPosition ), radius, vec3( 0.0f, 0.0f, ( radius < 0.0f ) ? -1.0f : 1.0f ), cosTerm, rayOrigin, rayDirection, normal );
+			}
+
+			// update the closest intersected element
+			if ( t < dClosest && t > 0.0f ) {
+				dClosest = t;
+				iClosest = i;
+				nClosest = normal;
+				iorClosest = evaluateCauchy( materialBack.x, materialBack.y, wavelength ) / evaluateCauchy( materialFront.x, materialFront.y, wavelength );
+			}
+		}
+
+		// did you get an intersection?
+		if ( iClosest != -1 ) {
+			if ( ( bounce != 0 ) && abs( prevI - iClosest ) > 1 ) {
+				break; // you skipped an element
+			}
+			prevI = iClosest;
+
+			// add a segment from the prior position to the new position
+			scratch.pathSegmentPoints[ 128 * index + 2 * bounce ] = rayOrigin.zy;
+			scratch.pathSegmentPoints[ 128 * index + 2 * bounce + 1 ] = ( rayOrigin + dClosest * rayDirection ).zy;
+
+			// do the logic to refract the ray and continue
+			rayOrigin = rayOrigin + dClosest * rayDirection;
+			rayDirection = refract( rayDirection, nClosest, iorClosest );
 		} else {
-			// spherical element is specified
-			t = sphereCapIntersect( vec3( 0.0f, 0.0f, axisPosition ), radius, vec3( 0.0f, 0.0f, ( radius < 0.0f ) ? -1.0f : 1.0f ), cosTerm, rayOrigin, rayDirection, normal );
-			nextSegmentPoint = rayOrigin + rayDirection * t;
-			nextSegmentDir = refract( rayDirection, normal, ( materialBack.x / materialFront.y ) );
-		}
-
-		// update the closest intersected element
-		if ( t < dClosest && t > 0.0f ) {
-			dClosest = t;
-			iClosest = i;
-			nClosest = normal;
+			break;
 		}
 	}
 
-	vec2 p0, p1, p2;
-	if ( iClosest != -1 ) {
-		p0 = ( rayOrigin ).zy;
-		p1 = ( nextSegmentPoint ).zy;
-		p2 = ( nextSegmentPoint + 100.0f * nextSegmentDir ).zy;
-		scratch.wavelengths[ index ] = remap( rFloat(), 0.0f, 1.0f, 380.0f, 830.0f );
-	} else {
-		p0 = p1 = vec2( 1e30f );
-		scratch.wavelengths[ index ] = 0.0f;
+	if ( prevI == lens.params.numElements - 1 ) { // ray ended up hitting the front of the lens
+		scratch.pathSegmentPoints[ 128 * index + 2 * bounce ] = rayOrigin.zy;
+		scratch.pathSegmentPoints[ 128 * index + 2 * bounce + 1 ] = ( rayOrigin + 10000.0f * rayDirection ).zy;
+		bounce++;
 	}
 
-	// used for indexing memory
-	int pathBaseIdx = index * 64;
-	for ( int i = 0; i < 64; i += 3 ) {
-		scratch.pathSegmentPoints[ pathBaseIdx + i ] = p0;
-		scratch.pathSegmentPoints[ pathBaseIdx + i + 1 ] = p1;
-		scratch.pathSegmentPoints[ pathBaseIdx + i + 2 ] = p2;
-	}
+	// fill the rest of the buffer with zeroes
+//	for ( ; bounce < 128; bounce++ ) {
+//		scratch.pathSegmentPoints[ 128 * index + 2 * bounce ] = vec2( 1e9f );
+//		scratch.pathSegmentPoints[ 128 * index + 2 * bounce + 1 ] = vec2( 1e9f );
+//	}
 
 }
 

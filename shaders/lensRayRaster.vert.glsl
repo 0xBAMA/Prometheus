@@ -13,30 +13,29 @@ layout ( set = 0, binding = 1, scalar ) uniform lensParameters {
 //=============================================================================================================================
 layout ( set = 0, binding = 2, scalar ) readonly buffer lensSegmentScratch {
 	float wavelengths[ 2048 ]; // to match invocation count
-	vec2 pathSegmentPoints[ 2048 * 64 ];
+	vec2 pathSegments[ 2048 * 128 ];
 } scratch;
 //=============================================================================================================================
 layout ( location = 0 ) out vec3 color;
 //=============================================================================================================================
 void main () {
 	// this is drawing the set of segments solved by Lens Ray Sample
-	const int pointsPerPath = 2 * 64;
-	const int pathID = gl_VertexIndex / pointsPerPath;
-	const int segmentID = gl_VertexIndex % pointsPerPath;
+	const int segmentID =  ( gl_VertexIndex / 2 );
+	const int pathID = segmentID / 128;
 
 	// determine wavelength from the color
 	const float wavelength = scratch.wavelengths[ pathID ];
 	color = wl_rgb( wavelength );
 
 	// placing the path segment -> look at the corresponding point in the buffer
-	const int pathSegmentOffset = pathID * pointsPerPath + segmentID + ( gl_VertexIndex % 2 );
-	const vec2 myLoc = scratch.pathSegmentPoints[ pathSegmentOffset ];
+	const int pathSegmentOffset = 2 * segmentID + gl_VertexIndex;
+	const vec2 myLoc = scratch.pathSegments[ pathSegmentOffset ];
 
 	// points are coming in, in an arbitrary lens space - we have the parameterization which describes that space:
 	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness );
 	gl_Position = vec4( // overall scaling is based on 1.2x the max dimension, to give some margin -> map to 512x512 target
-		remap( myLoc.x, 0.0f, 511.0f, 0.1f * maxDim, -1.1 * maxDim ),
-		remap( myLoc.y, 0.0f, 511.0f, 0.6f * maxDim, -0.6f * maxDim ),
+		remap( myLoc.x, 0.1f * maxDim, -1.1 * maxDim, -1.0f, 1.0f ),
+		remap( myLoc.y, 0.6f * maxDim, -0.6f * maxDim, -1.0f, 1.0f ),
 		0.5f, 1.0f
 	);
 }

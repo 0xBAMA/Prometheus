@@ -10,5 +10,5 @@ layout ( location = 0 ) out vec4 outFragColor;
 //=============================================================================================================================
 void main () {
 	// color value calculated in VS
-	outFragColor = vec4( colorRGB, 1.0f );
+	outFragColor = vec4( 10.0f * colorRGB, 1.0f );
 }

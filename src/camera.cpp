@@ -20,6 +20,7 @@ void lensSystem::loadSystem ( const std::vector< interfaceDescription >& element
 	elementsSrc = elementsSrc_in;
 
 	// placeholder, full frame
+	// lensParameters.filmSize = glm::vec2( 36.0f, 24.0f );
 	lensParameters.filmSize = glm::vec2( 36.0f, 24.0f );
 
 	// prepping some data for the lens system

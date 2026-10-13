@@ -17,7 +17,7 @@ layout ( set = 0, binding = 2, scalar ) uniform lensParameters {
 //=============================================================================================================================
  layout ( set = 0, binding = 3 ) uniform sampler2D outlineRasterResult;
 //layout ( rgba16f, set = 0, binding = 3 ) uniform image2D outlineRasterResult;
-layout ( rgba32f, set = 0, binding = 4 ) uniform image2D lensRayAccumulator;
+layout ( set = 0, binding = 4 ) uniform sampler2D lensRayAccumulator;
 //=============================================================================================================================
 void main () {
 	// initializing the RNG
@@ -86,8 +86,8 @@ void main () {
 	}
 	colorContribution /= numSamples;
 
-	vec4 raySample = imageLoad( lensRayAccumulator, pixel );
-	colorContribution += 2.0f * raySample / raySample.a;
+	vec4 raySample = texture( lensRayAccumulator, ( pixel + 0.5f ) / 512.0f );
+	colorContribution += 0.5f * raySample / raySample.a;
 //	colorContribution.rgb /= colorContribution.a;
 //	colorContribution += imageLoad( outlineRasterResult, pixel ).rrrr;
 	imageStore( image, pixel, colorContribution );
