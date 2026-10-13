@@ -587,7 +587,9 @@ struct pipelineManager_t {
 		std::filesystem::remove( reportPath, ec );
 
 		if ( result != 0 ) {
-			throw std::runtime_error( shaderPath.string() + " Shader compilation failed:\n" + report.str() );
+			// throw std::runtime_error( shaderPath.string() + " Shader compilation failed:\n" + report.str() );
+			fmt::print( "{} {}", shaderPath.string(), " Shader compilation failed:\n" + report.str() );
+			abort();
 		}
 
 		return report.str();
