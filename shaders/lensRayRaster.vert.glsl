@@ -20,7 +20,7 @@ layout ( location = 0 ) out vec3 color;
 //=============================================================================================================================
 void main () {
 	// this is drawing the set of segments solved by Lens Ray Sample
-	const int segmentID =  ( gl_VertexIndex / 2 );
+	const int segmentID = ( gl_VertexIndex );
 	const int pathID = segmentID / 128;
 
 	// determine wavelength from the color
