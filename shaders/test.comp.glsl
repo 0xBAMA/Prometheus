@@ -647,6 +647,8 @@ void main () {
 
 	ray_t ray;
 
+	// need to load one of the rays which has been generated for this process to use
+
 #ifndef LENS
 	// spherical camera logic, this will be replaced
 	const float aspectRatio = float( imageSize( image ).x ) / float( imageSize( image ).y );
@@ -662,10 +664,12 @@ void main () {
 #else
 
 	// sampling the lens system
-	ray.origin = vec3( uv * lens.params.filmSize * 0.5f * GlobalData.FoV, -lens.params.totalSystemThickness );
-	ray.direction = vec3( 0.0f, 0.0f, 1.0f ); // this will change for pupil sampling
+	ray.origin = vec3( uv * lens.params.filmSize * 0.5f * GlobalData.FoV * 10.0f, -lens.params.totalSystemThickness );
+	// ray.direction = vec3( 0.0f, 0.0f, 1.0f ); // this will change for pupil sampling
+	ray.direction = cosWeightedRandomHemisphereDirection( vec3( 0.0f, 0.0f, 1.0f ) ); // this will change for pupil sampling
 	vec3 normal = vec3( 0.0f );
-	for ( int i = 0; i < lens.params.numElements; i++ ) {
+	// for ( int i = 0; i < lens.params.numElements; i++ ) {
+	for ( int i = 0; i < 2; i++ ) {
 		float radius = lens.params.elements[ i ].radius;
 		float axisPosition = lens.params.elements[ i ].axisPos;
 		float cosTerm = lens.params.elements[ i ].cosTerm;
@@ -687,12 +691,12 @@ void main () {
 
 		// tbd, this is not correct at all
 		ray.origin = ray.origin + ray.direction * t;
-		ray.direction = refract( ray.direction, normal, evaluateCauchy( materialFront.x, materialFront.y, wavelength ) );
+		ray.direction = refract( ray.direction, normal, evaluateCauchy( materialBack.x, materialBack.y, wavelength ) );
 
 		// failed refract, or failed intersection
 		if ( length( ray.direction ) == 0.0f || t < 0.0f ) {
 			// black sample
-			imageAtomicAdd( cTally, pixel, 1 );
+//			imageAtomicAdd( cTally, pixel, 1 );
 
 			// and break
 			return;

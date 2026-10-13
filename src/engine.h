@@ -272,6 +272,7 @@ public:
 	AllocatedImage lensRayColorAttachment;
 	AllocatedImage lensRayColorAccumulator;
 	AllocatedBuffer lensRaySegmentBuffer;
+	const uint32_t lensRaysPerFrame = 2048;
 	// glm::ivec2 lensSourcePoint = glm::ivec2( 0 );
 
 	lensSystem currentLensSystem;

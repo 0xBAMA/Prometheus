@@ -204,6 +204,13 @@ void PrometheusInstance::Draw () {
 	vkutil::transition_image( cmd, AdamOutputTex.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 	{ // this piece only needs to run once when lens parameters change
+		scopedTimer start( "Lens Ray Draw" );
+		pipelineManager.getPipeline( "Lens Ray Sampling" )->invoke2( cmd );
+		pipelineManager.getPipeline( "Lens Ray Raster" )->invoke2( cmd );
+		pipelineManager.getPipeline( "Lens Ray Accumulate" )->invoke2( cmd );
+	}
+
+	{ // this piece only needs to run once when lens parameters change
 		scopedTimer start( "Lens Element Preview" );
 		pipelineManager.getPipeline( "Lens Outline" )->invoke2( cmd );
 		pipelineManager.getPipeline( "Lens Element Preview" )->invoke2( cmd );
@@ -1080,9 +1087,9 @@ void PrometheusInstance::initResources () {
 
 	// for the illustration of the pupil sampling
 
-	// lensRayColorAttachment
-	// lensRayColorAccumulator
-	// lensRaySegmentBuffer
+	lensRayColorAttachment = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Ray Segment Color Attachment" );
+	lensRayColorAccumulator = createImage( { 512, 512, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Ray Segment Color Accumulator" );
+	lensRaySegmentBuffer = createBuffer( ( sizeof( vec2 ) * 64 + sizeof( float ) ) * lensRaysPerFrame, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Ray Segment Scratch Buffer" );
 
 	// make sure to clean up at the end
 	mainDeletionQueue.push_function([ & ] () {
@@ -1465,6 +1472,8 @@ void PrometheusInstance::initComputePasses () {
 				[ & ] () { return Resource( lensBuffer.buffer ); } },
 
 			// scratch memory for the ray segments
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensRaySegmentBuffer.buffer ); } },
 
 		};
 
@@ -1478,12 +1487,16 @@ void PrometheusInstance::initComputePasses () {
 			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
 		};
 
-		config.shaderPath = "../shaders/lensRaySample.comp.glsl";
-		config.dispatch = [&]( VkCommandBuffer cmd ) {
-			vkCmdDispatch( cmd, 1024, 1, 1 );
+		config.bufferMemoryBarriers = { // simulated segments must complete writes to memory before raster
+			makeBufferBarrier( lensRaySegmentBuffer.buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_SHADER_READ_BIT )
 		};
 
-		// pipelineManager.addPipeline( config );
+		config.shaderPath = "../shaders/lensRaySample.comp.glsl";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			vkCmdDispatch( cmd, lensRaysPerFrame, 1, 1 );
+		};
+
+		pipelineManager.addPipeline( config );
 	}
 
 	{ // rasterizing the result of "Lens Ray Sampling"
@@ -1494,10 +1507,16 @@ void PrometheusInstance::initComputePasses () {
 			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
+			// for the lens system
+			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensBuffer.buffer ); } },
 
+			// buffer containing scratch data for the segments
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensRaySegmentBuffer.buffer ); } },
 		};
 
-		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+		config.allocateDescriptorSet = [ & ] ( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
 		};
 
@@ -1523,8 +1542,12 @@ void PrometheusInstance::initComputePasses () {
 			};
 		};
 
+		config.imageBarriers = { // raster must complete before accumulate
+			makeImageBarrier( lensRayColorAttachment.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT )
+		};
+
 		config.inputTopology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+		config.updatePushConstants = [ & ] ( VkCommandBuffer cmd ) {
 			ComputeEffect *pipe = pipelineManager.getPipeline( "Lens Ray Raster" );
 			pipe->pushConstants.wangSeed = genWangSeed();
 			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
@@ -1533,10 +1556,11 @@ void PrometheusInstance::initComputePasses () {
 		// counts tbd
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdSetLineWidth( cmd, 1.618f );
-			// vkCmdDraw( cmd, numLinesLensOutline * 2, 256, 0, 0 );
+			// draw is based on max 64 segments per invocation, 2 verts per, and we're doing 2048 of them
+			vkCmdDraw( cmd, lensRaysPerFrame * 64 * 2, 1, 0, 0 );
 		};
 
-		// pipelineManager.addPipeline( config );
+		pipelineManager.addPipeline( config );
 	}
 
 	{ // accumulating the result of "Lens Ray Raster"
@@ -1547,6 +1571,13 @@ void PrometheusInstance::initComputePasses () {
 			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
 				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
+			// color attachment for the segment raster pipeline
+			{ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () { return Resource( lensRayColorAttachment.imageView[ 0 ] ); } },
+
+			// buffer that accumulates values - note that because it's additive, you need to accumulate number of frames since you last reset it
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
+				[ & ] () { return Resource( lensRayColorAccumulator.imageView[ 0 ] ); } },
 		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
@@ -1564,7 +1595,7 @@ void PrometheusInstance::initComputePasses () {
 			vkCmdDispatch( cmd, 512 / 16, 512 / 16, 1 );
 		};
 
-		// pipelineManager.addPipeline( config );
+		pipelineManager.addPipeline( config );
 	}
 
 	// = Lens System Outline ===========================================================================================
@@ -1650,7 +1681,9 @@ void PrometheusInstance::initComputePasses () {
 			{ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
 				[ & ] () { return Resource( lensOutlineDrawImage.imageView[ 0 ] ); } },
 
-			// for the accumulated lens ray results
+			// for the accumulated lens ray results -> note this value needs to be normalized
+			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () { return Resource( lensRayColorAccumulator.imageView[ 0 ] ); } },
 		};
 
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
@@ -1687,7 +1720,9 @@ void PrometheusInstance::initComputePasses () {
 			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, defaultSamplerNearest,
 				[ & ] () { return Resource( Accumulator.imageView[ 0 ] ); } },
 
-				// lens tracing tbd
+			// for the lens system
+			{ 2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensBuffer.buffer ); } },
 
 		};
 

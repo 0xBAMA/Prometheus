@@ -9,6 +9,6 @@ layout ( location = 0 ) in vec3 colorRGB;
 layout ( location = 0 ) out vec4 outFragColor;
 //=============================================================================================================================
 void main () {
-	// want to add a bit of depth coloring
+	// color value calculated in VS
 	outFragColor = vec4( colorRGB, 1.0f );
 }
