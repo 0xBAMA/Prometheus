@@ -23,7 +23,7 @@ void main () {
 
 	// raytracing against the list of lens elements, starting at the zero plane
 	// the extents of the image are determined by the maximum of the horizontal and vertical extents
-	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness );
+	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness - lens.params.focusAdjust );
 
 	vec2 jitter = rFloatN2() / 512.0f;
 
@@ -49,6 +49,7 @@ void main () {
 		} else {
 			pos = -lens.params.filmSize.y / 2.0f;
 		}
+		gl_Position.x = remap( -points[ gl_VertexIndex ].x + lens.params.focusAdjust, 0.1f * maxDim, -1.1 * maxDim, -1.0f, 1.0f ) + jitter.x,
 		gl_Position.y = remap( pos, 0.6f * maxDim, -0.6f * maxDim, -1.0f, 1.0f ) + jitter.y;
 
 	} else {

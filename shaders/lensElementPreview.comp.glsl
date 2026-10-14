@@ -26,7 +26,7 @@ void main () {
 
 	// raytracing against the list of lens elements, starting at the zero plane
 		// the extents of the image are determined by the maximum of the horizontal and vertical extents
-	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness );
+	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness - lens.params.focusAdjust );
 
 	const int numSamples = 256;
 	vec4 colorContribution = vec4( 0.0f );

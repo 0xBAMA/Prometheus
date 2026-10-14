@@ -637,6 +637,9 @@ void PrometheusInstance::MainLoop () {
 				if ( ImGui::Begin( "Edit", &open, ImGuiWindowFlags_NoNavInputs ) ) {
 
 					int w = ImGui::GetContentRegionAvail().x;
+					ImGui::VSliderFloat( "Focus Adjust", ImVec2( 32, w ), &currentLensSystem.lensParameters.focusAdjust, -0.3f * currentLensSystem.lensParameters.totalSystemThickness, currentLensSystem.maxNegativeFocus  );
+					ImGui::SameLine();
+					w = ImGui::GetContentRegionAvail().x;
 					ImGui::Image( LensTextureID, ImVec2( w, w ), { 0.0f, 0.0f }, { 1.0f, 1.0f } );
 
 					static int filmPick = 0;

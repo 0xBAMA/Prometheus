@@ -31,7 +31,7 @@ void main () {
 	const vec2 myLoc = scratch.pathSegments[ segmentID ];
 
 	// points are coming in, in an arbitrary lens space - we have the parameterization which describes that space:
-	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness );
+	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness - lens.params.focusAdjust );
 	gl_Position = vec4( // overall scaling is based on 1.2x the max dimension, to give some margin -> map to 512x512 target
 		remap( myLoc.x, 0.1f * maxDim, -1.1 * maxDim, -1.0f, 1.0f ),
 		remap( myLoc.y, 0.6f * maxDim, -0.6f * maxDim, -1.0f, 1.0f ),

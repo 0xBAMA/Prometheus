@@ -70,6 +70,8 @@ struct GPULensDescription {
 	glm::vec2 filmSize{ 36.0f, 24.0f }; // just going to default to full frame for now
 	float maxSemiAperture = 0.0f;
 
+	float focusAdjust = 0.0f;
+
 	// establishing a maximum number of lens elements which can be part of a lens system
 	GPUInterfaceDescription interfaces[ 32 ]{};
 };
@@ -601,11 +603,14 @@ public:
 	void loadSystem( const std::vector< interfaceDescription > &elementsSrc_in );
 
 	// storage is used to create the buffers:
-		// outline segments
+		// outline segments + .z identifiers
 	std::vector<glm::vec3> lensOutlines;
 
 	// other data caching tbd
 	std::vector< interfaceDescription > elementsSrc;
+
+	// constraining the maximum negative offset
+	float maxNegativeFocus = 0.0f;
 
 	// other lens parameters in the buffer
 	GPULensDescription lensParameters;

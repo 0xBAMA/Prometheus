@@ -34,7 +34,7 @@ void main () {
 		// a specified point on the film plane
 		// a randomly selected point on the rear element
 
-	vec3 filmPlanePoint = vec3( ( lens.params.mouseloc ) * lens.params.filmSize, -lens.params.totalSystemThickness );
+	vec3 filmPlanePoint = vec3( ( lens.params.mouseloc ) * lens.params.filmSize, -lens.params.totalSystemThickness + lens.params.focusAdjust );
 	vec3 rearElementPoint = vec3(  CircleOffset() * lens.params.rearElementSA, -lens.params.rearElementZ );
 
 	// now we are trying to trace a path through the lens

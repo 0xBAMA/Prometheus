@@ -29,6 +29,8 @@ struct GPULensDescription {
 	vec2 filmSize;
 	float maxSemiAperture;
 
+	float focusAdjust;
+
 	// maxing out at 32 interfaces for now, this is an easy thing to bump later
 	GPUInterfaceDescription elements[ 32 ];
 };

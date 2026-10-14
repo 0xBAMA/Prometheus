@@ -27,6 +27,9 @@ void lensSystem::loadSystem ( const std::vector< interfaceDescription >& element
 	lensParameters.rearElementZ = lensParameters.totalSystemThickness - elementsSrc[ elementsSrc.size() - 1 ].thickness;
 	lensParameters.rearElementSA = elementsSrc[ elementsSrc.size() - 1 ].semiAperture;
 
+	// film plane shouldn't collide with the rearmost element of the system
+	maxNegativeFocus =  elementsSrc[ elementsSrc.size() - 1 ].thickness * 0.99f;
+
 	std::vector< uint8_t > elementCodes;
 	elementCodes.push_back( 0b01 ); // first element is always air-glass
 	for ( int i = 1; i < elementsSrc.size(); i++ ) {
