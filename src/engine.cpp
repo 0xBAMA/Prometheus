@@ -256,7 +256,8 @@ void PrometheusInstance::Draw () {
 			break;
 		}
 
-		{ // testing Adam
+		const bool adamEnable = false;
+		if ( adamEnable ) { // testing Adam
 			scopedTimer start( "Adam Test" );
 
 			pipelineManager.getPipeline( "Adam Copy" )->invoke2( cmd );
