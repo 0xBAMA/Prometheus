@@ -275,6 +275,7 @@ public:
 	const uint32_t lensRaysPerFrame = 2048;
 	// glm::ivec2 lensSourcePoint = glm::ivec2( 0 );
 
+	lensData lensDataManager;
 	lensSystem currentLensSystem;
 
 	// debug line state

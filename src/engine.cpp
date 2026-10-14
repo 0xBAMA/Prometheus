@@ -635,9 +635,14 @@ void PrometheusInstance::MainLoop () {
 				static bool open = true;
 				if ( ImGui::Begin( "Edit", &open, ImGuiWindowFlags_NoNavInputs ) ) {
 
-					// int w = ImGui::GetContentRegionAvail().x;
-					int w = 512 * 1.5;
+					int w = ImGui::GetContentRegionAvail().x;
 					ImGui::Image( LensTextureID, ImVec2( w, w ), { 0.0f, 0.0f }, { 1.0f, 1.0f } );
+
+					static int filmPick = 0;
+					static int lensPick = 0;
+
+					ImGui::Combo( "Film Size", &filmPick, lensDataManager.filmNames, lensDataManager.filmSizes.size() );
+					ImGui::Combo( "Lens System", &lensPick, lensDataManager.lensNames, lensDataManager.lensSystems.size() );
 
 					// toggling the renderer mode
 					ImGui::Text( "Renderer mode" );
@@ -1085,14 +1090,9 @@ void PrometheusInstance::initResources () {
 	// for the lens system
 	lensOutlineDrawImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Outline Draw Image" );
 
-	std::vector<interfaceDescription> elementsSrc = elementsSonnar;
-	// const std::vector<interfaceDescription> elementsSrc = elementsDgaussNakagawa;
-	// std::vector<interfaceDescription> elementsSrc = elementsFisheye;
-	// std::vector<interfaceDescription> elementsSrc = elementsIkuoMoriMacro;
-	// std::vector<interfaceDescription> elementsSrc = elementsHypergon;
-
+	// load the data for a lens
 	currentLensSystem.clear();
-	currentLensSystem.loadSystem( elementsSrc );
+	currentLensSystem.loadSystem(  lensDataManager.lensSystems[ "Kikuo Momiyam, USP 4437735, F/2 94deg Wide Angle #1" ], lensDataManager.filmSizes[ "Full Frame" ] );
 
 	numLinesLensOutline = currentLensSystem.lensOutlines.size();
 
