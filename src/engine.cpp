@@ -642,10 +642,21 @@ void PrometheusInstance::MainLoop () {
 					static int filmPick = 0;
 					static int lensPick = 0;
 
-					ImGui::Combo( "Film Size", &filmPick, lensDataManager.filmNames, lensDataManager.filmSizes.size() );
+					static float customFilmX = 36.0f;
+					static float customFilmY = 24.0f;
+					ImGui::Combo( "Film Size", &filmPick, lensDataManager.filmNames, lensDataManager.filmSizes.size() + 1 );
 					if ( ImGui::IsItemEdited() ) {
-						currentLensSystem.lensParameters.filmSize = lensDataManager.filmSizes[ string( lensDataManager.filmNames[ filmPick ] ) ];
+						if ( strcmp( "Custom", lensDataManager.filmNames[ filmPick ] ) == 0 ) {
+							currentLensSystem.lensParameters.filmSize = vec2( customFilmX, customFilmY );
+						} else {
+							currentLensSystem.lensParameters.filmSize = lensDataManager.filmSizes[ string( lensDataManager.filmNames[ filmPick ] ) ];
+						}
 						currentLensSystem.lensParameters.mouseReset = 1;
+					}
+					if ( strcmp( "Custom", lensDataManager.filmNames[ filmPick ] ) == 0 ) {
+						ImGui::SliderFloat( "Custom Film X", &customFilmX, 0.0f, 400.0f, "%.3f", ImGuiSliderFlags_Logarithmic );
+						ImGui::SliderFloat( "Custom Film Y", &customFilmY, 0.0f, 400.0f, "%.3f", ImGuiSliderFlags_Logarithmic );
+						currentLensSystem.lensParameters.filmSize = vec2( customFilmX, customFilmY );
 					}
 
 					ImGui::Combo( "Lens System", &lensPick, lensDataManager.lensNames, lensDataManager.lensSystems.size() );

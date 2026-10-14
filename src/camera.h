@@ -565,13 +565,16 @@ public:
 
 	void populateComboData() {
 		// prep strings for film sizing
-		filmNames = ( const char ** ) malloc( filmSizes.size() * sizeof( const char * ) );
+		filmNames = ( const char ** ) malloc( ( filmSizes.size() + 1 ) * sizeof( const char * ) );
 		int i = 0;
 		for ( auto& [ label, filmsize ] : filmSizes ) {
 			filmNames[ i ] = ( const char * ) malloc( strlen( label.c_str() ) + 1 );
 			strcpy( ( char * ) filmNames[ i ], label.c_str() );
 			i++;
 		}
+		// last value is for custom film plane size
+		filmNames[ i ] = ( const char * ) malloc( strlen( std::string( "Custom" ).c_str() ) + 1 );
+		strcpy( ( char * ) filmNames[ i ], std::string( "Custom" ).c_str() );
 
 		// same for lenses
 		lensNames = ( const char ** ) malloc( lensSystems.size() * sizeof( const char * ) );
