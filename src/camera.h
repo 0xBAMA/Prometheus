@@ -129,7 +129,7 @@ public:
 			interfaceDescription(-337.536f, 150.110f, 139.0f)
 		};
 
-		lensSystems[ " Krietzer USP 4,333,714" ] = {
+		lensSystems[ "Krietzer USP 4,333,714" ] = {
 			interfaceDescription( 608.639f, 9.176f, 39.3f, 1.564f, 60.8f ),
 			interfaceDescription( -903.196f, 0.714f, 39.3f ),
 			interfaceDescription( 165.547f, 7.141f, 36.8f, 1.697f, 55.5f ),

@@ -27,16 +27,31 @@ void main () {
 
 	vec2 jitter = rFloatN2() / 512.0f;
 
-	if ( points[ gl_VertexIndex ].z == -1.0f ) {
-		color = vec3( 0.618f );
-	} else if ( points[ gl_VertexIndex ].z == -2.0f ) {
-		color = vec3( 1.0f );
-	} else {
-		color = vec3( sin( points[ gl_VertexIndex ].z - 0.95f ) / 2.0f + 0.5f, cos( points[ gl_VertexIndex ].z + 0.9f ) / 2.0f + 0.5f, sin( points[ gl_VertexIndex ].z + 0.5f ) / 2.0f + 0.5f );
-	}
-
 	gl_Position = vec4(
 		remap( -points[ gl_VertexIndex ].x, 0.1f * maxDim, -1.1 * maxDim, -1.0f, 1.0f ) + jitter.x,
 		remap( points[ gl_VertexIndex ].y, 0.6f * maxDim, -0.6f * maxDim, -1.0f, 1.0f ) + jitter.y,
 		0.5f, 1.0f );
+
+	if ( points[ gl_VertexIndex ].z == -1.0f ) {
+
+		// this is a segment associated with the edges of the lenses
+		color = vec3( 0.618f );
+
+	} else if ( points[ gl_VertexIndex ].z == -2.0f ) {
+
+		// this is a line associated with the film plane
+		color = vec3( 1.0f );
+
+		// I'm going to hijack this case to resize the drawn film plane without rewriting the memory for the segments
+		float pos = 0.0f;
+		if ( points[ gl_VertexIndex ].y > 0.0f ) {
+			pos = lens.params.filmSize.y / 2.0f;
+		} else {
+			pos = -lens.params.filmSize.y / 2.0f;
+		}
+		gl_Position.y = remap( pos, 0.6f * maxDim, -0.6f * maxDim, -1.0f, 1.0f ) + jitter.y;
+
+	} else {
+		color = vec3( sin( points[ gl_VertexIndex ].z - 0.95f ) / 2.0f + 0.5f, cos( points[ gl_VertexIndex ].z + 0.9f ) / 2.0f + 0.5f, sin( points[ gl_VertexIndex ].z + 0.5f ) / 2.0f + 0.5f );
+	}
 }

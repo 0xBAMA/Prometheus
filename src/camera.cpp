@@ -17,6 +17,7 @@ void lensSystem::loadSystem ( const std::vector< interfaceDescription >& element
 	lensParameters.numElements = elementsSrc.size();
 
 	lensParameters.maxSemiAperture = 0.0f;
+	lensParameters.totalSystemThickness = 0.0f;
 	for ( auto& element : elementsSrc ) {
 		lensParameters.maxSemiAperture = std::max( lensParameters.maxSemiAperture, element.semiAperture );
 		lensParameters.totalSystemThickness += element.thickness;
@@ -150,14 +151,14 @@ void lensSystem::loadSystem ( const std::vector< interfaceDescription >& element
 	}
 
 	// drawing the film plane
-	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness, lensParameters.filmSize.y / 2.0f, -2.0f ) );
-	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness, -lensParameters.filmSize.y / 2.0f, -2.0f ) );
+	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness, 1.0f, -2.0f ) );
+	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness, -1.0f, -2.0f ) );
 
 	// with a couple little bits to emphasize dimensions
-	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness * 0.99f, lensParameters.filmSize.y / 2.0f, -2.0f ) );
-	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness * 1.01f, lensParameters.filmSize.y / 2.0f, -2.0f ) );
-	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness * 0.99f, -lensParameters.filmSize.y / 2.0f, -2.0f ) );
-	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness * 1.01f, -lensParameters.filmSize.y / 2.0f, -2.0f ) );
+	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness * 0.99f, 1.0f, -2.0f ) );
+	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness * 1.01f, 1.0f, -2.0f ) );
+	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness * 0.99f, -1.0f, -2.0f ) );
+	lensOutlines.push_back( vec3( lensParameters.totalSystemThickness * 1.01f, -1.0f, -2.0f ) );
 
 	fmt::print( "\nElement Codes: \n" );
 	for ( auto& el : elementCodes ) {
