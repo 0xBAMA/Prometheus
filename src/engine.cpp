@@ -379,16 +379,16 @@ void PrometheusInstance::MainLoop () {
 				if ( e.button.button == SDL_BUTTON_LEFT ) {
 					currentLensSystem.lensParameters.mouseReset = e.button.down ? 1 : 0;
 					if ( e.button.down ) {
-						currentLensSystem.lensParameters.mouseloc.x = ( e.button.x / swapchainExtent.width ) - 0.5f;
-						currentLensSystem.lensParameters.mouseloc.y = -( ( e.button.y / swapchainExtent.height ) - 0.5f );
+						currentLensSystem.lensParameters.mouseloc.x = std::clamp( ( e.button.x / swapchainExtent.width ) - 0.5f, -0.5f, 0.5f );
+						currentLensSystem.lensParameters.mouseloc.y = std::clamp( -( ( e.button.y / swapchainExtent.height ) - 0.5f ), -0.5f, 0.5f );
 					}
 				}
 			}
 			if ( e.type == SDL_EVENT_MOUSE_MOTION ) {
 				if ( e.motion.state & SDL_BUTTON_LEFT && ( abs( e.motion.yrel ) > 3 || abs( e.motion.xrel ) > 3 ) ) {
 					currentLensSystem.lensParameters.mouseReset = 1;
-					currentLensSystem.lensParameters.mouseloc.x = ( e.motion.x / swapchainExtent.width ) - 0.5f;
-					currentLensSystem.lensParameters.mouseloc.y = -( ( e.motion.y / swapchainExtent.height ) - 0.5f );
+					currentLensSystem.lensParameters.mouseloc.x = std::clamp( ( e.motion.x / swapchainExtent.width ) - 0.5f, -0.5f, 0.5f );
+					currentLensSystem.lensParameters.mouseloc.y = std::clamp( -( ( e.motion.y / swapchainExtent.height ) - 0.5f ), -0.5f, 0.5f );
 				}
 			}
 
