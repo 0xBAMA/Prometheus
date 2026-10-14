@@ -7,6 +7,8 @@ void lensSystem::clear () {
 	// reset the resources
 	lensOutlines.clear();
 	elementsSrc.clear();
+	lensParameters = GPULensDescription();
+	maxNegativeFocus = 0.0f;
 }
 
 void lensSystem::loadSystem ( const std::vector< interfaceDescription >& elementsSrc_in ) {

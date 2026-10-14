@@ -61,6 +61,7 @@ struct GPULensDescription {
 	// for interactive placement
 	glm::vec2 mouseloc = glm::vec2( 0.5f );
 	int mouseReset = 0;
+	int framesSinceReset = 0;
 
 	float rearElementSA = 0.0f;
 	float rearElementZ = 0.0f;

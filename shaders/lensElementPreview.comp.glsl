@@ -19,6 +19,15 @@ layout ( set = 0, binding = 2, scalar ) uniform lensParameters {
 //layout ( rgba16f, set = 0, binding = 3 ) uniform image2D outlineRasterResult;
 layout ( set = 0, binding = 4 ) uniform sampler2D lensRayAccumulator;
 //=============================================================================================================================
+vec4 alphaBlend ( vec4 a, vec4 b ) {
+	vec4 result = vec4( 0.0f );
+
+	result.a = a.a + b.a * ( 1.0f - a.a );
+	result.rgb = ( a.rgb * a.a + b.rgb * b.a * ( 1.0f - a.a ) ) / result.a;
+
+	return result;
+}
+//=============================================================================================================================
 void main () {
 	// initializing the RNG
 	ivec2 pixel = ivec2( gl_GlobalInvocationID.xy );
@@ -85,10 +94,17 @@ void main () {
 		colorContribution += texRead;
 	}
 	colorContribution /= numSamples;
+	colorContribution.a = sqrt( colorContribution.a );
 
-	vec4 raySample = texture( lensRayAccumulator, ( pixel + 0.5f ) / 512.0f );
-	colorContribution += 0.5f * raySample / raySample.a;
+	vec4 raySample = texture( lensRayAccumulator, ( pixel + 0.5f ) / 512.0f ) / ( 100.0f * max( lens.params.framesSinceReset, 1.0f ) );
+	raySample.a = 1.0f;
+
+//	colorContribution += 0.0001f * raySample;
 //	colorContribution.rgb /= colorContribution.a;
 //	colorContribution += imageLoad( outlineRasterResult, pixel ).rrrr;
+
+	// blending the preview over the ray sample
+	colorContribution = alphaBlend( colorContribution, raySample );
+
 	imageStore( image, pixel, colorContribution );
 }

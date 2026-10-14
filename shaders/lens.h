@@ -19,6 +19,7 @@ struct GPULensDescription {
 	// current mouse location
 	vec2 mouseloc;
 	int mouseReset;
+	int framesSinceReset;
 
 	// rear element sampling
 	float rearElementSA;

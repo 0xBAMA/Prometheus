@@ -267,7 +267,7 @@ void PrometheusInstance::Draw () {
 			// AdamCopy.invoke2( cmd );			// copy tally data
 			// AdamSweep.invoke2( cmd );			// propagate through mips
 			// AdamPresent.invoke2( cmd );			// sample Adam into the accumulator
-		} // I'd also like to support turning this off
+		} // I'd also like to support turning this off -> accumulator needs to be managed for RT
 	}
 
 #ifdef GAUSSIANSPLATS_ENABLE
@@ -361,6 +361,14 @@ void PrometheusInstance::MainLoop () {
 	bool quit = false;
 
 	while ( !quit ) {
+
+		// tracking a normalization term
+		currentLensSystem.lensParameters.framesSinceReset++;
+		if ( currentLensSystem.lensParameters.mouseReset != 0 ) {
+			currentLensSystem.lensParameters.framesSinceReset = 0;
+		}
+		currentLensSystem.lensParameters.mouseReset = 0;
+
 		// event handling loop
 		while ( SDL_PollEvent( &e ) ) {
 			ImGui_ImplSDL3_ProcessEvent( &e );
@@ -374,9 +382,8 @@ void PrometheusInstance::MainLoop () {
 			const bool caps			= ( k & SDL_KMOD_CAPS );
 			const bool super		= ( k & SDL_KMOD_GUI );
 
-			currentLensSystem.lensParameters.mouseReset = 0;
 			if ( e.type == SDL_EVENT_MOUSE_BUTTON_DOWN ) {
-				if ( e.button.button == SDL_BUTTON_LEFT ) {
+				if ( e.button.button == SDL_BUTTON_LEFT && !ImGui::GetIO().WantCaptureMouse ) {
 					currentLensSystem.lensParameters.mouseReset = e.button.down ? 1 : 0;
 					if ( e.button.down ) {
 						currentLensSystem.lensParameters.mouseloc.x = std::clamp( ( e.button.x / swapchainExtent.width ) - 0.5f, -0.5f, 0.5f );
@@ -385,7 +392,7 @@ void PrometheusInstance::MainLoop () {
 				}
 			}
 			if ( e.type == SDL_EVENT_MOUSE_MOTION ) {
-				if ( e.motion.state & SDL_BUTTON_LEFT && ( abs( e.motion.yrel ) > 3 || abs( e.motion.xrel ) > 3 ) ) {
+				if ( ( e.motion.state & SDL_BUTTON_LEFT ) && ( abs( e.motion.yrel ) > 3 || abs( e.motion.xrel ) > 3 ) && !ImGui::GetIO().WantCaptureMouse ) {
 					currentLensSystem.lensParameters.mouseReset = 1;
 					currentLensSystem.lensParameters.mouseloc.x = std::clamp( ( e.motion.x / swapchainExtent.width ) - 0.5f, -0.5f, 0.5f );
 					currentLensSystem.lensParameters.mouseloc.y = std::clamp( -( ( e.motion.y / swapchainExtent.height ) - 0.5f ), -0.5f, 0.5f );
@@ -637,7 +644,10 @@ void PrometheusInstance::MainLoop () {
 				if ( ImGui::Begin( "Edit", &open, ImGuiWindowFlags_NoNavInputs ) ) {
 
 					int w = ImGui::GetContentRegionAvail().x;
-					ImGui::VSliderFloat( "Focus Adjust", ImVec2( 32, w ), &currentLensSystem.lensParameters.focusAdjust, -0.3f * currentLensSystem.lensParameters.totalSystemThickness, currentLensSystem.maxNegativeFocus  );
+					ImGui::VSliderFloat( "Focus", ImVec2( 32, w ), &currentLensSystem.lensParameters.focusAdjust, -0.3f * currentLensSystem.lensParameters.totalSystemThickness, currentLensSystem.maxNegativeFocus );
+					if ( ImGui::IsItemEdited() ) {
+						currentLensSystem.lensParameters.mouseReset = 1;
+					}
 					ImGui::SameLine();
 					w = ImGui::GetContentRegionAvail().x;
 					ImGui::Image( LensTextureID, ImVec2( w, w ), { 0.0f, 0.0f }, { 1.0f, 1.0f } );
@@ -678,6 +688,9 @@ void PrometheusInstance::MainLoop () {
 						destroyBuffer( lensBuffer );
 						lensBuffer = createBuffer( sizeof( GPULensDescription ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Buffer" );
 						memcpy( lensBuffer.allocation->GetMappedData(), &currentLensSystem.lensParameters, sizeof( GPULensDescription ) );
+
+						// so we will draw the correct number of segments
+						numLinesLensOutline = currentLensSystem.lensOutlines.size();
 					}
 
 					// toggling the renderer mode
