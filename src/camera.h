@@ -563,6 +563,25 @@ public:
 		populateComboData();
 	}
 
+	void populateComboData() {
+		// prep strings for film sizing
+		filmNames = ( const char ** ) malloc( filmSizes.size() * sizeof( const char * ) );
+		int i = 0;
+		for ( auto& [ label, filmsize ] : filmSizes ) {
+			filmNames[ i ] = ( const char * ) malloc( strlen( label.c_str() ) + 1 );
+			strcpy( ( char * ) filmNames[ i ], label.c_str() );
+			i++;
+		}
+
+		// same for lenses
+		lensNames = ( const char ** ) malloc( lensSystems.size() * sizeof( const char * ) );
+		i = 0;
+		for ( auto& [ label, system ] : lensSystems ) {
+			lensNames[ i ] = ( const char * ) malloc( strlen( label.c_str() ) + 1 );
+			strcpy( ( char * ) lensNames[ i ], label.c_str() );
+			i++;
+		}
+	}
 
 	std::unordered_map< std::string, glm::vec2 > filmSizes;
 	std::unordered_map< std::string, std::vector< interfaceDescription > > lensSystems;

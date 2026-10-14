@@ -3,25 +3,18 @@
 using glm::vec3;
 using glm::vec2;
 
-lensSystem::lensSystem ( const std::vector< interfaceDescription >& elementsSrc_in ) {
-
-	// does the work to create the GPU data from this representation
-	loadSystem( elementsSrc );
-}
-
 void lensSystem::clear () {
 	// reset the resources
 	lensOutlines.clear();
 	elementsSrc.clear();
 }
 
-void lensSystem::loadSystem ( const std::vector< interfaceDescription >& elementsSrc_in ) {
+void lensSystem::loadSystem ( const std::vector< interfaceDescription >& elementsSrc_in, vec2 filmSize ) {
 	// caching the input list
 	elementsSrc = elementsSrc_in;
 
-	// placeholder, full frame
-	// lensParameters.filmSize = glm::vec2( 36.0f, 24.0f );
-	lensParameters.filmSize = glm::vec2( 36.0f, 24.0f );
+	// this doesn't seem like the best place for this
+	lensParameters.filmSize = filmSize;
 
 	// prepping some data for the lens system
 	lensParameters.numElements = elementsSrc.size();
