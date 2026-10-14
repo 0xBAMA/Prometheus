@@ -18,12 +18,17 @@ layout ( set = 0, binding = 3, scalar ) uniform lensParameters {
 //=============================================================================================================================
 void main () {
 	const ivec2 pixel = ivec2( gl_GlobalInvocationID.xy );
+	seed = PushConstants.wangSeed + pixel.x * 8675309 + pixel.y * 69420;
 
 	// load prior value from the accumulator
 	vec4 accumulatorValue = imageLoad( accumulator, pixel );
 
 	// load the value from the raster target
-	vec4 rasterValue = texture( lensRayRasterColorAttachment, vec2( pixel + 0.5f ) / 512.0f );
+	vec4 rasterValue = vec4( 0.0f );
+	const int sampleCount = 32;
+	for ( int i = 0; i < sampleCount; i++ ) {
+		rasterValue += texture( lensRayRasterColorAttachment, vec2( pixel + rFloatN2() ) / 512.0f ) / sampleCount;
+	}
 
 	// compute the sum
 	vec4 storeBack;
