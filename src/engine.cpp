@@ -643,7 +643,28 @@ void PrometheusInstance::MainLoop () {
 					static int lensPick = 0;
 
 					ImGui::Combo( "Film Size", &filmPick, lensDataManager.filmNames, lensDataManager.filmSizes.size() );
+					if ( ImGui::IsItemEdited() ) {
+						currentLensSystem.lensParameters.filmSize = lensDataManager.filmSizes[ string( lensDataManager.filmNames[ filmPick ] ) ];
+						currentLensSystem.lensParameters.mouseReset = 1;
+					}
+
 					ImGui::Combo( "Lens System", &lensPick, lensDataManager.lensNames, lensDataManager.lensSystems.size() );
+					if ( ImGui::IsItemEdited() ) {
+						currentLensSystem.clear();
+						currentLensSystem.loadSystem( lensDataManager.lensSystems[ string( lensDataManager.lensNames[ lensPick ] ) ] );
+						currentLensSystem.lensParameters.mouseReset = 1;
+
+						// upload new segment data
+						vkDeviceWaitIdle( device );
+
+						destroyBuffer( lensOutlineBuffer );
+						lensOutlineBuffer = createBuffer( sizeof( vec3 ) * currentLensSystem.lensOutlines.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Outline Buffer" );
+						memcpy( lensOutlineBuffer.allocation->GetMappedData(), currentLensSystem.lensOutlines.data(), sizeof( vec3 ) * currentLensSystem.lensOutlines.size() );
+
+						destroyBuffer( lensBuffer );
+						lensBuffer = createBuffer( sizeof( GPULensDescription ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Buffer" );
+						memcpy( lensBuffer.allocation->GetMappedData(), &currentLensSystem.lensParameters, sizeof( GPULensDescription ) );
+					}
 
 					// toggling the renderer mode
 					ImGui::Text( "Renderer mode" );
