@@ -9,12 +9,9 @@ void lensSystem::clear () {
 	elementsSrc.clear();
 }
 
-void lensSystem::loadSystem ( const std::vector< interfaceDescription >& elementsSrc_in, vec2 filmSize ) {
+void lensSystem::loadSystem ( const std::vector< interfaceDescription >& elementsSrc_in ) {
 	// caching the input list
 	elementsSrc = elementsSrc_in;
-
-	// this doesn't seem like the best place for this
-	lensParameters.filmSize = filmSize;
 
 	// prepping some data for the lens system
 	lensParameters.numElements = elementsSrc.size();

@@ -1091,9 +1091,9 @@ void PrometheusInstance::initResources () {
 	// for the lens system
 	lensOutlineDrawImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Outline Draw Image" );
 
-	// load the data for a lens
-	currentLensSystem.clear();
-	currentLensSystem.loadSystem(  lensDataManager.lensSystems[ "Kikuo Momiyam, USP 4437735, F/2 94deg Wide Angle #1" ], lensDataManager.filmSizes[ "Full Frame" ] );
+	// to jive with the initial state of the menu
+	currentLensSystem.loadSystem( lensDataManager.lensSystems[ string( lensDataManager.lensNames[ 0 ] ) ] );
+	currentLensSystem.lensParameters.filmSize = lensDataManager.filmSizes[ string( lensDataManager.filmNames[ 0 ] ) ];
 
 	numLinesLensOutline = currentLensSystem.lensOutlines.size();
 
@@ -1101,7 +1101,7 @@ void PrometheusInstance::initResources () {
 	memcpy( lensOutlineBuffer.allocation->GetMappedData(), currentLensSystem.lensOutlines.data(), sizeof( vec3 ) * currentLensSystem.lensOutlines.size() );
 
 	lensBuffer = createBuffer( sizeof( GPULensDescription ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Buffer" );
-	memcpy( lensBuffer.allocation->GetMappedData(), &currentLensSystem.lensParameters, sizeof( GPULensDescription ) );;
+	memcpy( lensBuffer.allocation->GetMappedData(), &currentLensSystem.lensParameters, sizeof( GPULensDescription ) );
 
 	// setup for the lens preview stuff
 		// will need to add the raster + accumulate stuff, too

@@ -67,7 +67,7 @@ struct GPULensDescription {
 
 	float totalSystemThickness = 0.0f; // this also includes the focus offset
 	float numElements = 0.0f;
-	glm::vec2 filmSize{ 0.0f, 0.0f };
+	glm::vec2 filmSize{ 36.0f, 24.0f }; // just going to default to full frame for now
 	float maxSemiAperture = 0.0f;
 
 	// establishing a maximum number of lens elements which can be part of a lens system
@@ -595,7 +595,7 @@ public:
 	lensSystem() {};
 
 	void clear();
-	void loadSystem( const std::vector< interfaceDescription > &elementsSrc_in, glm::vec2 filmSize );
+	void loadSystem( const std::vector< interfaceDescription > &elementsSrc_in );
 
 	// storage is used to create the buffers:
 		// outline segments
