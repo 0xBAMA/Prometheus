@@ -80,7 +80,7 @@ void main () {
 			}
 		}
 		vec4 texRead = texture( outlineRasterResult, ( gl_GlobalInvocationID.xy + jitter ) / 512.0f ).rgba;
-		texRead.a = saturate( texRead.a / 2.0f );
+//		texRead.a = saturate( texRead.a / 2.0f );
 		texRead.rgb /= 256;
 		colorContribution += texRead;
 	}

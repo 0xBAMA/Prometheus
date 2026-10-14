@@ -28,8 +28,7 @@ void main () {
 	color = wl_rgb( wavelength );
 
 	// placing the path segment -> look at the corresponding point in the buffer
-	const int pathSegmentOffset = 2 * segmentID + gl_VertexIndex;
-	const vec2 myLoc = scratch.pathSegments[ pathSegmentOffset ];
+	const vec2 myLoc = scratch.pathSegments[ segmentID ];
 
 	// points are coming in, in an arbitrary lens space - we have the parameterization which describes that space:
 	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness );
