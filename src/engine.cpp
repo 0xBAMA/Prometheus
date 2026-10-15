@@ -1726,7 +1726,7 @@ void PrometheusInstance::initComputePasses () {
 
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdSetLineWidth( cmd, 1.618f );
-			vkCmdDraw( cmd, numLinesLensOutline * 2, 256, 0, 0 );
+			vkCmdDraw( cmd, numLinesLensOutline * 2, 512, 0, 0 );
 		};
 
 		config.imageBarriers.push_back( makeImageBarrier( lensOutlineDrawImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT , VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ) );
