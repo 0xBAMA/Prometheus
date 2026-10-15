@@ -173,37 +173,43 @@ void PrometheusInstance::Draw () {
 	timerManager->pool = &getCurrentFrame().queryPools;
 	timerManager->reset();
 
-	// put the core images into a general format
-	vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_imageD( cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_imageD( cmd, mapDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, lensOutlineDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, lensRayColorAttachment.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, lensRayColorAccumulator.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	static bool firstTime = true;
+	if ( firstTime ) {
+		firstTime = false;
+		// put the core images into a general format
+		vkutil::transition_image( cmd, Accumulator.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_imageD( cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, mapDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_imageD( cmd, mapDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, lensOutlineDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, lensRayColorAttachment.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, lensRayColorAccumulator.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
-#ifdef GAUSSIANSPLATS_ENABLE
-	vkutil::transition_image( cmd, splatDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_imageD( cmd, splatDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-#endif
+	#ifdef GAUSSIANSPLATS_ENABLE
+		vkutil::transition_image( cmd, splatDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_imageD( cmd, splatDepthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	#endif
 
-	vkutil::transition_image( cmd, font_codepage437.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, font_fatfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, font_tinyfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, font_codepage437.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, font_fatfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, font_tinyfont.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
-	vkutil::transition_image( cmd, lensPreviewImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, PreviewAtlas.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, PickISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, SpectrumISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, SpectrumPDFImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, jakobLUTImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, lensPreviewImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, PreviewAtlas.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, PickISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, SpectrumISImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, SpectrumPDFImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, jakobLUTImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
-	vkutil::transition_image( cmd, AdamColorTallyR.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, AdamColorTallyG.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, AdamColorTallyB.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, AdamCountTally.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
-	vkutil::transition_image( cmd, AdamOutputTex.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, AdamColorTallyR.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, AdamColorTallyG.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, AdamColorTallyB.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, AdamCountTally.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, AdamOutputTex.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+	} else {
+		vkutil::transition_image( cmd, drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL );
+	}
 
 	{ // this piece only needs to run once when lens parameters change
 		scopedTimer start( "Lens Ray Draw" );
