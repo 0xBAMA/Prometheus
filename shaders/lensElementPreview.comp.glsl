@@ -37,7 +37,7 @@ void main () {
 		// the extents of the image are determined by the maximum of the horizontal and vertical extents
 	float maxDim = max( 2.0f * lens.params.maxSemiAperture, lens.params.totalSystemThickness - lens.params.focusAdjust );
 
-	const int numSamples = 1024;
+	const int numSamples = 16;
 	vec4 colorContribution = vec4( 0.0f );
 	for ( int i = 0; i < numSamples; i++ ) {
 		vec2 jitter = rnd_disc_cauchy();
@@ -88,14 +88,15 @@ void main () {
 				colorContribution += 0.5f * vec4( vec3( sin( iClosest - 0.95f ) / 2.0f + 0.5f, cos( iClosest + 0.9f ) / 2.0f + 0.5f, sin( iClosest + 0.5f ) / 2.0f + 0.5f ), 0.5 );
 			}
 		}
-		vec4 texRead = texture( outlineRasterResult, ( gl_GlobalInvocationID.xy + jitter ) / 512.0f ).rgba;
+		vec4 texRead = texture( outlineRasterResult, ( gl_GlobalInvocationID.xy + jitter ) / 512.0f ).rgba / 256.0f;
+		texRead.a *= 256.0f;
 //		texRead.a = 512.0f * smoothstep( texRead.a, 0.0f, 128.0f );
 
-		texRead.rgb /= 512.0f;
+//		texRead.rgb /= 512.0f;
 		colorContribution += texRead;
 	}
 	colorContribution /= numSamples;
-	colorContribution.a = smoothstep( 0.0f, 1.0f, colorContribution.a );
+//	colorContribution.a = smoothstep( 0.0f, 1.0f, colorContribution.a );
 
 	vec4 raySample = texture( lensRayAccumulator, ( pixel + 0.5f ) / 512.0f ) / ( 100.0f * max( lens.params.framesSinceReset, 1.0f ) );
 	raySample.a = 1.0f;

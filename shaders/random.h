@@ -21,6 +21,9 @@ uint PCGHash() {
 	return (word >> 22u) ^ word;
 }
 
+vec2 getWeylOffset ( int sampleNumber ) {
+	return fract( float( sampleNumber ) * vec2( 0.754877669f, 0.569840296f ) );
+}
 /*
 uvec3 pcg3d ( uvec3 v ) {
 	v = v * 1664525u + 1013904223u;
@@ -102,6 +105,9 @@ vec2 randCircle ( float rand1, float rand2 ) {
 	float u = 2.0 * pi * rand1;  // θ
 	float v = sqrt( rand2 );  // r
 	return v * vec2( cos( u ), sin( u ) );
+}
+vec2 randCircle ( vec2 rng ) {
+	return randCircle( rng.x, rng.y );
 }
 
 vec2 CircleOffset () {
