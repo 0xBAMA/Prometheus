@@ -275,6 +275,9 @@ public:
 	const uint32_t lensRaysPerFrame = 2048;
 	// glm::ivec2 lensSourcePoint = glm::ivec2( 0 );
 
+	// for the work to establish the pupil bounds
+	AllocatedBuffer lensPupilSampleLUT;
+
 	lensData lensDataManager;
 	lensSystem currentLensSystem;
 

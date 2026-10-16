@@ -1167,6 +1167,9 @@ void PrometheusInstance::initResources () {
 	lensRayColorAccumulator = createImage( { 512, 512, 1 }, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT, "Lens Ray Segment Color Accumulator" );
 	lensRaySegmentBuffer = createBuffer( ( sizeof( vec2 ) * 128 + sizeof( float ) ) * lensRaysPerFrame, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Ray Segment Scratch Buffer" );
 
+	// for rendering, we need to establish good bounds for sampling the pupil within the rear element space
+	lensPupilSampleLUT = createBuffer( 4 * 1024 * sizeof( float ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Pupil Sampling LUT" );
+
 	// make sure to clean up at the end
 	mainDeletionQueue.push_function([ & ] () {
 		// destroying buffers
@@ -1803,6 +1806,10 @@ void PrometheusInstance::initComputePasses () {
 			// for the lens system
 			{ 2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( lensBuffer.buffer ); } },
+
+			// for the pupil sampling LUT
+			{ 3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensPupilSampleLUT.buffer ); } },
 
 		};
 
