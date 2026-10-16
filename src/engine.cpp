@@ -212,6 +212,11 @@ void PrometheusInstance::Draw () {
 	}
 
 	{ // this piece only needs to run once when lens parameters change
+		scopedTimer start( "Pupil Precompute" );
+		pipelineManager.getPipeline( "Pupil LUT Precompute" )->invoke2( cmd );
+	}
+
+	{ // this piece only needs to run once when lens parameters change
 		scopedTimer start( "Lens Ray Draw" );
 		pipelineManager.getPipeline( "Lens Ray Sampling" )->invoke2( cmd );
 		pipelineManager.getPipeline( "Lens Ray Raster" )->invoke2( cmd );
@@ -1735,7 +1740,7 @@ void PrometheusInstance::initComputePasses () {
 
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			vkCmdSetLineWidth( cmd, 1.618f );
-			vkCmdDraw( cmd, numLinesLensOutline * 2, 512, 0, 0 );
+			vkCmdDraw( cmd, numLinesLensOutline * 2, 256, 0, 0 );
 		};
 
 		config.imageBarriers.push_back( makeImageBarrier( lensOutlineDrawImage.image, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_WRITE_BIT , VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ) );
@@ -1784,6 +1789,47 @@ void PrometheusInstance::initComputePasses () {
 			int w = 512;
 			int h = 512;
 			vkCmdDispatch( cmd, w / 16, h / 16, 1 );
+		};
+
+		pipelineManager.addPipeline( config );
+	}
+
+	// this pass establishes the sampling parameters for the main draw shader -> min and max extents in the normalized rear element space
+	{
+		ComputeConfig config;
+		config.name = "Pupil LUT Precompute";
+
+		config.descriptorSetLayout = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
+			[ & ] () { return Resource( GlobalUBO.buffer ); } },
+
+			// for the lens system
+			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensBuffer.buffer ); } },
+
+			// establishes sampling bounds for the rays which make it through the lens -> 4096 floats, 4 per LUT entry
+			{ 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensPupilSampleLUT.buffer ); } },
+		};
+
+		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
+			return getCurrentFrame().frameDescriptors.allocate( device, dsl );
+		};
+
+		config.updatePushConstants = [&]( VkCommandBuffer cmd ) {
+			ComputeEffect *pipe = pipelineManager.getPipeline( "Pupil LUT Precompute" );
+			pipe->pushConstants.wangSeed = genWangSeed();
+			vkCmdPushConstants( cmd, pipe->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( PushConstants ), &pipe->pushConstants );
+		};
+
+		config.bufferMemoryBarriers = {
+			makeBufferBarrier( lensPupilSampleLUT.buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT )
+		};
+
+		config.shaderPath = "../shaders/precomputePupilLUT.comp.glsl";
+		config.dispatch = [&]( VkCommandBuffer cmd ) {
+			// group size is ( 256, 1, 1 ), resolving a 1024 entry table
+			vkCmdDispatch( cmd, 4, 1, 1 );
 		};
 
 		pipelineManager.addPipeline( config );

@@ -18,17 +18,22 @@ layout ( set = 0, binding = 2, scalar ) buffer lensSegmentScratch {
 	vec2 pathSegmentPoints[ 2048 * 128 ];
 } scratch;
 //=============================================================================================================================
+void wipeBuffer () {
+	int index = int( gl_GlobalInvocationID.x );
+	// initially fill this portion of the buffer with invalid segment data
+	for ( int i = 0; i < 64; i++ ) { // any data not touched later in the shader will retain this, and not generate valid path segments
+		scratch.pathSegmentPoints[ 128 * index + 2 * i ] = vec2( 1e9f );
+		scratch.pathSegmentPoints[ 128 * index + 2 * i + 1 ] = vec2( 1e9f );
+	}
+}
+//=============================================================================================================================
 void main () {
 	seed = gl_GlobalInvocationID.x * 8675309 + PushConstants.wangSeed;
 
 	int index = int( gl_GlobalInvocationID.x );
 	float wavelength = scratch.wavelengths[ index ] = remap( rFloat(), 0.0f, 1.0f, 380.0f, 830.0f );
 
-	// initially fill this portion of the buffer with invalid segment data
-	for ( int i = 0; i < 64; i++ ) { // any data not touched later in the shader will retain this, and not generate valid path segments
-		scratch.pathSegmentPoints[ 128 * index + 2 * i ] = vec2( 1e9f );
-		scratch.pathSegmentPoints[ 128 * index + 2 * i + 1 ] = vec2( 1e9f );
-	}
+	wipeBuffer();
 
 	// attempting to shoot a stochastically sampled ray through the lens - our ray starts between two points:
 		// a specified point on the film plane
@@ -69,7 +74,8 @@ void main () {
 		}
 
 		if ( !( t < 1e9f && t > 0.0f ) ) {
-			// no intersection found
+			// no intersection found, don't draw anything
+//			wipeBuffer(); // ends up too dim
 			return;
 		} else {
 			// draw a segment
