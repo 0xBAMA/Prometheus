@@ -269,7 +269,7 @@ void PrometheusInstance::Draw () {
 			break;
 		}
 
-		const bool adamEnable = false;
+		const bool adamEnable = ( renderMode != 0 );
 		if ( adamEnable ) { // testing Adam
 			scopedTimer start( "Adam Test" );
 
