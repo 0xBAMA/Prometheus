@@ -213,7 +213,9 @@ void PrometheusInstance::Draw () {
 
 	{ // this piece only needs to run once when lens parameters change
 		scopedTimer start( "Pupil Precompute" );
-		pipelineManager.getPipeline( "Pupil LUT Precompute" )->invoke2( cmd );
+		if ( currentLensSystem.lensParameters.mouseReset != 0 ) {
+			pipelineManager.getPipeline( "Pupil LUT Precompute" )->invoke2( cmd );
+		}
 	}
 
 	{ // this piece only needs to run once when lens parameters change
