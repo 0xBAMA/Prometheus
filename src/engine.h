@@ -277,6 +277,8 @@ public:
 
 	// for the work to establish the pupil bounds
 	AllocatedBuffer lensPupilSampleLUT;
+	bool invertYAxis = true;
+	bool invertXAxis = true;
 
 	lensData lensDataManager;
 	lensSystem currentLensSystem;

@@ -533,22 +533,22 @@ void PrometheusInstance::MainLoop () {
 				// quaternion based rotation via retained state in the basis vectors
 				const float scalar = shift ? 0.1f : ( control ? 0.0005f : 0.02f );
 				if ( kb[ SDL_SCANCODE_W ] ) {
-					glm::quat rot = glm::angleAxis( scalar, basisX ); // basisX is the axis, therefore remains untransformed
+					glm::quat rot = glm::angleAxis( invertYAxis ? -scalar : scalar, basisX ); // basisX is the axis, therefore remains untransformed
 					basisY = ( rot * vec4( basisY, 0.0f ) ).xyz();
 					basisZ = ( rot * vec4( basisZ, 0.0f ) ).xyz();
 				}
 				if ( kb[ SDL_SCANCODE_S ] ) {
-					glm::quat rot = glm::angleAxis( -scalar, basisX );
+					glm::quat rot = glm::angleAxis( invertYAxis ? scalar : -scalar, basisX );
 					basisY = ( rot * vec4( basisY, 0.0f ) ).xyz();
 					basisZ = ( rot * vec4( basisZ, 0.0f ) ).xyz();
 				}
 				if ( kb[ SDL_SCANCODE_A ] ) {
-					glm::quat rot = glm::angleAxis( -scalar, basisY ); // same as above, but basisY is the axis
+					glm::quat rot = glm::angleAxis( invertXAxis ? scalar : -scalar, basisY ); // same as above, but basisY is the axis
 					basisX = ( rot * vec4( basisX, 0.0f ) ).xyz();
 					basisZ = ( rot * vec4( basisZ, 0.0f ) ).xyz();
 				}
 				if ( kb[ SDL_SCANCODE_D ] ) {
-					glm::quat rot = glm::angleAxis( scalar, basisY );
+					glm::quat rot = glm::angleAxis( invertXAxis ? -scalar : scalar, basisY );
 					basisX = ( rot * vec4( basisX, 0.0f ) ).xyz();
 					basisZ = ( rot * vec4( basisZ, 0.0f ) ).xyz();
 				}
@@ -580,10 +580,10 @@ void PrometheusInstance::MainLoop () {
 				}
 				if ( kb[ SDL_SCANCODE_UP ] )		viewerPosition += 10.0f * scalar * basisZ;
 				if ( kb[ SDL_SCANCODE_DOWN ] )		viewerPosition -= 10.0f * scalar * basisZ;
-				if ( kb[ SDL_SCANCODE_RIGHT ] )		viewerPosition += 10.0f * scalar * basisX;
-				if ( kb[ SDL_SCANCODE_LEFT ] )		viewerPosition -= 10.0f * scalar * basisX;
-				if ( kb[ SDL_SCANCODE_PAGEDOWN ] )	viewerPosition += 10.0f * scalar * basisY;
-				if ( kb[ SDL_SCANCODE_PAGEUP ] )	viewerPosition -= 10.0f * scalar * basisY;
+				if ( kb[ SDL_SCANCODE_RIGHT ] )		viewerPosition += 10.0f * scalar * ( invertXAxis ? -1.0f : 1.0f ) * basisX;
+				if ( kb[ SDL_SCANCODE_LEFT ] )		viewerPosition -= 10.0f * scalar * ( invertXAxis ? -1.0f : 1.0f ) * basisX;
+				if ( kb[ SDL_SCANCODE_PAGEDOWN ] )	viewerPosition += 10.0f * scalar * ( invertYAxis ? -1.0f : 1.0f ) * basisY;
+				if ( kb[ SDL_SCANCODE_PAGEUP ] )	viewerPosition -= 10.0f * scalar * ( invertYAxis ? -1.0f : 1.0f ) * basisY;
 			}
 		}
 
@@ -662,6 +662,8 @@ void PrometheusInstance::MainLoop () {
 					ImGui::SameLine();
 					w = ImGui::GetContentRegionAvail().x;
 					ImGui::Image( LensTextureID, ImVec2( w, w ), { 0.0f, 0.0f }, { 1.0f, 1.0f } );
+					ImGui::Checkbox( "Invert Y Axis", &invertYAxis );
+					ImGui::Checkbox( "Invert X Axis", &invertXAxis );
 
 					static int filmPick = 0;
 					static int lensPick = 0;
