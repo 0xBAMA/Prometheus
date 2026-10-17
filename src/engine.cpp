@@ -185,6 +185,7 @@ void PrometheusInstance::Draw () {
 		vkutil::transition_image( cmd, lensOutlineDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 		vkutil::transition_image( cmd, lensRayColorAttachment.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 		vkutil::transition_image( cmd, lensRayColorAccumulator.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
+		vkutil::transition_image( cmd, ISO12233TargetImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
 
 	#ifdef GAUSSIANSPLATS_ENABLE
 		vkutil::transition_image( cmd, splatDrawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL );
@@ -1156,7 +1157,7 @@ void PrometheusInstance::initResources () {
 
 	// to jive with the initial state of the menu
 	currentLensSystem.loadSystem( lensDataManager.lensSystems[ string( lensDataManager.lensNames[ 0 ] ) ] );
-	currentLensSystem.lensParameters.filmSize = lensDataManager.filmSizes[ string( lensDataManager.filmNames[ 0 ] ) ];
+	// currentLensSystem.lensParameters.filmSize = lensDataManager.filmSizes[ string( lensDataManager.filmNames[ 0 ] ) ];
 
 	numLinesLensOutline = currentLensSystem.lensOutlines.size();
 
@@ -1169,6 +1170,11 @@ void PrometheusInstance::initResources () {
 	// setup for the lens preview stuff
 		// will need to add the raster + accumulate stuff, too
 	lensPreviewImage = createImage( { 512, 512, 1 }, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "Lens Preview Image" );
+
+	int32_t x, y, n;
+	unsigned char *data = stbi_load( "../ISO-12233-test-chart.png", &x, &y, &n, 1 );
+	ISO12233TargetImage = createImage( data, { 8192, 8192, 1 }, VK_FORMAT_R8_SRGB, VK_IMAGE_USAGE_2_SAMPLED_BIT_KHR, 1, "ISO 12233 Test Chart" );
+	stbi_image_free( data );
 
 	// for the illustration of the pupil sampling
 
@@ -1860,6 +1866,10 @@ void PrometheusInstance::initComputePasses () {
 			// for the pupil sampling LUT
 			{ 3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( lensPupilSampleLUT.buffer ); } },
+
+			// cheap test pattern
+			{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, defaultSamplerLinear,
+				[ & ] () { return Resource( ISO12233TargetImage.imageView[ 0 ] ); } },
 
 		};
 
