@@ -204,6 +204,9 @@ void lensSystem::loadSystem ( const std::vector< interfaceDescription >& element
 		interface.backCauchyA = idxAbbePrev.x;
 		interface.backCauchyB = idxAbbePrev.y;
 
+		// trying to flag the aperture
+		interface.interfaceCode = elementCodes[ i ];
+
 		// fmt::print( "Back index:{}, abbe:{}, Front index:{}, abbe:{} becomes: {}, {}\n", idxPrev, abbePrev, idxNext, abbeNext, interface.materialFront, interface.materialBack );
 
 		// vec2 matFront = glm::unpackHalf2x16( glm::floatBitsToUint( interface.materialFront ) );

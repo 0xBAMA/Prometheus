@@ -14,7 +14,7 @@ layout ( set = 0, binding = 1, scalar ) uniform lensParameters {
 } lens;
 //=============================================================================================================================
 layout( set = 0, binding = 2, scalar ) buffer pupilBounds {
-	vec4 bounds[ 1024 ];
+	vec4 bounds[ 4096 ];
 } pupilLUT;
 //=============================================================================================================================
 void main () {
@@ -23,20 +23,19 @@ void main () {
 	seed = idx * 8675309 + PushConstants.wangSeed;
 
 	// so this invocation is handling a ray which starts at some position along the Y axis, based on the current value of idx, the invocation ID
-	vec3 sourcePoint = vec3( 0.0f, remap( idx, 0.0f, 1023.0f, 0.0f, length( lens.params.filmSize.xy / 2.0f ) ), -lens.params.totalSystemThickness + lens.params.focusAdjust );
+	vec3 sourcePoint = vec3( 0.0f, remap( idx, 0.0f, 4095.0f, 0.0f, length( lens.params.filmSize.xy / 2.0f ) ), -lens.params.totalSystemThickness + lens.params.focusAdjust );
 
 	// initializing the bounds tracking
 	float minSampleX = 1.0f, maxSampleX = -1.0f;
 	float minSampleY = 1.0f, maxSampleY = -1.0f;
 
-	for ( int i = 0; i < 512; i++ ) {
-		// vec2 rearElementSpaceSamplePos = randCircle( getWeylOffset( i ) );
-		vec2 rearElementSpaceSamplePos = getWeylOffset( i ) * 2.0f - 1.0f;
-		float wavelength = remap( rFloat(), 0.0f, 1.0f, 380.0f, 830.0f );
+	for ( int i = 0; i < 64000; i++ ) {
+		 vec2 rearElementSpaceSamplePos = randCircle( getWeylOffset( i ) );
+		float wavelength = remap( rFloat(), 0.0f, 1.0f, 400.0f, 700.0f );
 
 		// create a ray from this invocation's sampling point, to the specified point
-		vec3 rayOrigin = sourcePoint;
 		vec3 rayDirection = normalize( vec3( rearElementSpaceSamplePos * lens.params.rearElementSA, -lens.params.rearElementZ ) - sourcePoint );
+		vec3 rayOrigin = sourcePoint;
 
 		// trace the specified ray through the system
 		int j = 0;
@@ -47,6 +46,7 @@ void main () {
 			float cosTerm = lens.params.elements[ j ].cosTerm;
 			vec2 materialBack = vec2( lens.params.elements[ j ].backCauchyA, lens.params.elements[ j ].backCauchyB );
 			vec2 materialFront = vec2( lens.params.elements[ j ].frontCauchyA, lens.params.elements[ j ].frontCauchyB );
+			int interfaceCode = lens.params.elements[ j ].interfaceCode;
 
 			vec3 normal = vec3( 0.0f );
 			float t = 0.0f;
@@ -54,7 +54,9 @@ void main () {
 				// using planar intersection
 				const vec3 planeNormal = vec3( 0.0f, 0.0f, -1.0f );
 				t = rayPlaneIntersect( planeNormal, vec3( 0.0f, 0.0f, axisPosition ), rayOrigin, rayDirection );
-				if ( length( ( rayOrigin + rayDirection * t ).xy ) < cosTerm ) { // reused memory for semiaperture
+
+				float semiaperture = interfaceCode == 0 ? cosTerm / lens.params.apertureAdjust : cosTerm;
+				if ( length( ( rayOrigin + rayDirection * t ).xy ) < semiaperture ) { // reused memory for semiaperture
 					normal = planeNormal;
 				} else {
 					t = 1e30f; // invalid hit, outside of aperture

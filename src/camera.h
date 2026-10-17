@@ -55,21 +55,28 @@ struct GPUInterfaceDescription {
 	float frontCauchyB;
 	float backCauchyA;
 	float backCauchyB;
+
+	int32_t interfaceCode = 0;
 };
 
 struct GPULensDescription {
 	// for interactive placement
 	glm::vec2 mouseloc = glm::vec2( 0.5f );
-	int mouseReset = 0;
+	int mouseReset = 1;
 	int framesSinceReset = 0;
+
+	float testPatternDistance = 10.0f;
+	float testPatternScaling = 1.0f;
 
 	float rearElementSA = 0.0f;
 	float rearElementZ = 0.0f;
 
 	float totalSystemThickness = 0.0f; // this also includes the focus offset
 	float numElements = 0.0f;
-	glm::vec2 filmSize{ 36.0f, 24.0f }; // just going to default to full frame for now
+	glm::vec2 filmSize{ 360.0f, 240.0f }; // just going to default to full frame for now
 	float maxSemiAperture = 0.0f;
+
+	float apertureAdjust = 1.0f;
 
 	float focusAdjust = 0.0f;
 

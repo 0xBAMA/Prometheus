@@ -663,10 +663,23 @@ void PrometheusInstance::MainLoop () {
 						currentLensSystem.lensParameters.mouseReset = 1;
 					}
 					ImGui::SameLine();
+					ImGui::VSliderFloat( "Aperture", ImVec2( 32, w ), &currentLensSystem.lensParameters.apertureAdjust, 1.0f, 32.0f );
+					if ( ImGui::IsItemEdited() ) {
+						currentLensSystem.lensParameters.mouseReset = 1;
+					}
+					ImGui::SameLine();
 					w = ImGui::GetContentRegionAvail().x;
 					ImGui::Image( LensTextureID, ImVec2( w, w ), { 0.0f, 0.0f }, { 1.0f, 1.0f } );
 					ImGui::Checkbox( "Invert Y Axis", &invertYAxis );
 					ImGui::Checkbox( "Invert X Axis", &invertXAxis );
+					ImGui::SliderFloat( "Test Pattern Distance", &currentLensSystem.lensParameters.testPatternDistance, 0.0001f, 1000.0f );
+					if ( ImGui::IsItemEdited() ) {
+						currentLensSystem.lensParameters.mouseReset = 1;
+					}
+					ImGui::SliderFloat( "Test Pattern Scaling", &currentLensSystem.lensParameters.testPatternScaling, 0.0001f, 10.0f );
+					if ( ImGui::IsItemEdited() ) {
+						currentLensSystem.lensParameters.mouseReset = 1;
+					}
 
 					static int filmPick = 0;
 					static int lensPick = 0;
@@ -1183,7 +1196,7 @@ void PrometheusInstance::initResources () {
 	lensRaySegmentBuffer = createBuffer( ( sizeof( vec2 ) * 128 + sizeof( float ) ) * lensRaysPerFrame, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Ray Segment Scratch Buffer" );
 
 	// for rendering, we need to establish good bounds for sampling the pupil within the rear element space
-	lensPupilSampleLUT = createBuffer( 4 * 1024 * sizeof( float ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Pupil Sampling LUT" );
+	lensPupilSampleLUT = createBuffer( 4 * 4096 * sizeof( float ), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO, "Lens Pupil Sampling LUT" );
 
 	// make sure to clean up at the end
 	mainDeletionQueue.push_function([ & ] () {
@@ -1811,7 +1824,7 @@ void PrometheusInstance::initComputePasses () {
 
 		config.descriptorSetLayout = {
 			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sizeof( GlobalData ), 0,
-			[ & ] () { return Resource( GlobalUBO.buffer ); } },
+				[ & ] () { return Resource( GlobalUBO.buffer ); } },
 
 			// for the lens system
 			{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
@@ -1836,10 +1849,10 @@ void PrometheusInstance::initComputePasses () {
 			makeBufferBarrier( lensPupilSampleLUT.buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT )
 		};
 
-		config.shaderPath = "../shaders/precomputePupilLUT.comp.glsl";
+	config.shaderPath = "../shaders/precomputePupilLUT.comp.glsl";
 		config.dispatch = [&]( VkCommandBuffer cmd ) {
 			// group size is ( 256, 1, 1 ), resolving a 1024 entry table
-			vkCmdDispatch( cmd, 4, 1, 1 );
+			vkCmdDispatch( cmd, 16, 1, 1 );
 		};
 
 		pipelineManager.addPipeline( config );
@@ -1933,6 +1946,10 @@ void PrometheusInstance::initComputePasses () {
 			// for the lens system
 			{ 11, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_WHOLE_SIZE, 0,
 				[ & ] () { return Resource( lensBuffer.buffer ); } },
+
+			// for the pupil sampling LUT
+			{ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_WHOLE_SIZE, 0,
+				[ & ] () { return Resource( lensPupilSampleLUT.buffer ); } },
 		};
 		config.allocateDescriptorSet = [&]( VkDescriptorSetLayout dsl ) {
 			return getCurrentFrame().frameDescriptors.allocate( device, dsl );

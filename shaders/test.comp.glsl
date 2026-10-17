@@ -51,6 +51,10 @@ layout ( set = 0, binding = 11, scalar ) uniform lensParameters {
 	GPULensDescription params;
 } lens;
 //=============================================================================================================================
+layout( set = 0, binding = 12, scalar ) buffer pupilBounds {
+	vec4 bounds[ 4096 ];
+} pupilLUT;
+//=============================================================================================================================
 struct ray_t {
 	vec3 origin;
 	vec3 direction;
@@ -451,30 +455,30 @@ float de( vec3 p ){
 //	}
 
 	{
-		float scalar = 6.18f;
-		float d = deTemple2( p / scalar ) * scalar;
-//		float d = deSmooth( p / scalar ) * scalar;
+		float scalar = 26.18f;
+//		float d = deTemple2( p / scalar ) * scalar;
+		float d = deSmooth( p / scalar ) * scalar;
 		sceneDist = min( max( d, dBounds ), sceneDist );
 		if ( sceneDist == d && d < GlobalData.epsilon ) {
-			 hitSurfaceType = ( rFloat() < 0.9f ) ? METALLIC : MIRROR;
-//			hitSurfaceType = MIRROR;
-			hitRoughness = 0.01f;
-//			 hitColor = ( 0.99f );
+//			 hitSurfaceType = ( rFloat() < 0.9f ) ? DIFFUSE : MIRROR;
+			hitSurfaceType = MIRROR;
+//			hitRoughness = 0.01f;
+			 hitColor = ( 0.99f );
 //			hitColor = sRGBtoReflectance( iron, wavelength );
-			hitColor = ( hitSurfaceType == MIRROR ) ? 0.99f : sRGBtoReflectance( titanium, wavelength );
+//			hitColor = ( hitSurfaceType == MIRROR ) ? 0.99f : sRGBtoReflectance( , wavelength );
 //			mix( tire, gold, noiseFBM( 0.1f * p + vec3( noise( 0.1f * p + vec3( 15.0f, 0.4f, 2.3f ) ), noise( 0.1f * p ), noise( 0.1f * p + vec3( 3.2f, 15.4f, 0.3f ) ) ) ) );
 		}
 	}
 
-//	{
-//		pMod1( p.y, 5.0f );
-//		float d = fBox( p - vec3( 0.0f, 0.0f, 5.0f ), vec3( 150.0f, 5.0f, 0.5f ) );
-//		sceneDist = min( d, sceneDist );
-//		if ( sceneDist == d && d < GlobalData.epsilon ) {
-//			hitSurfaceType = EMISSIVE;
-//			hitColor = vec3( 5.0f );
-//		}
-//	}
+	{
+		pMod1( p.y, 5.0f );
+		float d = fBox( p - vec3( 0.0f, 0.0f, 5.0f ), vec3( 150.0f, 1.0f, 0.5f ) );
+		sceneDist = min( d, sceneDist );
+		if ( sceneDist == d && d < GlobalData.epsilon ) {
+			hitSurfaceType = EMISSIVE;
+			hitColor = 5.0f;
+		}
+	}
 	return sceneDist;
 }
 
@@ -568,7 +572,7 @@ intersection_t deltaTrackSparse( ray_t ray ) {
 	intersection_t result = DefaultIntersection();
 	vec3 hitPos = ray.origin;
 	float tTotal = 0.0f;
-	float maxDensity = 0.25f;
+	float maxDensity = 0.1f;
 	float sd = -1.0f;
 
 	for ( int i = 0; i < 100; i++ ) {
@@ -605,9 +609,11 @@ intersection_t getSceneIntersection ( ray_t ray ) {
 	// I would like to add TinyBVH here + look into the BLAS/TLAS structure there for instancing
 
 	intersection_t SDFResult = raymarch( ray );
+//	intersection_t SDFResult = DefaultIntersection();
 	intersection_t DeltaDense = deltaTrack( ray );
 //	intersection_t DeltaDense = DefaultIntersection();
 	intersection_t DeltaSparse = deltaTrackSparse( ray );
+//	intersection_t DeltaSparse = DefaultIntersection();
 
 	intersection_t result = DefaultIntersection();
 	float minDistance = min( SDFResult.dTravel, min( DeltaDense.dTravel, DeltaSparse.dTravel ) );
@@ -635,14 +641,14 @@ void main () {
 
 //=============================================================================================================================
 	// initial imagespace position for camera + jitter
-	vec2 uv = ( ( vec2( pixel ) + rFloatN2() ) / ( GlobalData.presentBufferResolution ) ) * 2.0f - vec2( 1.0f );
+//	vec2 uv = ( ( vec2( pixel ) + rFloatN2() ) / ( GlobalData.presentBufferResolution ) ) * 2.0f - vec2( 1.0f );
 
 #define LENS
 //=============================================================================================================================
 	// uniformly sampling wavelength, to start...
 	// this should be based on the film sensitivity curves
 	// wavelength = mix( 380.0f, 830.0f, rFloat() );
-	wavelength = mix( 400.0f, 700.0f, rFloat() );
+//	wavelength = mix( 400.0f, 700.0f, rFloat() );
 
 
 	ray_t ray;
@@ -663,50 +669,90 @@ void main () {
 	ray.origin = GlobalData.viewerPosition;
 #else
 
-	// sampling the lens system
-	ray.origin = vec3( uv * lens.params.filmSize * 0.5f * GlobalData.FoV * 10.0f, -lens.params.totalSystemThickness );
-	// ray.direction = vec3( 0.0f, 0.0f, 1.0f ); // this will change for pupil sampling
-	ray.direction = cosWeightedRandomHemisphereDirection( vec3( 0.0f, 0.0f, 1.0f ) ); // this will change for pupil sampling
-	vec3 normal = vec3( 0.0f );
-	// for ( int i = 0; i < lens.params.numElements; i++ ) {
-	for ( int i = 0; i < 2; i++ ) {
-		float radius = lens.params.elements[ i ].radius;
-		float axisPosition = lens.params.elements[ i ].axisPos;
-		float cosTerm = lens.params.elements[ i ].cosTerm;
-//		vec2 materialBack = unpackHalf2x16( floatBitsToUint( lens.params.elements[ i ].materialBack ) );
-//		vec2 materialFront = unpackHalf2x16( floatBitsToUint( lens.params.elements[ i ].materialFront ) );
 
-		float t = 0.0f;
-		const vec3 planeNormal = vec3( 0.0f, 0.0f, -1.0f );
-		if ( radius == 0.0f ) {
-			// using planar intersection
-			t = rayPlaneIntersect( planeNormal, vec3( 0.0f, 0.0f, axisPosition ), ray.origin, ray.direction );
-			if ( length( ( ray.origin + ray.direction * t ).xy ) < cosTerm ) { // reused memory for semiaperture
-				normal = planeNormal;
+	vec2 filmLocation = lens.params.filmSize.xy * ( ( pixel + rFloatN2() ) / GlobalData.presentBufferResolution.xy - vec2( 0.5f ) );
+
+	int LUTentry = int( floor( remap( length( filmLocation ), 0.0f, length( lens.params.filmSize.xy / 2.0f ), 0.0f, 4096.0f ) ) );
+
+	vec2 basisY = ( LUTentry == 0 ) ? vec2( 0.0f, 1.0f ) : normalize( filmLocation ).xy;
+	vec2 basisX = vec2( basisY.y, -basisY.x );
+
+	float minSampleX = pupilLUT.bounds[ LUTentry ].x;
+	float maxSampleX = pupilLUT.bounds[ LUTentry ].y;
+	float minSampleY = pupilLUT.bounds[ LUTentry ].z;
+	float maxSampleY = pupilLUT.bounds[ LUTentry ].w;
+
+	wavelength = remap( rFloat(), 0.0f, 1.0f, 380.0f, 830.0f );
+
+	// this means you're inside the image circle, the aperture is visible
+	if ( minSampleX <= maxSampleX && minSampleY <= maxSampleY ) {
+
+		// generate a point in the sampling space, and calculate the corresponding ray
+		// vec2 samplePoint = getWeylOffset( GlobalData.frameNumber % 1024 );
+		vec2 samplePoint =
+		basisX * remap( rFloat(), 0.1f, 0.9f, minSampleX, maxSampleX ) +
+		basisY * remap( rFloat(), 0.1f, 0.9f, minSampleY, maxSampleY );
+
+		vec3 rayOrigin = vec3( filmLocation, -lens.params.totalSystemThickness + lens.params.focusAdjust );
+		vec3 rayDirection = normalize( vec3( samplePoint * lens.params.rearElementSA, -lens.params.rearElementZ ) - rayOrigin );
+
+		// trace the specified ray through the system
+		int j = 0;
+		for ( j = 0; j < lens.params.numElements; j++ ) {
+
+			float radius = lens.params.elements[ j ].radius;
+			float axisPosition = lens.params.elements[ j ].axisPos - radius;
+			float cosTerm = lens.params.elements[ j ].cosTerm;
+			vec2 materialBack = vec2( lens.params.elements[ j ].backCauchyA, lens.params.elements[ j ].backCauchyB );
+			vec2 materialFront = vec2( lens.params.elements[ j ].frontCauchyA, lens.params.elements[ j ].frontCauchyB );
+			int interfaceCode = lens.params.elements[ j ].interfaceCode;
+
+			vec3 normal = vec3( 0.0f );
+			float t = 0.0f;
+			if ( radius == 0.0f ) {
+				// using planar intersection
+				const vec3 planeNormal = vec3( 0.0f, 0.0f, -1.0f );
+				t = rayPlaneIntersect( planeNormal, vec3( 0.0f, 0.0f, axisPosition ), rayOrigin, rayDirection );
+				// reused memory for semiaperture
+				float semiaperture = interfaceCode == 0 ? cosTerm / lens.params.apertureAdjust : cosTerm;
+				if ( length( ( rayOrigin + rayDirection * t ).xy ) < semiaperture ) {
+					normal = planeNormal;
+				} else {
+					t = 1e30f;// invalid hit, outside of aperture
+				}
+			} else {
+				// spherical element is specified
+				t = sphereCapIntersect( vec3( 0.0f, 0.0f, axisPosition ), radius, vec3( 0.0f, 0.0f, ( radius < 0.0f ) ? -1.0f : 1.0f ), cosTerm, rayOrigin, rayDirection, normal );
 			}
-		} else {
-			// spherical element is specified
-			t = sphereCapIntersect( vec3( 0.0f, 0.0f, axisPosition ), radius, vec3( 0.0f, 0.0f, ( radius < 0.0f ) ? -1.0f : 1.0f ), cosTerm, ray.origin, ray.direction, normal );
+
+			if ( !( t < 1e9f && t > 0.0f ) ) {
+				// this ray has not found a valid intersection
+				break;
+			} else {
+				// continuing, prep for next iteration
+				rayOrigin = rayOrigin + t * rayDirection;
+				rayDirection = refract( rayDirection, normal, evaluateCauchy( materialBack.x, materialBack.y, wavelength ) / evaluateCauchy( materialFront.x, materialFront.y, wavelength ) );
+			}
 		}
 
-		// tbd, this is not correct at all
-//		ray.origin = ray.origin + ray.direction * t;
-//		ray.direction = refract( ray.direction, normal, evaluateCauchy( materialBack.x, materialBack.y, wavelength ) );
-
-		// failed refract, or failed intersection
-		if ( length( ray.direction ) == 0.0f || t < 0.0f ) {
-			// black sample
-//			imageAtomicAdd( cTally, pixel, 1 );
-
-			// and break
+		if ( j == lens.params.numElements ) {
+			// this ray passes
+			rayOrigin *= 0.01f;
+			ray.direction = normalize( rayDirection.x * GlobalData.basisX + rayDirection.y * GlobalData.basisY + rayDirection.z * GlobalData.basisZ );
+			ray.origin = rayOrigin.x * GlobalData.basisX + rayOrigin.y * GlobalData.basisY + rayOrigin.z * GlobalData.basisZ + GlobalData.viewerPosition + 0.1f * rFloat() * ray.direction;
+//			break;
+			// wavelength is set
+		} else {
+			// ray fails, tbd
+			imageAtomicAdd( cTally, pixel, 1 );
 			return;
 		}
+	} else {
+		imageAtomicAdd( cTally, pixel, 1 );
+		return;
 	}
 
-	// tbd the position will likely be considered
-	// ray.origin = ray.origin.x * GlobalData.basisX + ray.origin.y * GlobalData.basisY + ray.origin.z * GlobalData.basisZ + GlobalData.viewerPosition;
-	ray.origin = GlobalData.viewerPosition;
-	ray.direction = normalize( ray.direction.x * GlobalData.basisX + ray.direction.y * GlobalData.basisY + ray.direction.z * GlobalData.basisZ );
+
 #endif
 
 //	ray.origin = GlobalData.FoV * ( aspectRatio * uv.x * GlobalData.basisX + uv.y * GlobalData.basisY ) + GlobalData.viewerPosition;

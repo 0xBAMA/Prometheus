@@ -8,6 +8,7 @@ struct GPUInterfaceDescription {
 	float frontCauchyB;
 	float backCauchyA;
 	float backCauchyB;
+	int interfaceCode;
 };
 
 const float lensMaxDistance = 1e30f;
@@ -21,6 +22,10 @@ struct GPULensDescription {
 	int mouseReset;
 	int framesSinceReset;
 
+	// scaling + positioning of the test pattern
+	float testPatternDistance;
+	float testPatternScaling;
+
 	// rear element sampling
 	float rearElementSA;
 	float rearElementZ;
@@ -29,6 +34,8 @@ struct GPULensDescription {
 	float numElements;
 	vec2 filmSize;
 	float maxSemiAperture;
+
+	float apertureAdjust;
 
 	float focusAdjust;
 
